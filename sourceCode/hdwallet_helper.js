@@ -21,6 +21,8 @@ var HDWalletHelper = function() {
     this._exchangeRateListenerCallbacks = [];
 }
 
+HDWalletHelper.theDAOAddress = "0xbb9bc244d798123fde783fcc1c72d3bb8c189413";
+
 HDWalletHelper.checkMnemonic = function() {
     //@note: @here: @todo: check for 12 word mnemonics.
     if (thirdparty.bip39.validateMnemonic(mnemonic)) {
@@ -69,7 +71,7 @@ HDWalletHelper.getFiatUnitPrefix = function (fiatUnit) {
         case "EUR":
             return "\u20AC";
         case "GBP":
-            return "£"
+            return "\u00A3"
             case "INR":
             return "";
         case "ISK":
@@ -231,7 +233,7 @@ HDWalletHelper.prototype._updateExchangeRates = function(coinType) {
 
 HDWalletHelper.prototype._notifyExchangeRateListeners = function(coinType) {
     for (var i = 0; i < this._exchangeRateListenerCallbacks[coinType].length; i++) {
-        this._exchangeRateListenerCallbacks[coinType][i]();
+        this._exchangeRateListenerCallbacks[coinType][i](coinType);
     }
 }
 
@@ -749,4 +751,16 @@ HDWalletHelper.prototype.checkIsSmartContractQuery = function(address, callback)
             callback(null, true);
         }
     });
+}
+
+HDWalletHelper.convertCoinToUnitType = function(coinType, coinAmount, coinUnitType) {
+    var coinOtherUnitAmount = 0;
+
+    if (coinType === COIN_BITCOIN) {
+        coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertSatoshisToBitcoins(coinAmount) : HDWalletHelper.convertBitcoinsToSatoshis(coinAmount);
+    } else if (coinType === COIN_ETHEREUM) {
+        coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertWeiToEther(coinAmount) : HDWalletHelper.convertEtherToWei(coinAmount);
+    }
+
+    return coinOtherUnitAmount;
 }

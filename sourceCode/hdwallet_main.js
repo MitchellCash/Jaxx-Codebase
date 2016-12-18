@@ -29,6 +29,7 @@ var HDWalletMain = function() {
     this._hasSetupLegacyEthereumSweep = false;
 
     this._legacyEthereumWalletLoadCallback = null;
+    this._legacyEthereumWalletUpdateCallback = null;
 }
 
 HDWalletMain.TESTNET = TESTNET;
@@ -61,10 +62,6 @@ HDWalletMain.prototype.setupWithEncryptedMnemonic = function(encMnemonic, callba
 
             self._mnemonic = res;
 
-            if (self._shouldSetUpLegacyEthereumSweep) {
-                self.setupLegacyEthereumSweep();
-            }
-
             callback();
         } else {
             var errStr = "error decoding mnemonic :: " + error;
@@ -79,13 +76,13 @@ HDWalletMain.prototype.switchToCoinType = function(targetCoinType) {
     if (targetCoinType === COIN_BITCOIN) {
 
     } else if (targetCoinType === COIN_ETHEREUM) {
-        if (this._mnemonic !== "") {
-            this.setupLegacyEthereumSweep();
-        } else {
-            if (this._hasSetupLegacyEthereumSweep === false) {
-                this._shouldSetUpLegacyEthereumSweep = true;
-            }
-        }
+//        if (this._mnemonic !== "") {
+//            this.setupLegacyEthereumSweep();
+//        } else {
+//            if (this._hasSetupLegacyEthereumSweep === false) {
+//                this._shouldSetUpLegacyEthereumSweep = true;
+//            }
+//        }
     }
 }
 
@@ -97,9 +94,10 @@ HDWalletMain.prototype.getHasSetupLegacyEthereumSweep = function() {
     return this._hasSetupLegacyEthereumSweep;
 }
 
-HDWalletMain.prototype.setShouldSetUpLegacyEthereumSweep = function(callback) {
+HDWalletMain.prototype.setShouldSetUpLegacyEthereumSweep = function(loadCallback, updateCallback) {
     this._shouldSetUpLegacyEthereumSweep = true;
-    this._legacyEthereumWalletLoadCallback = callback;
+    this._legacyEthereumWalletLoadCallback = loadCallback;
+    this._legacyEthereumWalletUpdateCallback = updateCallback;
     this.setupLegacyEthereumSweep();
 }
 
@@ -161,7 +159,7 @@ HDWalletMain.prototype.getMnemonic = function() {
 }
 
 HDWalletMain.prototype.setupLegacyEthereumSweep = function() {
-    console.log("[ethereum] :: setup legacy sweep");
+    console.log("[ethereum] :: setup legacy sweep :: load callback :: " + this._legacyEthereumWalletLoadCallback);
 
     this._shouldSetUpLegacyEthereumSweep = false;
     this._hasSetupLegacyEthereumSweep = true;
@@ -186,8 +184,17 @@ HDWalletMain.prototype.setupLegacyEthereumSweep = function() {
                 self._legacyEthereumWalletLoadCallback();
             }
         }
+        self._legacyEthereumWallet.addTXListener(function() {
+            if (self._legacyEthereumWalletUpdateCallback) {
+                self._legacyEthereumWalletUpdateCallback();
+            }
+        });
+
         self._legacyEthereumWallet.addBalanceListener(function() {
-//            console.log("[ethereum] :: legacy balance :: " + self._legacyEthereumWallet.getBalance());
+//            console.log("[ethereum] :: legacy balance :: " + self._legacyEthereumWallet.getBalance());(
+            if (self._legacyEthereumWalletUpdateCallback) {
+                self._legacyEthereumWalletUpdateCallback();
+            }
 
             var legacyEthereumSpendableBalance = self._legacyEthereumWallet.getSpendableBalance();
 
@@ -228,33 +235,18 @@ HDWalletMain.prototype.transferLegacyEthereumAccountToHDNode = function() {
     }
 }
 
-HDWalletMain.prototype.exportKeys = function(coinType) {
-    var keysList = []
-    keysList = this.getPouch(coinType).getPrivateKeys();
-
-    return keysList;
-}
-
-HDWalletMain.prototype.exportAddresses = function(coinType) {
-    var addresses = []
-    addresses = this.getPouch(coinType).getUsedAddresses();
-
-    return addresses;
-}
-
 HDWalletMain.prototype.getAddressesAndKeysCSVForCoinType = function(coinType) {
     var returnStr = "";
 
     console.log(this.getPouch(coinType)._coinFullName + " :: export private keys");
 
-    var allKeys = this.exportKeys(coinType);
-    var allAddresses = this.exportAddresses(coinType);
+    var accounts = this.getPouch(coinType).getAccountList();
 
-    console.log("number of keys :: " + allKeys.length + " :: addresses :: " + allAddresses.length);
+    console.log("number of accounts :: " + accounts.length);
 
-    for (var i = 0; i < allKeys.length; i++) {
-        returnStr += allAddresses[i] + ", " + allKeys[i];
-        if (i !== allKeys.length - 1) {
+    for (var i = 0; i < accounts.length; i++) {
+        returnStr += accounts[i].pubAddr + ", " + accounts[i].pvtKey;
+        if (i !== accounts.length - 1) {
             returnStr += ",\n";
         } else {
         }
@@ -263,12 +255,22 @@ HDWalletMain.prototype.getAddressesAndKeysCSVForCoinType = function(coinType) {
     return returnStr;
 }
 
-HDWalletMain.prototype.getEthereumLegacyLightwalletKeypair = function(coinType) {
+HDWalletMain.prototype.getEthereumLegacyLightwalletAccount = function(coinType) {
     if (this._legacyEthereumWallet && this._legacyEthereumWallet._address && this._legacyEthereumWallet._private) {
-        return this._legacyEthereumWallet._address + ", " + this._legacyEthereumWallet._private.toString('hex');
-    }
+        var accountItem = {};
 
-    return "";
+        accountItem.pubAddr = this._legacyEthereumWallet._address;
+        accountItem.pvtKey = this._legacyEthereumWallet._private.toString('hex');
+        accountItem.balance = this._legacyEthereumWallet.getBalance();
+//        accountItem.coinType = COIN_ETHEREUM;
+        accountItem.isTheDAOAssociated = this._legacyEthereumWallet.isTheDAOAssociated();
+
+//        console.log("ethereum legacy :: account :: " + JSON.stringify(accountItem));
+
+        return accountItem;
+    } else {
+        return null;
+    }
 }
 
 HDWalletMain.prototype.getEthereumLegacyStableKeypair = function(coinType) {

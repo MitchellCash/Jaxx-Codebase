@@ -326,7 +326,7 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
 //            log("watcher :: " + this._coinType + " :: address :: " + address + " :: index :: " + index + " :: receiveNode :: " +  this._receiveNode.derive(index) + " :: lastUsedReceiveIndex :: " + lastUsedReceiveIndex + " :: highestReceiveIndex :: " + highestReceiveIndex);
 //        }
 
-        this._addressMap[address] = {index: index, internal: 0, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0};
+        this._addressMap[address] = {index: index, internal: 0, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0, isTheDAOAssociated: false};
         this._watchAddress(address);
 
         neededGenerate = true;
@@ -339,7 +339,7 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
 //        if (this._coinType === COIN_ETHEREUM) {
 //            log("watcher :: " + this._coinType + " :: address :: " + address +  " :: index :: " + index + " :: changeNode :: " +  this._changeNode.derive(index) + " :: lastUsedChangeIndex :: " + lastUsedChangeIndex + " :: highestChangeIndex :: " + highestChangeIndex);
 //        }
-        this._addressMap[address] = {index: index, internal: 1, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0};
+        this._addressMap[address] = {index: index, internal: 1, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0, isTheDAOAssociated: false};
         this._watchAddress(address);
 
         neededGenerate = true;
@@ -385,6 +385,21 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
     //        return;
     //    }
     //
+    this._batchScanBlockchain(addresses);
+}
+
+HDWalletWorker.prototype._manuallyAddAddress = function(address) {
+    var addressInfo = this._addressMap[address];
+
+    if (typeof(addressInfo) === 'undefined' || addressInfo === null) {
+        this._addressMap[address] = {index: index, internal: 1, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0};
+        this._watchAddress(address);
+    }
+
+    this._batchScanBlockchain([address]);
+}
+
+HDWalletWorker.prototype._batchScanBlockchain = function(addresses) {
     var self = this;
 
     // Create batches of addresses to send to the blockr.io API
@@ -393,7 +408,7 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
     //@note: bitcoin REST api supports a batch return.
     if (this._coinType === COIN_BITCOIN) {
         BATCH_SIZE = 10;
-//        console.log("tx checking for :: " + addresses.length);
+        //        console.log("tx checking for :: " + addresses.length);
     } else if (this._coinType === COIN_ETHEREUM) {
         BATCH_SIZE = 1;
     }
@@ -408,10 +423,10 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
             // Request the transactions and utxo for this batch
             var addressParam = batch.join(',');
 
-//            if (this._coinType === COIN_ETHEREUM) {
-//                log("ethereum :: requesting :: " + addressParam);
-//            }
-//
+            //            if (this._coinType === COIN_ETHEREUM) {
+            //                log("ethereum :: requesting :: " + addressParam);
+            //            }
+            //
             RequestSerializer.getJSON(this._STATIC_RELAY_URL + this._GATHER_TX + addressParam + this._GATHER_TX_APPEND, function(data, success, passthroughParam) {
                 self._populateHistory(data, passthroughParam);
             }, null, addressParam);
@@ -665,6 +680,11 @@ HDWalletWorker.prototype._updateTransactionsEthereum = function(transactions, et
 //            }
 //
             if (addressInfo !== null) {
+//                console.log("tx :: from :: " + transaction.from + " :: " + transaction.to + " :: theDAOAddress :: " + HDWalletHelper.theDAOAddress)
+                if (transaction.to === HDWalletHelper.theDAOAddress) {
+//                    console.log("found theDaoAssociated :: " + transaction.from);
+                    addressInfo.isTheDAOAssociated = true;
+                }
                 if (transaction.to === transaction.from) {
                     txDelta = 0;
                     isSender = true;
@@ -714,8 +734,8 @@ HDWalletWorker.prototype._updateTransactionsEthereum = function(transactions, et
                 valueDelta: txDelta,
                 gasUsed: transaction.gasUsed,
                 gasPrice: transaction.gasPrice,
-                to: (isSender === true) ? transaction.to : transaction.from,
-                from: (isSender === true) ? transaction.from : transaction.to
+                to: transaction.to,//(isSender === true) ? transaction.to : transaction.from,
+                from: transaction.from//(isSender === true) ? transaction.from : transaction.to
             }
 
             this._transactions[transaction.hash + "_" + ethScanAddress] = tx;

@@ -99,6 +99,8 @@ function EthereumWallet(noBootstrap) {
     this._customGasLimit = 21000;
     this._recommendedCustomGasLimit = 21000;
 
+    this._isTheDAOAssociated = -1;
+
     if (window.chrome && chrome.extension && chrome.extension.getBackgroundPage) {
         this._lightwallet = chrome.extension.getBackgroundPage().lightwallet;
     }
@@ -144,7 +146,7 @@ EthereumWallet.prototype.initAndLoadAsync = function() {
 
         w_Obj.initializeAfterLoad();
     } else {
-        if (w_Obj._lightwallet !== null) {
+        if (typeof(w_Obj._lightwallet) !== 'undefined' && w_Obj._lightwallet !== null) {
             w_Obj.initHDStore(true);
         } else {
 //            lightwallet = null;
@@ -1131,6 +1133,25 @@ EthereumWallet.prototype.convertWeiToFiat = function(wei, noPrefix) {
 
 EthereumWallet.prototype.convertFiatToWei = function(fiatAmount) {
     return EthereumWallet.convertFiatToWei(fiatAmount, this.getFiatUnit());
+}
+
+EthereumWallet.prototype.isTheDAOAssociated = function() {
+    if (this._isTheDAOAssociated === true) {
+        return true;
+    }
+
+    var isAssociated = false;
+
+    for (var txid in this._transactions) {
+        var tx = this._transactions[txid];
+//        console.log("tx :: " + tx.to + " :: theDAOAddress :: " + HDWalletHelper.theDAOAddress);
+        if (tx.to === HDWalletHelper.theDAOAddress) {
+            isAssociated = true;
+            this._isTheDAOAssociated = true;
+        }
+    }
+
+    return isAssociated;
 }
 
 // Called by a polling interval to update balance and transaction history

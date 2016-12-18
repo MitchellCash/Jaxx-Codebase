@@ -16,6 +16,8 @@ The second, which is being implemented here, is that the lowest index that has t
 var HDWalletPouch = function() {
     this._coinType = -1;
 
+    this._cachedHistory = [];
+
     this._networkTypeString = "";
     this._hdCoinType = -1;
     this._coinFullName = "";
@@ -37,6 +39,8 @@ var HDWalletPouch = function() {
     this._privateKeyCache = {};
     this._publicAddressCache = {};
     this._checkAddressCache = {};
+
+    this._manualAddressCache = {};
 
     this._spendableBalance = null;
 
@@ -189,8 +193,6 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
 
     this._storageKey = thirdparty.bitcoin.crypto.sha256(mnemonic + this._networkTypeString).toString('hex');
 
-    this.zeroPtEighteenCheckAndClearCache();
-
     var transactionCache = getStoredData('wTxCache_' + this._coinFullName + "_" + this._storageKey, true);
 
 //    console.log("tx cache :: " + transactionCache + " :: " + this._coinFullName);
@@ -223,11 +225,6 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
 
     this.setupWorkers();
 
-//    if (this._coinType === COIN_ETHEREUM) {
-//        //@note: pre-cache the account balances.
-//        this.getKeypairsList();
-//    }
-
     setInterval(function() {
         self._requestBlockNumber(function(err) {
             if (err) {
@@ -240,35 +237,6 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
     }, this._blockRequestTimeout);
 }
 
-HDWalletPouch.prototype.zeroPtEighteenCheckAndClearCache = function() {
-    var zeroPtEighteenCheck = getStoredData("zeroPtEighteenCheck", false);
-    if (this._coinType === COIN_ETHEREUM) {
-        if (typeof(zeroPtEighteenCheck) === 'undefined' || zeroPtEighteenCheck === null || (zeroPtEighteenCheck !== null && zeroPtEighteenCheck !== "true")) {
-            console.log("zeroPtEighteenCheck");
-
-            var clearDataItems = ['wTxCache_' + this._coinFullName + "_" + this._storageKey,
-                                  'wPubAddrCache_' + this._coinFullName + "_" + this._storageKey,
-                                  'wCurRecA_' + this._coinFullName + "_" + this._storageKey,
-                                  'wWrkrCacheAddrMap_' + this._coinFullName + "_" + this._storageKey,
-                                  'ethereum_legacySweepRan',
-                                 ];
-
-            for (var i = 0; i < clearDataItems.length; i++) {
-                var curDataItemName = clearDataItems[i];
-                var curDataItem = getStoredData(curDataItemName, false);
-
-                console.log("checking :: " + curDataItemName + " :: " + curDataItem);
-
-                if (typeof(curDataItem) !== 'undefined' && curDataItem !== null) {
-                    removeStoredData(curDataItemName);
-                }
-            }
-            storeData("zeroPtEighteenCheck", "true", false);
-        } else {
-        }
-    }
-}
-
 HDWalletPouch.prototype.update = function() {
     //@note: in bitcoin, this is the mining fee,
     //in ethereum this is the gas price. (not the gas limit).
@@ -277,7 +245,7 @@ HDWalletPouch.prototype.update = function() {
 
 HDWalletPouch.prototype._notify = function(reason) {
     for (var i = 0; i < this._listeners.length; i++) {
-        this._listeners[i]();
+        this._listeners[i](this._coinType);
     }
 }
 
@@ -389,6 +357,16 @@ HDWalletPouch.prototype.loadAndCache = function() {
     }
 
     this._qrCodeBase64Cache = qrCodeBase64Cache;
+
+    var manualAddressCache = getStoredData('wMnAddrCache_' + this._coinFullName + "_" + this._storageKey, true);
+
+    if (!manualAddressCache) {
+        manualAddressCache = {};
+    } else {
+        manualAddressCache = JSON.parse(manualAddressCache);
+    }
+
+    this._manualAddressCache = manualAddressCache;
 }
 
 HDWalletPouch.prototype.setupWorkers = function() {
@@ -525,8 +503,14 @@ HDWalletPouch.prototype.setupWorkers = function() {
                         var accountInfo = workerCacheAddressMap[address];
                         var existingAccountInfo = self._w_addressMap[address];
 
-                        if (typeof(existingAccountInfo) !== 'undefined' && existingAccountInfo !== null && existingAccountInfo.accountBalance !== accountInfo.accountBalance && (typeof(existingAccountInfo.newSendTx) === 'undefined' || existingAccountInfo.newSendTx === null)) {
-                            cacheBalancesUpdated = true;
+                        if (typeof(existingAccountInfo) !== 'undefined' && existingAccountInfo !== null) {
+                            if (existingAccountInfo.accountBalance !== accountInfo.accountBalance && (typeof(existingAccountInfo.newSendTx) === 'undefined' || existingAccountInfo.newSendTx === null)) {
+                                cacheBalancesUpdated = true;
+                            }
+
+                            if (accountInfo.isTheDAOAssociated === true && existingAccountInfo.isTheDAOAssociated !== true) {
+                                cacheBalancesUpdate = true;
+                            }
                         }
                     }
 
@@ -632,6 +616,24 @@ HDWalletPouch.prototype.getRootNodeAddress = function() {
     return HDWalletPouch.getCoinAddress(this._coinType, this._rootNode);
 }
 
+HDWalletPouch.prototype.getNode = function(internal, index) {
+    if (internal === false) {
+        internal = 0;
+    } else if (internal === true) {
+        internal = 1;
+    }
+
+    var fromNode = this._receiveNode;
+
+    if (internal === 0) {
+        fromNode = this._receiveNode;
+    } else {
+        fromNode = this._changeNode;
+    }
+
+    return HDWalletPouch._derive(fromNode, index, false);
+}
+
 HDWalletPouch.prototype.getDefaultTransactionFee = function() {
     return this._defaultTXFee;
 }
@@ -655,6 +657,7 @@ HDWalletPouch.prototype.getTransactions = function() {
     } else if (this._coinType === COIN_ETHEREUM) {
 //        console.log("this._transactions length :: " + Object.keys(this._transactions).length);
         for (var txid in this._transactions) {
+//            console.log("adding tx :: " + txid)
             res.push(this._transactions[txid]);
         }
 
@@ -672,8 +675,28 @@ HDWalletPouch.prototype.getHistory = function() {
     var transactions = this.getTransactions();
 
     var history = [];
+
+    if (transactions.length === this._cachedHistory.length) {
+        var isIdentical = true;
+
+        for (var i = 0; i < transactions.length; i++) {
+            if (transactions[i].txid !== this._cachedHistory[i].txid) {
+                isIdentical = false;
+            }
+        }
+
+        if (isIdentical) {
+            return this._cachedHistory;
+        }
+    }
+
     for (var ti = 0; ti < transactions.length; ti++) {
         var transaction = transactions[ti];
+
+        if (ti < this._cachedHistory.length && transaction.txid === this._cachedHistory[ti].txid) {
+            history.push(this._cachedHistory[ti]);
+            continue;
+        }
 
         if (this._coinType === COIN_BITCOIN) {
             var deltaBalance = 0;
@@ -758,6 +781,7 @@ HDWalletPouch.prototype.getHistory = function() {
         }
     }
 
+    this._cachedHistory = history;
     return history;
 }
 
@@ -836,7 +860,7 @@ HDWalletPouch.prototype._getUnspentOutputs = function() {
     return result;
 }
 
-HDWalletPouch.prototype.getBalance = function() {
+HDWalletPouch.prototype.getPouchBalance = function() {
     if (this._coinType === COIN_BITCOIN) {
         var unspent = this._getUnspentOutputs();
 
@@ -854,7 +878,7 @@ HDWalletPouch.prototype.getBalance = function() {
 
         if (highestIndexToCheck !== -1) {
             for (var i = 0; i < highestIndexToCheck + 1; i++) {
-                var curBalance = this.getEthereumAccountBalance(false, i);
+                var curBalance = this.getAccountBalance(false, i);
                 balance += curBalance;
             }
         }
@@ -936,10 +960,10 @@ HDWalletPouch.prototype.getPublicAddress = function(internal, index, ignoreCache
             console.log("uncached fetch of public address");
         }
     } else {
-        if (this._coinType === COIN_ETHEREUM) {
-            publicAddress = HDWalletHelper.toEthereumChecksumAddress(publicAddress);
-//            console.log("cached fetch of public address :: " + publicAddress)
-        }
+//        if (this._coinType === COIN_ETHEREUM) {
+//            publicAddress = HDWalletHelper.toEthereumChecksumAddress(publicAddress);
+////            console.log("cached fetch of public address :: " + publicAddress)
+//        }
     }
 
     return publicAddress;
@@ -977,7 +1001,7 @@ HDWalletPouch.prototype.getSpendableBalance = function() {
     var spendableBalance = 0;
 
     if (this._coinType === COIN_BITCOIN) {
-        spendableBalance = this.getBalance();
+        spendableBalance = this.getPouchBalance();
         var address = this.getCurrentReceiveAddress();
 
         while (spendableBalance > 0) {
@@ -1026,38 +1050,75 @@ HDWalletPouch.prototype.getSpendableBalance = function() {
     return this._spendableBalance;
 }
 
-HDWalletPouch.prototype.getEthereumAccountBalance = function(internal, index) {
+
+HDWalletPouch.prototype.getAccountBalance = function(internal, index, ignoreCached) {
     if (internal === false) {
         internal = 0;
     } else if (internal === true) {
         internal = 1;
     }
 
-    var publicAddress = this.getPublicAddress(internal, index);
-
-    //@note: for ethereum checksum addresses.
-    publicAddress = publicAddress.toLowerCase();
-
-    var addressInfo = this._w_addressMap[publicAddress];
-
     var accountBalance = 0;
 
-//    console.log("internal :: " + internal + " :: index :: " + index + " :: publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo) + " :: _w_addressMap :: " + JSON.stringify(this._w_addressMap));
+    if (this._coinType === COIN_BITCOIN) {
+        //@note:@todo:@optimization: this should probably be cached in the worker..
+        // Add the each UTXO
+        var transactions = this.getTransactions();
+        var unspent = {};
 
-    if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
-        accountBalance = addressInfo.accountBalance;
+        for (var ti = transactions.length - 1; ti >= 0; ti--) {
+            var transaction = transactions[ti];
+            for (var i = 0; i < transaction.outputs.length; i++) {
+                var output = transaction.outputs[i];
+                if (output.addressIndex !== null) {
+                    //@note: @here: only a truthy check for internal.
+                    if (output.addressInternal == internal && output.addressIndex === index) {
+                        var utxoKey = output.txid + ':' + output.index;
+                        unspent[utxoKey] = output;
+                    }
+                }
+            }
+        }
+
+        // Remove each spent UTXO
+        for (var ti = transactions.length - 1; ti >= 0; ti--) {
+            var transaction = transactions[ti];
+            for (var i = 0; i < transaction.inputs.length; i++) {
+                var input = transaction.inputs[i];
+                if (input.addressIndex !== null) {
+                    //@note: @here: only a truthy check for internal.
+                    if (output.addressInternal == internal && output.addressIndex === index) {
+                        var utxoKey = input.previousTxid + ':' + input.previousIndex;
+                        if (unspent[utxoKey]) {
+                            delete unspent[utxoKey];
+                        }
+                    }
+                }
+            }
+        }
+
+        for (var i = 0; i < unspent.length; i++) {
+            accountBalance += unspent.balance;
+        }
+    } else if (this._coinType === COIN_ETHEREUM) {
+        var publicAddress = this.getPublicAddress(internal, index);
+
+        //@note: for ethereum checksum addresses.
+        publicAddress = publicAddress.toLowerCase();
+
+        var addressInfo = this._w_addressMap[publicAddress];
+
+        //    console.log("internal :: " + internal + " :: index :: " + index + " :: publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo) + " :: _w_addressMap :: " + JSON.stringify(this._w_addressMap));
+
+        if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
+            accountBalance = addressInfo.accountBalance;
+        }
     }
 
     return accountBalance;
 }
 
-HDWalletPouch.prototype.getEthereumNonce = function(internal, index) {
-    if (internal === false) {
-        internal = 0;
-    } else if (internal === true) {
-        internal = 1;
-    }
-
+HDWalletPouch.prototype.getIsTheDAOAssociated = function(internal, index) {
     var publicAddress = this.getPublicAddress(internal, index);
 
     //@note: for ethereum checksum addresses.
@@ -1065,15 +1126,61 @@ HDWalletPouch.prototype.getEthereumNonce = function(internal, index) {
 
     var addressInfo = this._w_addressMap[publicAddress];
 
-    var nonce = 0;
-
     if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
-        nonce = addressInfo.nonce;
-
-        //        console.log("publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo));
+//        console.log("publicAddress :: " + publicAddress + " :: isTheDAOAssociated :: " + addressInfo.isTheDAOAssociated);
+        if (addressInfo.isTheDAOAssociated === true) {
+            return true;
+        }
     }
 
-    return nonce;
+    return false;
+}
+
+HDWalletPouch.prototype.getEthereumNonce = function(internal, index) {
+    var fromAddress = HDWalletPouch.getCoinAddress(this._coinType, this.getNode(internal, index));
+
+    var transactions = this.getTransactions(); //Get all transactions
+
+    var lastIndexChange = 0;
+    var lastIndexReceive = 0;
+
+    var txDict = {};
+    var highestNonce = 0;
+    for (var ti = 0; ti < transactions.length; ti++) { //iterate through txs
+        var transaction = transactions[ti];
+        if (transaction.from === fromAddress) {
+            txDict[transaction.txid] = true;
+            //@note: @here: @bug: for address 0x5630a246f35996a1d605174d119ece78c8f5d94a,
+            //it appears that there are 8 tx when doing it the following way, which is wrong. getTransactions only has 6 identifiers.
+//            console.log("fromAddress :: " + fromAddress + " :: found tx :: " + JSON.stringify(transaction.txid));
+//            highestNonce++;
+        }
+    }
+
+    highestNonce = Object.keys(txDict).length;
+
+//    if (internal === false) {
+//        internal = 0;
+//    } else if (internal === true) {
+//        internal = 1;
+//    }
+//
+//    var publicAddress = this.getPublicAddress(internal, index);
+//
+//    //@note: for ethereum checksum addresses.
+//    publicAddress = publicAddress.toLowerCase();
+//
+//    var addressInfo = this._w_addressMap[publicAddress];
+//
+//    var nonce = 0;
+//
+//    if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
+//        nonce = addressInfo.nonce;
+//
+//        //        console.log("publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo));
+//    }
+//
+    return highestNonce;
 }
 
 //@note: this function when passed in an explicit null to ignoreCached, will use cache. cached only in session.
@@ -1145,7 +1252,7 @@ HDWalletPouch.prototype.sortHighestAccounts = function() {
 
     if (highestIndexToCheck !== -1) {
         for (var i = 0; i < highestIndexToCheck + 1; i++) {
-            var curBalance = this.getEthereumAccountBalance(false, i);
+            var curBalance = this.getAccountBalance(false, i);
             this._sortedHighestAccountArray.push({index: i, balance: curBalance});
         }
 
@@ -1446,6 +1553,10 @@ HDWalletPouch.prototype._buildEthereumTransaction = function(fromNodeInternal, f
     var gasPrice = HDWalletHelper.hexify(ethGasPrice);
     var gasLimit = HDWalletHelper.hexify(ethGasLimit);
 
+    var fromAddress = HDWalletPouch.getCoinAddress(this._coinType, this.getNode(fromNodeInternal, fromNodeIndex));
+
+    console.log("ethereum :: from address :: " + fromAddress);
+
     var nonce = this.getEthereumNonce(fromNodeInternal, fromNodeIndex);
 
     console.log("ethereum :: build tx nonce :: " + nonce + " :: gasPrice :: " + ethGasPrice + " :: gasLimit :: " + ethGasLimit);
@@ -1673,6 +1784,7 @@ HDWalletPouch.prototype.sendEthereumTransaction = function(transaction, callback
 //    return;
 //
     var self = this;
+
     $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_sendRawTransaction&hex=' + hex, function (data) {
         self.invalidateTransactionCache();
         self.invalidateWorkerCache();
@@ -1805,26 +1917,8 @@ HDWalletPouch.prototype.getBlockNumber = function() {
     return this._currentBlock;
 }
 
-HDWalletPouch.prototype.getPrivateKeys =  function() {
-    var result = [];
-    var pairList = this.getKeypairsList();
-    for (var i = 0; i < pairList.length; i++) {
-        result.push(pairList[i][0]);
-    }
-    return $.unique(result);
-}
-
-HDWalletPouch.prototype.getUsedAddresses =  function() {
-    var result = [];
-    var pairList = this.getKeypairsList();
-    for (var i = 0; i < pairList.length; i++) {
-        result.push(pairList[i][1]);
-    }
-    return $.unique(result);
-}
-
-//Returns a multidimensional array with pairs public/private key
-HDWalletPouch.prototype.getKeypairsList = function(){
+//Returns a multidimensional array with public address, private key and balance.
+HDWalletPouch.prototype.getAccountList = function(){
     //@note: @todo: we might want to sort these..
     var result = [];
 
@@ -1892,14 +1986,13 @@ HDWalletPouch.prototype.getKeypairsList = function(){
                     if (transaction.addressIndex > lastIndexReceive) {
                         lastIndexReceive = transaction.addressIndex;
                     }
-                    var privateKey = this.getPrivateKey(false, transaction.addressIndex).d.toBuffer(32).toString('hex');
-//                    console.log("private key :: " + transaction.addressIndex + " :: " + JSON.stringify(privateKey));
-                    var publicAddress = this.getPublicAddress(false, transaction.addressIndex);
+                    var account = {};
+                    account.pvtKey = this.getPrivateKey(false, transaction.addressIndex).d.toBuffer(32).toString('hex');
+                    account.pubAddr = this.getPublicAddress(false, transaction.addressIndex);
+                    account.balance = this.getAccountBalance(false, transaction.addressIndex);
+                    account.isTheDAOAssociated = this.getIsTheDAOAssociated(false, transaction.addressIndex);
 
-                    var tempPair = [];
-                    tempPair[0] = privateKey;
-                    tempPair[1] = publicAddress;
-                    result.push(tempPair);
+                    result.push(account);
                 }
             }
         }
@@ -1907,19 +2000,22 @@ HDWalletPouch.prototype.getKeypairsList = function(){
 
     if (this._coinType === COIN_BITCOIN) {
         for (var i = lastIndexReceive + 1; i >= 0; i--) {
-            var tempPair = [];
-            tempPair[0] = this.getPrivateKey(false, i).toWIF();
-            tempPair[1] = this.getPublicAddress(false, i);
-            result.push(tempPair);
+            var account = {};
+            account.pvtKey = this.getPrivateKey(false, i).toWIF();
+            account.pubAddr = this.getPublicAddress(false, i);
+            account.balance = this.getAccountBalance(false, i);
+
+            result.push(account);
 
 //            console.log("bitcoin :: receive node(i) :: " + i + " :: address :: " + tempPair[1] + " :: private :: " + tempPair[0]);
         }
 
         for (var i = lastIndexChange + 1; i >= 0; i--) {
-            var tempPair = [];
-            tempPair[0] = this.getPrivateKey(true, i).toWIF();
-            tempPair[1] = this.getPublicAddress(true, i);
-            result.push(tempPair);
+            var account = {};
+            account.pvtKey = this.getPrivateKey(true, i).toWIF();
+            account.pubAddr = this.getPublicAddress(true, i);
+            account.balance = this.getAccountBalance(true, i);
+            result.push(account);
 
             //            console.log("bitcoin :: change node(i) :: " + i + " :: address :: " + tempPair[1] + " :: private :: " + tempPair[0]);
         }
@@ -1937,13 +2033,37 @@ HDWalletPouch.prototype.getKeypairsList = function(){
         } else {
             finalIndex = lastIndexReceive + 1;
         }
-        var tempPair = [];
-        tempPair[0] = this.getPrivateKey(false, finalIndex).d.toBuffer(32).toString('hex');
-        tempPair[1] = this.getPublicAddress(false, finalIndex);
-        result.push(tempPair);
+        var account = {};
+        account.pvtKey = this.getPrivateKey(false, finalIndex).d.toBuffer(32).toString('hex');
+        account.pubAddr = this.getPublicAddress(false, finalIndex);
+        account.balance = this.getAccountBalance(false, finalIndex);
+        account.isTheDAOAssociated = this.getIsTheDAOAssociated(false, i);
+
+        result.push(account);
     }
 
-    result.reverse();
+//    for (var i = 0; i < 20)
+//    result.reverse();
+
+//    var incidences = {};
+//
+//    for (var i = 0; i < result.length; i++) {
+//        incidences[result[i].pubAddr]++;
+//    }
+    var uniqueResults = [];
+
+    var processed = {};
+
+    for (var i = 0; i < result.length; i++) {
+        var isProcessed = (typeof(processed[result[i].pubAddr]) !== 'undefined' && processed[result[i].pubAddr] !== null) ? true : false;
+
+        if (isProcessed) {
+        } else {
+            uniqueResults.push(result[i]);
+        }
+
+        processed[result[i].pubAddr] = true;
+    }
 
     var extremeDebug = false;
 
@@ -1952,7 +2072,7 @@ HDWalletPouch.prototype.getKeypairsList = function(){
             for (var info in this._w_addressMap) {
                 var addressInfo = this._w_addressMap[info];
                 if (!addressInfo.internal) {
-                    console.log("account balance :: " + this.getPublicAddress(false, addressInfo.index) + " :: " + this.getEthereumAccountBalance(false, addressInfo.index));
+                    console.log("account balance :: " + this.getPublicAddress(false, addressInfo.index) + " :: " + this.getAccountBalance(false, addressInfo.index));
                 }
             }
 
@@ -1999,7 +2119,7 @@ HDWalletPouch.prototype.getKeypairsList = function(){
     }
 
 
-    return result;
+    return uniqueResults;
 }
 
 HDWalletPouch.prototype.getEthereumLegacyStableKeypair = function() {

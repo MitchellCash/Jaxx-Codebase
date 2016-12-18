@@ -1230,7 +1230,7 @@ EthereumWallet.prototype.checkIsSmartContractQuery = function(address, callback)
 
     var self = this;
 
-    var url = "http://api.etherscan.io/api?module=proxy&action=eth_getCode&address=" + address + "&tag=latest";
+    var url = "https://api.etherscan.io/api?module=proxy&action=eth_getCode&address=" + address + "&tag=latest";
 
     RequestSerializer.getJSON(url, function (data) {
         if (!data) {

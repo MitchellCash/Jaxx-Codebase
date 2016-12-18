@@ -45,10 +45,12 @@ var HDWalletWorker = function() {
 
     this._usesWSS = false;
     this._watcherWebSocket = null;
+
+    this._hasForcedRecheck = false;
 }
 
 HDWalletWorker.getDefaultTransactionRefreshTime = function() {
-    return 10000;
+    return 60000;
 }
 
 HDWalletWorker.prototype.initialize = function(coinType, testNet) {
@@ -60,13 +62,18 @@ HDWalletWorker.prototype.initialize = function(coinType, testNet) {
 
     this._GATHER_UNCONFIRMED_TX = "/api/v1/address/unconfirmed/";
 
+    this._GATHER_TX = "/api/v1/address/txs/";
+
+    this._MULTI_BALANCE = "";
+    this._MULTI_BALANCE_APPEND = "";
+
     this._TESTNET = testNet;
 
     this._NETWORK = null;
-    this._BASE_URL = 'https://btc.blockr.io';
+    this._STATIC_RELAY_URL = 'https://btc.blockr.io';
     if (this._TESTNET) {
         this._NETWORK = thirdparty.bitcoin.networks.testnet;
-        this._BASE_URL = 'https://tbtc.blockr.io';
+        this._STATIC_RELAY_URL = 'https://tbtc.blockr.io';
     }
 
     if (this._coinType === COIN_ETHEREUM) {
@@ -84,11 +91,14 @@ HDWalletWorker.prototype.initialize = function(coinType, testNet) {
     } else if (this._coinType === COIN_ETHEREUM) {
         socketUri = "";// "wss://api.ether.fund";
 
-        this._BASE_URL = "https://api.etherscan.io";
+        this._STATIC_RELAY_URL = "https://api.etherscan.io";
         this._GATHER_TX = "/api?module=account&action=txlist&address=";
         this._GATHER_TX_APPEND = "&sort=asc"
 
         this._GATHER_UNCONFIRMED_TX = "";
+
+        this._MULTI_BALANCE = "/api?module=account&action=balancemulti&address=";
+        this._MULTI_BALANCE_APPEND = "&tag=latest";
     }
 
     var self = this;
@@ -196,11 +206,11 @@ HDWalletWorker.prototype.setExtendedPublicKeys = function(receivePublicKey, chan
 
     var self = this;
     setTimeout(function() {
-        self.checkTransactions(60);
+        self.checkTransactions(0);
     }, 500);
 }
 
-HDWalletWorker.prototype.update = function() {
+HDWalletWorker.prototype.update = function(forcePouchRecheck) {
 //    log("watcher :: " + this._coinType + " :: update :: " + this._transactions.length);
     var updates = {
         transactions: this._transactions,
@@ -225,6 +235,10 @@ HDWalletWorker.prototype.update = function() {
         this._currentChangeAddress = HDWalletPouch.getCoinAddress(this._coinType, this._changeNode.derive(this._lastChangeIndex + 1)).toString();
         updates.currentChangeIndex = this._lastChangeIndex + 1;
         updates.currentChangeAddress = this._currentChangeAddress;
+    }
+
+    if (typeof(forcePouchRecheck) !== 'undefined' && forcePouchRecheck !== null) {
+        updates.forceRecheck = true;
     }
 
     postMessage({action: 'update', content: updates});
@@ -340,8 +354,17 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
 //            if (hdWalletWorker._coinType === COIN_ETHEREUM) {
 //                log("ethereum :: updating");
 //            }
-            hdWalletWorker.checkTransactions(60);
+            hdWalletWorker.checkTransactions(HDWalletWorker.getDefaultTransactionRefreshTime());
         }, 500);
+    } else {
+        if (this._coinType === COIN_BITCOIN) {
+            if (this._hasForcedRecheck === false) {
+                this._hasForcedRecheck = true;
+                console.log("forcing recheck with max addresses :: " + Object.keys(this._addressMap).length);
+                this._transactions = {};
+                this.checkTransactions(0);
+            }
+        }
     }
 
     var now = (new Date()).getTime();
@@ -370,6 +393,7 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
     //@note: bitcoin REST api supports a batch return.
     if (this._coinType === COIN_BITCOIN) {
         BATCH_SIZE = 10;
+//        console.log("tx checking for :: " + addresses.length);
     } else if (this._coinType === COIN_ETHEREUM) {
         BATCH_SIZE = 1;
     }
@@ -388,15 +412,51 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
 //                log("ethereum :: requesting :: " + addressParam);
 //            }
 //
-            RequestSerializer.getJSON(this._BASE_URL + this._GATHER_TX + addressParam + this._GATHER_TX_APPEND, function(data, success, passthroughParam) {
+            RequestSerializer.getJSON(this._STATIC_RELAY_URL + this._GATHER_TX + addressParam + this._GATHER_TX_APPEND, function(data, success, passthroughParam) {
                 self._populateHistory(data, passthroughParam);
             }, null, addressParam);
 
             if (this._GATHER_UNCONFIRMED_TX !== "") {
-                RequestSerializer.getJSON(this._BASE_URL + this._GATHER_UNCONFIRMED_TX + addressParam, function(data, success, passthroughParam) {
+                RequestSerializer.getJSON(this._STATIC_RELAY_URL + this._GATHER_UNCONFIRMED_TX + addressParam, function(data, success, passthroughParam) {
                     self._populateHistory(data, passthroughParam);
                 }, null, addressParam);
             }
+
+            // Clear the batch
+            batch = [];
+        }
+    }
+}
+
+//@note: @here: @todo: reexamine this usefulness of this function once our relays
+//can give us proper balances from internal contract transactions.
+
+HDWalletWorker.prototype.updateBalancesEthereum = function() {
+    var addressesToCheck = [];
+
+    for (var address in this._addressMap) {
+        addressesToCheck.push(address);
+    }
+
+//    console.log("addressesToCheck :: " + addressesToCheck + " :: " + addressesToCheck.length);
+
+    var self = this;
+
+    var BATCH_SIZE = 20;
+
+    var batch = [];
+    while (addressesToCheck.length) {
+        batch.push(addressesToCheck.shift());
+        if (batch.length === BATCH_SIZE || addressesToCheck.length === 0) {
+
+            var addressParam = batch.join(',');
+
+//            console.log("checking :: " + batch + " :: " + batch.length + " :: " + this._STATIC_RELAY_URL + this._MULTI_BALANCE + addressParam + this._MULTI_BALANCE_APPEND);
+
+            //@note: @here: request the account balances for this batch
+            RequestSerializer.getJSON(this._STATIC_RELAY_URL + this._MULTI_BALANCE + addressParam + this._MULTI_BALANCE_APPEND, function(data, success, passthroughParam) {
+                self._updateBalancesEthereum(data);
+            }, null, addressParam);
 
             // Clear the batch
             batch = [];
@@ -616,7 +676,7 @@ HDWalletWorker.prototype._updateTransactionsEthereum = function(transactions, et
                 //@note: this dictionary deals with cached tx from history items.
                 var isAccountProcessedFromCaching = addressInfo.accountTXProcessed[transaction.hash];
 
-                log("[mid] ethereum :: accountIndex :: " + addressInfo.index + " :: isAccountProcessedFromCaching :: " + isAccountProcessedFromCaching);
+                log("[mid] ethereum :: accountIndex :: " + addressInfo.index + " :: isAccountProcessedFromCaching :: " + isAccountProcessedFromCaching + " :: txDelta :: " + txDelta);
 
                 if (typeof(isAccountProcessedFromCaching) === 'undefined' || (isAccountProcessedFromCaching !== null && isAccountProcessedFromCaching === false)) {
                     addressInfo.accountTXProcessed[transaction.hash] = true;
@@ -677,6 +737,38 @@ HDWalletWorker.prototype._updateTransactionsEthereum = function(transactions, et
     return updated;
 }
 
+HDWalletWorker.prototype._updateBalancesEthereum = function(data) {
+    //@note: as of april 18 2016 this was returning message: "OK" and status: 1 even
+    //with addresses that were obviously wrong, like invalid hex characters.
+    if (!data && data.result) {// || data.status !== 'success') {
+        return;
+    }
+
+//    log("updated balances :: " + data.result.length);
+
+    //{"status":"1","message":"OK","result":[{"account":"","balance":"0"},{"account":"","balance":"0"},{"account":"0x2434AA3696415A96607278452C468964663f832d","balance":"457513609779999200"},{"account":"b","balance":"0"}]}
+
+    var didUpdate = false;
+    var results = data.result;
+
+    for (var i = 0; i < data.result.length; i++) {
+        var res = data.result[i];
+
+        var addressInfo = this._addressMap[res.account];
+
+//        log("account :: " + res.account + " :: found new balance :: " + res.balance + " :: comparing to :: " + addressInfo.accountBalance);
+
+        if (addressInfo.accountBalance !== parseInt(res.balance)) {
+            addressInfo.accountBalance = parseInt(res.balance);
+            didUpdate = true;
+        }
+    }
+
+    if (didUpdate) {
+        this.update();
+    }
+}
+
 HDWalletWorker.prototype._lookupBitcoinTransactions = function(txids, callback) {
     if (this._coinType === COIN_ETHEREUM) {
         console.log("ethereum lookup");
@@ -694,7 +786,7 @@ HDWalletWorker.prototype._lookupBitcoinTransactions = function(txids, callback) 
 
             // Request the transactions and utxo for this batch
             var txidParam = batch.join(',');
-            RequestSerializer.getJSON(this._BASE_URL + '/api/v1/tx/info/' + txidParam + "?amount_format=string", function(data) {
+            RequestSerializer.getJSON(this._STATIC_RELAY_URL + '/api/v1/tx/info/' + txidParam + "?amount_format=string", function(data) {
                 self._populateTransactions(data, callback);
             }, true);
 
@@ -862,11 +954,29 @@ onmessage = function(message) {
                 hdWalletWorker._addressMap[address] = addressMapUpdate[address];
             }
         }
-    } else if (message.data.action === 'refresh') {
+    } else if (message.data.action === 'triggerExtendedUpdate') {
+        if (message.data.content.type && message.data.content.type === 'balances') {
+            setTimeout(function() {
+                if (hdWalletWorker._coinType === COIN_ETHEREUM) {
+                    log("ethereum :: restore address map balance refresh");
+                    hdWalletWorker.updateBalancesEthereum();
+                }
+            }, 10000);
+        }
+    }else if (message.data.action === 'refresh') {
         log("watcher :: " + hdWalletWorker._coinType + " :: refreshing");
+
+//        var crashy = this.will.crash;
 
 //        log('Refreshing...');
         setTimeout(function () {
+            setTimeout(function() {
+                if (hdWalletWorker._coinType === COIN_ETHEREUM) {
+                    log("ethereum :: manual refresh balance refresh");
+                    hdWalletWorker.updateBalancesEthereum();
+                }
+            }, 10000);
+
             hdWalletWorker.checkTransactions(0);
         }, 0);
     } else if (message.data.action === 'shutDown') {
@@ -875,8 +985,11 @@ onmessage = function(message) {
 }
 
 setInterval(function() {
-    if (hdWalletWorker._coinType === COIN_ETHEREUM) {
-        log("ethereum :: autorefresh");
-    }
-    hdWalletWorker.checkTransactions(60);
-}, HDWalletWorker.getDefaultTransactionRefreshTime());
+    setTimeout(function() {
+        if (hdWalletWorker._coinType === COIN_ETHEREUM) {
+            log("ethereum :: autorefresh balance refresh");
+            hdWalletWorker.updateBalancesEthereum();
+        }
+    }, 10000);
+    hdWalletWorker.checkTransactions(HDWalletWorker.getDefaultTransactionRefreshTime());
+}, HDWalletWorker.getDefaultTransactionRefreshTime() + 100);

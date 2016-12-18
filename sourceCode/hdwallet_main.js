@@ -75,10 +75,10 @@ HDWalletMain.prototype.setupWithEncryptedMnemonic = function(encMnemonic, callba
     });
 }
 
-HDWalletMain.prototype.switchToCoinType = function(coinType) {
-    if (coinType === COIN_BITCOIN) {
+HDWalletMain.prototype.switchToCoinType = function(targetCoinType) {
+    if (targetCoinType === COIN_BITCOIN) {
 
-    } else if (coinType === COIN_ETHEREUM) {
+    } else if (targetCoinType === COIN_ETHEREUM) {
         if (this._mnemonic !== "") {
             this.setupLegacyEthereumSweep();
         } else {
@@ -87,6 +87,10 @@ HDWalletMain.prototype.switchToCoinType = function(coinType) {
             }
         }
     }
+}
+
+HDWalletMain.prototype.completeSwitchToCoinType = function(targetCoinType) {
+    this.getPouch(targetCoinType).refreshIfNecessary();
 }
 
 HDWalletMain.prototype.getHasSetupLegacyEthereumSweep = function() {

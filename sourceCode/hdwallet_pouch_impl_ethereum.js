@@ -14,6 +14,7 @@ var HDWalletPouchEthereum = function() {
 HDWalletPouchEthereum.uiComponents = {
     coinFullName: 'Ethereum',
     coinFullDisplayName: 'Ethereum',
+    coinWalletSelector3LetterSymbol: 'ETH',
     coinSymbol: '\u039E',
     coinButtonSVGName: 'ether-new',
     coinLargePngName: '.imgETH',
@@ -32,6 +33,8 @@ HDWalletPouchEthereum.pouchParameters = {
     coinHDType: 60,
     coinIsTokenSubtype: false,
     coinAbbreviatedName: 'ETH',
+    isSingleToken: false,
+    isTestnet: false,
 };
 
 HDWalletPouchEthereum.networkDefinitions = {

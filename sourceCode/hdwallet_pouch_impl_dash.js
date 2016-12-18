@@ -4,11 +4,14 @@ var HDWalletPouchDash = function() {
     this._pouchManager = null;
 
     this._baseFormatCoinType = COIN_DASH;
+
+    this.testNet = 'test-wallet';
 }
 
 HDWalletPouchDash.uiComponents = {
     coinFullName: 'Dash',
     coinFullDisplayName: 'Dash',
+    coinWalletSelector3LetterSymbol: 'DASH',
     coinSymbol: '\u2145',
     coinButtonSVGName: 'dash-here',
     coinLargePngName: '.imgDASH',
@@ -26,7 +29,9 @@ HDWalletPouchDash.uiComponents = {
 HDWalletPouchDash.pouchParameters = {
     coinHDType: 5,
     coinIsTokenSubtype: false,
-    coinAbbreviatedName: 'DASH'
+    coinAbbreviatedName: 'DASH',
+    isSingleToken: false,
+    isTestnet: false,
 };
 
 HDWalletPouchDash.networkDefinitions = {

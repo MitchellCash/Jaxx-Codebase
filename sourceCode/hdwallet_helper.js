@@ -27,17 +27,17 @@ HDWalletHelper.etcEthSplitOpCode = "0x0f2c9329";
 HDWalletHelper.apiKeyEtherScan = "WGWHHAU4F2Y58UW5FQWTUJWSXBNHU7WBSX";
 
 HDWalletHelper.baseInitialCryptoCurrencies = {
-    "regular": {"BTC": true, "ETH": true, "DAO": true, "DASH": false, "ETC": false, "REP": false, "LTC": false, "LSK": false, "ZEC": false}//,
+    "regular": {"BTC": true, "ETH": true, "DAO": false, "DASH": true, "ETC": true, "REP": true, "LTC": true, "LSK": false, "ZEC": true, "TESTNET_RSK": true}//,
 //    "ios": {"BTC": true, "ETH": true, "DAO": true, "DASH": false, "ETC": true}
 }
 
 HDWalletHelper.cryptoCurrenciesAllowed = {
-    "regular": {"BTC": true, "ETH": true, "DAO": true, "DASH": true, "ETC": true, "REP": true, "LTC": true, "LSK": false, "ZEC": true},
-    "ios": {"BTC": true, "ETH": true, "DAO": false, "DASH": true, "ETC": true, "REP": true, "LTC": true, "LSK": false, "ZEC": false}
+    "regular": {"BTC": true, "ETH": true, "DAO": true, "DASH": true, "ETC": true, "REP": true, "LTC": true, "LSK": false, "ZEC": true, "TESTNET_RSK": true},
+    "ios": {"BTC": true, "ETH": true, "DAO": false, "DASH": true, "ETC": true, "REP": true, "LTC": true, "LSK": false, "ZEC": false, "TESTNET_RSK": false}
 }
 
 HDWalletHelper.shapeShiftCryptoCurrenciesAllowed = {
-    "regular": {"BTC": true, "ETH": true, "DAO": false, "DASH": true, "ETC": true, "REP": true, "LTC": true, "LSK": false, "ZEC": true},
+    "regular": {"BTC": true, "ETH": true, "DAO": false, "DASH": true, "ETC": true, "REP": true, "LTC": true, "LSK": false, "ZEC": true, "TESTNET_RSK": false},
 }
 
 HDWalletHelper.dictCryptoCurrency = {
@@ -49,8 +49,8 @@ HDWalletHelper.dictCryptoCurrency = {
     ,"REP" : {"prefix" : "\u024C", "name" : "Augur", "bannerName": "REP", "index" : 5}
     ,"LTC" : {"prefix" : "\u0141", "name" : "Litecoin", "bannerName": "LTC", "index" : 6}
     ,"LSK" : {"prefix" : "\u2C60", "name" : "Lisk", "bannerName": "LSK", "index" : 7}
-    //@note@:@here:@zcash
-        ,"ZEC" : {"prefix" : "\u24E9", "name" : "ZCash", "bannerName": "ZEC", "index" : 8}
+    ,"ZEC" : {"prefix" : "\u24E9", "name" : "ZCash", "bannerName": "ZEC", "index" : 8}
+    ,"TESTNET_RSK" : {"prefix" : "\uc98c", "name" : "Rootstock Testnet", "bannerName": "RSK", "index" : 9}
 };
 
 HDWalletHelper.dictFiatCurrency = {
@@ -192,8 +192,9 @@ HDWalletHelper.getDefaultRegulatedTXFee = function(coinType) {
         //@note: @here: @bug: @lisk: this is definitely wrong.
         return 100000;
     } else if (coinType === COIN_ZCASH) {
-        //@note: @here: @bug: @zcash: this is definitely wrong.
         return 10000;
+    } else if (coinType === COIN_TESTNET_ROOTSTOCK) {
+        return HDWalletHelper.getDefaultEthereumGasPrice();
     }
 
     console.log("error :: HDWalletHelper.getDefaultRegulatedTXFee :: no value defined for coin type :: " + coinType);
@@ -631,13 +632,20 @@ HDWalletHelper.prototype._notifyExchangeRateListeners = function(coinType) {
     for (var i = 0; i < this._exchangeRateListenerCallbacks[coinType].length; i++) {
         this._exchangeRateListenerCallbacks[coinType][i](coinType);
     }
-    if (coinType === curCoinType){
-        for (var currency in this._exchangeRatesHasChanged[coinType]){
-            if (this._exchangeRatesHasChanged[coinType].hasOwnProperty(currency)){
-                if (this._exchangeRatesHasChanged[coinType][currency]){
-                    g_JaxxApp.getUI().populateExchangeRateInMainMenuCurrencyList(coinType, currency);
-                    this._exchangeRatesHasChanged[coinType][currency] = true;
-                }
+    if (coinType === curCoinType) {
+        var arrFiatUnitsUnfiltered = Object.keys(this._exchangeRatesHasChanged[coinType]);
+        var arrAllowedFiatCurrencies = Object.keys(HDWalletHelper.dictFiatCurrency);
+        var arrFiatUnits = [];
+        for (var i = 0; i < arrFiatUnitsUnfiltered.length; i++) {
+            if (arrAllowedFiatCurrencies.indexOf(arrFiatUnitsUnfiltered[i]) > -1){
+                arrFiatUnits.push(arrFiatUnitsUnfiltered[i]);
+            }
+        }
+        for (var i = 0; i < arrFiatUnits.length; i++) {
+            var fiatUnit = arrFiatUnits[i];
+            if (this._exchangeRatesHasChanged[coinType][fiatUnit]){
+                g_JaxxApp.getUI().populateExchangeRateInMainMenuCurrencyList(coinType, fiatUnit);
+                this._exchangeRatesHasChanged[coinType][fiatUnit] = false;
             }
         }
     }
@@ -900,11 +908,11 @@ HDWalletHelper.prototype.convertEthereumLikeSmallUnitToFiat = function(coinType,
     }
 
     var value = parseFloat(HDWalletHelper.convertWeiToEther(wei)) * rate;
-
+//    console.log("HDWalletHelper :: convertEthereumLikeSmallUnitToFiat :: fiatUnit :: " + fiatUnit + " :: noPrefix :: " + noPrefix + " :: wei :: " + wei + " :: value :: " + value);
 
     var returnValue = this.convertFiatValueToInternational(value, baseFiatDict);
 
-    //    console.log("fiatUnit :: " + fiatUnit + " :: prefix :: " + prefix + " :: satoshis :: " + satoshis + " :: value :: " + value);
+
 
     return returnValue;
 }
@@ -998,6 +1006,8 @@ HDWalletHelper.parseURI = function(uri) {
                 result.coin = 'dash';
             } else if (uriRemaining.match(/^[L][0-9a-zA-Z]{33}/)) {
                 result.coin = 'litecoin';
+            } else if (uriRemaining.match(/^[t1][0-9a-zA-Z]{34}/)) {
+                result.coin = 'zcash';
             } else if (uriRemaining.match(/^[13]/)) {
                 result.coin = 'bitcoin';
             }
@@ -1119,6 +1129,15 @@ HDWalletHelper.parseURI = function(uri) {
             }
             break;
         case 'litecoin':
+            try {
+                if (!thirdparty.bitcoin.address.fromBase58Check(result.address)) {
+                    return null;
+                }
+            } catch (error) {
+                return null;
+            }
+            break;
+        case 'zcash':
             try {
                 if (!thirdparty.bitcoin.address.fromBase58Check(result.address)) {
                     return null;
@@ -1264,6 +1283,12 @@ HDWalletHelper.parseEthereumAddress = function(data) {
     } else if (data.match(/^ether:(0x[0-9a-fA-F]{40})$/)) {
         //            console.log("found matching address :: " + data);
         return data.substring(6);
+    } else if (data.match(/^augur:(0x[0-9a-fA-F]{40})$/)) {
+
+        //@note: from shapeshift reports.
+
+        //            console.log("found matching address :: " + data);
+        return data.substring("ether:");
     }
 
     // ICAP...
@@ -1390,6 +1415,8 @@ HDWalletHelper.convertCoinToUnitType = function(coinType, coinAmount, coinUnitTy
 //        coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertSatoshisToBitcoins(coinAmount) : HDWalletHelper.convertBitcoinsToSatoshis(coinAmount);
     } else if (coinType === COIN_ZCASH) {
         coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertSatoshisToBitcoins(coinAmount) : HDWalletHelper.convertBitcoinsToSatoshis(coinAmount);
+    } else if (coinType === COIN_TESTNET_ROOTSTOCK) {
+        coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertWeiToEther(coinAmount) : HDWalletHelper.convertEtherToWei(coinAmount);
     }
 
     return coinOtherUnitAmount;
@@ -1458,6 +1485,10 @@ HDWalletHelper.prototype.convertCoinToFiatWithFiatType = function(coinType, coin
         var zcashAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertBitcoinsToSatoshis(coinAmount) : coinAmount;
 
         fiatAmount = wallet.getHelper().convertBitcoinLikeSmallUnitToFiat(COIN_ZCASH, zcashAmount, fiatUnit, noPrefix);
+    } else if (coinType === COIN_TESTNET_ROOTSTOCK) {
+        var weiAmount = (coinUnitType === COIN_UNITLARGE) ?  HDWalletHelper.convertEtherToWei(coinAmount) : coinAmount;
+
+        fiatAmount = wallet.getHelper().convertEthereumLikeSmallUnitToFiat(COIN_TESTNET_ROOTSTOCK, weiAmount, fiatUnit, noPrefix);
     }
     //    console.log("convertCoinToFiat :: coinAmount :: " + coinAmount + " :: fiatAmount :: " + fiatAmount + " :: " + noPrefix);
 

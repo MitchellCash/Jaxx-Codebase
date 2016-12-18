@@ -1,5 +1,5 @@
-var HDWalletPouchEthereumClassic = function() {
-    this._doDebug = false;
+var HDWalletPouchTestnetRootstock = function() {
+    this._doDebug = true;
 
     this._pouchManager = null;
 
@@ -8,38 +8,38 @@ var HDWalletPouchEthereumClassic = function() {
     this._baseFormatCoinType = COIN_ETHEREUM;
 }
 
-HDWalletPouchEthereumClassic.uiComponents = {
-    coinFullName: 'EthereumClassic',
-    coinFullDisplayName: 'Ethereum Classic',
-    coinWalletSelector3LetterSymbol: 'ETC',
-    coinSymbol: '\u039E',
-    coinButtonSVGName: 'ether-classic-new',
-    coinLargePngName: '.imgETC',
-    coinButtonName: '.imageLogoBannerETC',
-    coinSpinnerElementName: '.imageEtherClassicWash',
-    coinDisplayColor: '#8890AF',
-    csvExportField: '.backupPrivateKeyListETC',
-    transactionsListElementName: '.transactionsEthereumClassic',
-    transactionTemplateElementName: '.transactionEthereumClassic',
-    accountsListElementName: '.accountDataTableEthereumClassic',
-    accountTemplateElementName: '.accountDataEthereumClassic',
+HDWalletPouchTestnetRootstock.uiComponents = {
+    coinFullName: 'Rootstock Testnet',
+    coinFullDisplayName: 'Rootstock Testnet',
+    coinWalletSelector3LetterSymbol: 'RSK',
+    coinSymbol: '\uc98c',
+    coinButtonSVGName: 'rootstock-here',
+    coinLargePngName: '.imgRSK',
+    coinButtonName: '.imageLogoBannerTESTNET_RSK',
+    coinSpinnerElementName: '.imageRootstockWash',
+    coinDisplayColor: '#019933',
+    csvExportField: '.backupPrivateKeyListTESTNET_RSK',
+    transactionsListElementName: '.transactionsTestnetRootstock',
+    transactionTemplateElementName: '.transactionTestnetRootstock',
+    accountsListElementName: '.accountDataTableTestnetRootstock',
+    accountTemplateElementName: '.accountDataTestnetRootstock',
     displayNumDecimals: 6,
 };
 
-HDWalletPouchEthereumClassic.pouchParameters = {
-    coinHDType: 61,
+HDWalletPouchTestnetRootstock.pouchParameters = {
+    coinHDType: 137 + 37173,
     coinIsTokenSubtype: false,
-    coinAbbreviatedName: 'ETC',
-    isSingleToken: false,
-    isTestnet: false,
+    coinAbbreviatedName: 'SBTC',
+    isSingleToken: true,
+    isTestnet: true,
 };
 
-HDWalletPouchEthereumClassic.networkDefinitions = {
+HDWalletPouchTestnetRootstock.networkDefinitions = {
     mainNet: null,
     testNet: null,
 }
 
-HDWalletPouchEthereumClassic.getCoinAddress = function(node) {
+HDWalletPouchTestnetRootstock.getCoinAddress = function(node) {
     //        console.log("[ethereum] node :: " + node);
     var ethKeyPair = node.keyPair;
     //        console.log("[ethereum] keyPair :: " + ethKeyPair.d + " :: " + ethKeyPair.__Q);
@@ -63,7 +63,7 @@ HDWalletPouchEthereumClassic.getCoinAddress = function(node) {
     return "0x" + addressEth;
 }
 
-HDWalletPouchEthereumClassic.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
+HDWalletPouchTestnetRootstock.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
     var coinAmount = 0;
 
     var wei = wallet.getHelper().convertFiatToWei(fiatAmount);
@@ -72,12 +72,12 @@ HDWalletPouchEthereumClassic.prototype.convertFiatToCoin = function(fiatAmount, 
     return coinAmount;
 }
 
-HDWalletPouchEthereumClassic.prototype.initialize = function(pouchManager) {
+HDWalletPouchTestnetRootstock.prototype.initialize = function(pouchManager) {
     this._pouchManager = pouchManager;
 }
 
 
-HDWalletPouchEthereumClassic.prototype.shutDown = function() {
+HDWalletPouchTestnetRootstock.prototype.shutDown = function() {
     for (var i = 0; i < CoinToken.numCoinTokens; i++) {
         if (typeof(this._pouchManager._token[i]) === 'undefined' ||
             this._pouchManager._token[i] === null) {
@@ -88,23 +88,23 @@ HDWalletPouchEthereumClassic.prototype.shutDown = function() {
     }
 }
 
-HDWalletPouchEthereumClassic.prototype.setup = function() {
+HDWalletPouchTestnetRootstock.prototype.setup = function() {
     this.setupTokens();
 }
 
-HDWalletPouchEthereumClassic.prototype.setupTokens = function() {
-//    for (var i = 0; i < CoinToken.numCoinTokens; i++) {
-//        this._pouchManager._token[i] = new CoinToken();
-//    }
-//
-//    var baseReceiveAddress = HDWalletPouch.getCoinAddress(this._pouchManager._coinType, HDWalletPouch._derive(this._pouchManager._receiveNode, 0, false)).toString();
-//
-//    this._pouchManager._token[CoinToken.TheDAO].initialize("TheDAO", "DAO", CoinToken.TheDAO, baseReceiveAddress, this._pouchManager, HDWalletHelper.getDefaultEthereumGasPrice(), HDWalletHelper.getDefaultTheDAOGasLimit(), this._pouchManager._storageKey);
+HDWalletPouchTestnetRootstock.prototype.setupTokens = function() {
+    //    for (var i = 0; i < CoinToken.numCoinTokens; i++) {
+    //        this._pouchManager._token[i] = new CoinToken();
+    //    }
+    //
+    //    var baseReceiveAddress = HDWalletPouch.getCoinAddress(this._pouchManager._coinType, HDWalletPouch._derive(this._pouchManager._receiveNode, 0, false)).toString();
+    //
+    //    this._pouchManager._token[CoinToken.TheDAO].initialize("TheDAO", "DAO", CoinToken.TheDAO, baseReceiveAddress, this._pouchManager, HDWalletHelper.getDefaultEthereumGasPrice(), HDWalletHelper.getDefaultTheDAOGasLimit(), this._pouchManager._storageKey);
 
     this.updateTokenAddresses(this._pouchManager._w_addressMap);
 }
 
-HDWalletPouchEthereumClassic.prototype.log = function(logString) {
+HDWalletPouchTestnetRootstock.prototype.log = function(logString) {
     if (this._doDebug === false) {
         return;
     }
@@ -114,10 +114,10 @@ HDWalletPouchEthereumClassic.prototype.log = function(logString) {
     console.log(args);
 }
 
-HDWalletPouchEthereumClassic.prototype.updateMiningFees = function() {
+HDWalletPouchTestnetRootstock.prototype.updateMiningFees = function() {
 }
 
-HDWalletPouchEthereumClassic.prototype.updateTransactionsFromWorker = function(txid, transactions) {
+HDWalletPouchTestnetRootstock.prototype.updateTransactionsFromWorker = function(txid, transactions) {
     //                                                        console.log("wallet worker update :: eth tx :: " + Object.keys(transactions).length);
     //                            console.log("incoming eth tx :: " + JSON.stringify(transaction) + " :: " + txid);
 
@@ -127,12 +127,12 @@ HDWalletPouchEthereumClassic.prototype.updateTransactionsFromWorker = function(t
     return false;
 }
 
-HDWalletPouchEthereumClassic.prototype.getTransactions = function() {
+HDWalletPouchTestnetRootstock.prototype.getTransactions = function() {
     var res = [];
 
     //        console.log("this._transactions length :: " + Object.keys(this._transactions).length);
     for (var txid in this._pouchManager._transactions) {
-//                    console.log("adding tx :: " + txid)
+        //                    console.log("adding tx :: " + txid)
         res.push(this._pouchManager._transactions[txid]);
     }
 
@@ -145,7 +145,7 @@ HDWalletPouchEthereumClassic.prototype.getTransactions = function() {
     return res;
 }
 
-HDWalletPouchEthereumClassic.prototype.calculateHistoryforTransaction = function(transaction) {
+HDWalletPouchTestnetRootstock.prototype.calculateHistoryforTransaction = function(transaction) {
     //            console.log("A :: ethereum transaction :: " + JSON.stringify(transaction));
     if (typeof(transaction.addressIndex) !== 'undefined' && transaction.addressIndex !== null) {
         //                console.log("B :: ethereum transaction :: " + JSON.stringify(transaction));
@@ -190,7 +190,7 @@ HDWalletPouchEthereumClassic.prototype.calculateHistoryforTransaction = function
     }
 }
 
-HDWalletPouchEthereumClassic.prototype.getPouchFoldBalance = function() {
+HDWalletPouchTestnetRootstock.prototype.getPouchFoldBalance = function() {
     var balance = 0;
 
     var highestIndexToCheck = this._pouchManager.getHighestReceiveIndex();
@@ -208,7 +208,7 @@ HDWalletPouchEthereumClassic.prototype.getPouchFoldBalance = function() {
     return balance;
 }
 
-HDWalletPouchEthereumClassic.prototype.getAccountBalance = function(internal, index) {
+HDWalletPouchTestnetRootstock.prototype.getAccountBalance = function(internal, index) {
     var accountBalance = 0;
 
     //@note: @here: @todo: consider changing this to a class function
@@ -233,7 +233,7 @@ HDWalletPouchEthereumClassic.prototype.getAccountBalance = function(internal, in
     return accountBalance;
 }
 
-HDWalletPouchEthereumClassic.prototype.getSpendableBalance = function(minimumValue) {
+HDWalletPouchTestnetRootstock.prototype.getSpendableBalance = function(minimumValue) {
     var spendableDict = {spendableBalance: 0,
                          numPotentialTX: 0};
 
@@ -272,7 +272,7 @@ HDWalletPouchEthereumClassic.prototype.getSpendableBalance = function(minimumVal
     return spendableDict;
 }
 
-HDWalletPouchEthereumClassic.prototype.updateTokenAddresses = function(addressMap) {
+HDWalletPouchTestnetRootstock.prototype.updateTokenAddresses = function(addressMap) {
     var transferableMap = {};
     var votableMap = {};
 
@@ -334,7 +334,7 @@ HDWalletPouchEthereumClassic.prototype.updateTokenAddresses = function(addressMa
     }
 }
 
-HDWalletPouchEthereumClassic.prototype.getEthereumNonce = function(internal, index) {
+HDWalletPouchTestnetRootstock.prototype.getEthereumNonce = function(internal, index) {
     if (typeof(index) === 'undefined' || index === null) {
         console.log("error :: getEthereumNonce :: index undefined or null");
         return -1;
@@ -352,14 +352,14 @@ HDWalletPouchEthereumClassic.prototype.getEthereumNonce = function(internal, ind
             txDict[transaction.txid] = true;
             //@note: @here: @bug: for address 0x5630a246f35996a1d605174d119ece78c8f5d94a,
             //it appears that there are 8 tx when doing it the following way, which is wrong. getTransactions only has 6 identifiers.
-//            console.log("fromAddress :: " + fromAddress + " :: found tx :: " + JSON.stringify(transaction.txid));
+            //            console.log("fromAddress :: " + fromAddress + " :: found tx :: " + JSON.stringify(transaction.txid));
             //            highestNonce++;
         }
     }
 
     highestNonce = Object.keys(txDict).length;
 
-//    self.log("getEthereumNonce :: fromAddress :: " + fromAddress + " :: highestNonce :: " + highestNonce);
+    //    self.log("getEthereumNonce :: fromAddress :: " + fromAddress + " :: highestNonce :: " + highestNonce);
     //    if (internal === false) {
     //        internal = 0;
     //    } else if (internal === true) {
@@ -384,8 +384,8 @@ HDWalletPouchEthereumClassic.prototype.getEthereumNonce = function(internal, ind
     return highestNonce;
 }
 
-HDWalletPouchEthereumClassic.prototype.getEthereumNonceForCustomAddress = function(address, callback) {
-    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM_CLASSIC).networkParams;
+HDWalletPouchTestnetRootstock.prototype.getEthereumNonceForCustomAddress = function(address, callback) {
+    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_TESTNET_ROOTSTOCK).networkParams;
 
     var requestUrl = networkParams['static_relay_url'] + networkParams['nonce'] + address;
 
@@ -402,7 +402,7 @@ HDWalletPouchEthereumClassic.prototype.getEthereumNonceForCustomAddress = functi
     });
 }
 
-HDWalletPouchEthereumClassic.prototype._buildEthereumTransaction = function(fromNodeInternal, fromNodeIndex, toAddress, amount_smallUnit, ethGasPrice, ethGasLimit, ethData, doNotSign) {
+HDWalletPouchTestnetRootstock.prototype._buildEthereumTransaction = function(fromNodeInternal, fromNodeIndex, toAddress, amount_smallUnit, ethGasPrice, ethGasLimit, ethData, doNotSign) {
     var gasPrice = HDWalletHelper.hexify(ethGasPrice);
     var gasLimit = HDWalletHelper.hexify(ethGasLimit);
 
@@ -469,7 +469,7 @@ HDWalletPouchEthereumClassic.prototype._buildEthereumTransaction = function(from
     return transaction;
 }
 
-HDWalletPouchEthereumClassic.prototype.buildEthereumTransactionList = function(toAddressArray, amount_smallUnit, gasPrice, gasLimit, ethData, doNotSign) {
+HDWalletPouchTestnetRootstock.prototype.buildEthereumTransactionList = function(toAddressArray, amount_smallUnit, gasPrice, gasLimit, ethData, doNotSign) {
     var amountWei = parseInt(amount_smallUnit);
 
     var txArray = [];
@@ -599,7 +599,7 @@ HDWalletPouchEthereumClassic.prototype.buildEthereumTransactionList = function(t
 
 //@note: @here: this function is needed for the ethereum split contract to function using the ethereum pouch's internalIndex data, plus a custom nonce request for this address on the ETC network. Nonce divergence on ETH doesn't matter in this case because of the nature and reason for this split process.
 
-HDWalletPouchEthereumClassic.prototype._buildEthereumTransactionWithCustomEthereumLikeBlockchain = function(ethereumLikeBlockchainPouch, fromNodeInternal, fromNodeIndex, toAddress, bigNum_amountSmallUnit, ethGasPrice, ethGasLimit, ethData, doNotSign, callback, passthroughParams) {
+HDWalletPouchTestnetRootstock.prototype._buildEthereumTransactionWithCustomEthereumLikeBlockchain = function(ethereumLikeBlockchainPouch, fromNodeInternal, fromNodeIndex, toAddress, bigNum_amountSmallUnit, ethGasPrice, ethGasLimit, ethData, doNotSign, callback, passthroughParams) {
     var self = this;
 
     var gasPrice = HDWalletHelper.hexify(ethGasPrice);
@@ -677,7 +677,7 @@ HDWalletPouchEthereumClassic.prototype._buildEthereumTransactionWithCustomEthere
 
 
 
-HDWalletPouchEthereumClassic.prototype.getIsTheDAOAssociated = function(internal, index) {
+HDWalletPouchTestnetRootstock.prototype.getIsTheDAOAssociated = function(internal, index) {
     var publicAddress = this._pouchManager.getPublicAddress(internal, index);
 
     //@note: for ethereum checksum addresses.
@@ -695,7 +695,7 @@ HDWalletPouchEthereumClassic.prototype.getIsTheDAOAssociated = function(internal
     return false;
 }
 
-HDWalletPouchEthereumClassic.prototype.getIsAugurAssociated = function(internal, index) {
+HDWalletPouchTestnetRootstock.prototype.getIsAugurAssociated = function(internal, index) {
     var publicAddress = this._pouchManager.getPublicAddress(internal, index);
 
     //@note: for ethereum checksum addresses.
@@ -713,7 +713,7 @@ HDWalletPouchEthereumClassic.prototype.getIsAugurAssociated = function(internal,
     return false;
 }
 
-HDWalletPouchEthereumClassic.prototype.getAccountList = function(transactions) {
+HDWalletPouchTestnetRootstock.prototype.getAccountList = function(transactions) {
     var result = [];
 
     var lastIndexChange = 0;
@@ -749,7 +749,7 @@ HDWalletPouchEthereumClassic.prototype.getAccountList = function(transactions) {
     if (result.length === 0) {
         finalIndex = 0;
     } else {
-        finalIndex = lastIndexReceive + 1;
+        finalIndex = 0;//lastIndexReceive + 1;
     }
     var account = {};
     account.pvtKey = this._pouchManager.getPrivateKey(false, finalIndex).d.toBuffer(32).toString('hex');
@@ -763,7 +763,7 @@ HDWalletPouchEthereumClassic.prototype.getAccountList = function(transactions) {
     return result;
 }
 
-HDWalletPouchEthereumClassic.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) {
+HDWalletPouchTestnetRootstock.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) {
     var curRecAddr = this._pouchManager.getCurrentReceiveAddress();
 
     var uri = "iban:" + HDWalletHelper.getICAPAddress(curRecAddr);
@@ -790,7 +790,7 @@ HDWalletPouchEthereumClassic.prototype.generateQRCode = function(largeFormat, co
 }
 
 //@note: this function when passed in an explicit null to ignoreCached, will use cache. cached only in session.
-HDWalletPouchEthereumClassic.prototype.isAddressFromSelf = function(addressToCheck, ignoreCached) {
+HDWalletPouchTestnetRootstock.prototype.isAddressFromSelf = function(addressToCheck, ignoreCached) {
     var isSelfAddress = false;
 
     //@note: for ethereum checksum addresses.
@@ -834,7 +834,7 @@ HDWalletPouchEthereumClassic.prototype.isAddressFromSelf = function(addressToChe
     return isSelfAddress;
 }
 
-HDWalletPouchEthereumClassic.prototype.sendEthereumTransaction = function(transaction, callback, params, debugIdx) {
+HDWalletPouchTestnetRootstock.prototype.sendEthereumTransaction = function(transaction, callback, params, debugIdx) {
     //@note:@todo:@next:
     var hex = '0x' + transaction.serialize().toString('hex');
 
@@ -846,7 +846,7 @@ HDWalletPouchEthereumClassic.prototype.sendEthereumTransaction = function(transa
     //
     var self = this;
 
-    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM_CLASSIC).networkParams;
+    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_TESTNET_ROOTSTOCK).networkParams;
 
     var requestUrl = networkParams['static_relay_url'] + networkParams['send_tx'];
 
@@ -944,14 +944,14 @@ HDWalletPouchEthereumClassic.prototype.sendEthereumTransaction = function(transa
     });
 }
 
-HDWalletPouchEthereumClassic.prototype.afterWorkerCacheInvalidate = function() {
+HDWalletPouchTestnetRootstock.prototype.afterWorkerCacheInvalidate = function() {
     this._pouchManager.sortHighestAccounts();
 }
 
-HDWalletPouchEthereumClassic.prototype.requestBlockNumber = function(callback) {
+HDWalletPouchTestnetRootstock.prototype.requestBlockNumber = function(callback) {
     var self = this;
 
-    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM_CLASSIC).networkParams;
+    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_TESTNET_ROOTSTOCK).networkParams;
 
     var requestUrl = networkParams['static_relay_url'] + networkParams['block_number'];
 
@@ -972,7 +972,7 @@ HDWalletPouchEthereumClassic.prototype.requestBlockNumber = function(callback) {
     });
 }
 
-HDWalletPouchEthereumClassic.prototype.prepareSweepTransaction = function(privateKey, callback) {
+HDWalletPouchTestnetRootstock.prototype.prepareSweepTransaction = function(privateKey, callback) {
     var self = this;
 
     var signedTransaction;
@@ -1073,17 +1073,17 @@ HDWalletPouchEthereumClassic.prototype.prepareSweepTransaction = function(privat
     }); //End JSON call for balance
 }
 
-HDWalletPouchEthereumClassic.prototype.fromChecksumAddress = function(address) {
+HDWalletPouchTestnetRootstock.prototype.fromChecksumAddress = function(address) {
     //@note: for ethereum checksum addresses.
     return address.toLowerCase();
 }
 
-HDWalletPouchEthereumClassic.prototype.toChecksumAddress = function(address) {
+HDWalletPouchTestnetRootstock.prototype.toChecksumAddress = function(address) {
     //@note: for ethereum checksum addresses.
     return HDWalletHelper.toEthereumChecksumAddress(address);
 }
 
-HDWalletPouchEthereumClassic.prototype.hasCachedAddressAsContract = function(address) {
+HDWalletPouchTestnetRootstock.prototype.hasCachedAddressAsContract = function(address) {
     if (this._ethAddressTypeMap[address]) {
         if (this._ethAddressTypeMap[address] === true) {
             return true;
@@ -1095,7 +1095,7 @@ HDWalletPouchEthereumClassic.prototype.hasCachedAddressAsContract = function(add
     }
 }
 
-HDWalletPouchEthereumClassic.prototype.checkIsSmartContractQuery = function(address, callback)
+HDWalletPouchTestnetRootstock.prototype.checkIsSmartContractQuery = function(address, callback)
 {
     if (this._ethAddressTypeMap[address]) {
         callback(null, this._ethAddressTypeMap[address]);
@@ -1103,7 +1103,7 @@ HDWalletPouchEthereumClassic.prototype.checkIsSmartContractQuery = function(addr
 
     var self = this;
 
-    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM_CLASSIC).networkParams;
+    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_TESTNET_ROOTSTOCK).networkParams;
 
     var requestUrl = networkParams['static_relay_url'] + networkParams['smart_contract_code'] + address;
 
@@ -1126,11 +1126,11 @@ HDWalletPouchEthereumClassic.prototype.checkIsSmartContractQuery = function(addr
     });
 }
 
-HDWalletPouchEthereumClassic.prototype.getBaseCoinAddressFormatType = function() {
+HDWalletPouchTestnetRootstock.prototype.getBaseCoinAddressFormatType = function() {
     return this._baseFormatCoinType;
 }
 
-HDWalletPouchEthereumClassic.prototype.createTransaction = function(address, amount) {
+HDWalletPouchTestnetRootstock.prototype.createTransaction = function(address, amount) {
     //@note: @here: @todo: from jaxx.js, gather custom data and such.
     //@note: @here: this should check for address, amount validity.
     //@note: @todo: maybe a transaction queue?

@@ -10,6 +10,7 @@ var HDWalletPouchLitecoin = function() {
 HDWalletPouchLitecoin.uiComponents = {
     coinFullName: 'Litecoin',
     coinFullDisplayName: 'Litecoin',
+    coinWalletSelector3LetterSymbol: 'LTC',
     coinSymbol: '\u0141',
     coinButtonSVGName: 'litecoin-here',
     coinLargePngName: '.imgLTC',
@@ -28,6 +29,8 @@ HDWalletPouchLitecoin.pouchParameters = {
     coinHDType: 2,
     coinIsTokenSubtype: false,
     coinAbbreviatedName: 'LTC',
+    isSingleToken: false,
+    isTestnet: false,
 };
 
 HDWalletPouchLitecoin.networkDefinitions = {

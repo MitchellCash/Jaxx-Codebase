@@ -27,6 +27,7 @@ importScripts('../wallet/hdwallet_worker_impl_ethereum_classic.js');
 importScripts('../wallet/hdwallet_worker_impl_litecoin.js');
 importScripts('../wallet/hdwallet_worker_impl_lisk.js');
 importScripts('../wallet/hdwallet_worker_impl_zcash.js');
+importScripts('../wallet/hdwallet_worker_impl_testnet_rootstock.js');
 
 var doDebug = true;
 
@@ -155,7 +156,13 @@ HDWalletWorkerManager.prototype.finishInitialization = function() {
         importScripts('../wallet/hdwallet_worker_impl_zcash.js');
         importScripts('../wallet/hdwallet_pouch_impl_zcash.js');
         this._coinWorkerImpl = new HDWalletWorkerZCash();
+    } else if (this._coinType === COIN_TESTNET_ROOTSTOCK) {
+        importScripts('../wallet/hdwallet_worker_impl_testnet_rootstock.js');
+        importScripts('../wallet/hdwallet_pouch_impl_testnet_rootstock.js');
+        this._coinWorkerImpl = new HDWalletWorkerTestnetRootstock();
     }
+
+
 
     log("[ HDWalletWorkerManager ] :: init :: " + this._coinType);
 
@@ -351,7 +358,17 @@ HDWalletWorkerManager.prototype.update = function(forcePouchRecheck) {
     }
 
     if (!this._currentReceiveAddress) {
-        this._currentReceiveAddress = HDWalletPouch.getCoinAddress(this._coinType, this._receiveNode.derive(this._lastReceiveIndex + 1)).toString();
+        var derivationIndex = 0;
+
+        var isSingleToken = HDWalletPouch.getStaticCoinPouchImplementation(this._coinType).pouchParameters['isSingleToken'];
+
+        if (isSingleToken === true) {
+            derivationIndex = 0;
+        } else {
+            derivationIndex = this._lastReceiveIndex + 1;
+        }
+
+        this._currentReceiveAddress = HDWalletPouch.getCoinAddress(this._coinType, this._receiveNode.derive(derivationIndex)).toString();
 
         updates.currentReceiveAddress = this._currentReceiveAddress;
 
@@ -364,8 +381,18 @@ HDWalletWorkerManager.prototype.update = function(forcePouchRecheck) {
     }
 
     if (!this._currentChangeAddress) {
-        this._currentChangeAddress = HDWalletPouch.getCoinAddress(this._coinType, this._changeNode.derive(this._lastChangeIndex + 1)).toString();
-        updates.currentChangeIndex = this._lastChangeIndex + 1;
+        var derivationIndex = 0;
+
+        var isSingleToken = HDWalletPouch.getStaticCoinPouchImplementation(this._coinType).pouchParameters['isSingleToken'];
+
+        if (isSingleToken === true) {
+            derivationIndex = 0;
+        } else {
+            derivationIndex = this._lastChangeIndex + 1;
+        }
+
+        this._currentChangeAddress = HDWalletPouch.getCoinAddress(this._coinType, this._changeNode.derive(derivationIndex)).toString();
+        updates.currentChangeIndex = derivationIndex;
         updates.currentChangeAddress = this._currentChangeAddress;
     }
 
@@ -415,12 +442,19 @@ HDWalletWorkerManager.prototype.getAddressInfoLastUsedAndHighestDict = function(
 
         //@note:@here:@bug: I'm not sure the logic here is sound..
 
-        // Track the highest address we've looked up so far (need to cover the gap)
-        if (addressInfo.internal && addressInfo.index > highestChangeIndex) {
-            highestChangeIndex = addressInfo.index;
+        var isSingleToken = HDWalletPouch.getStaticCoinPouchImplementation(this._coinType).pouchParameters['isSingleToken'];
 
-        } else if (!addressInfo.internal && addressInfo.index > highestReceiveIndex) {
-            highestReceiveIndex = addressInfo.index;
+        if (isSingleToken === true) {
+            highestChangeIndex = 0;
+            highestReceiveIndex = 0;
+        } else {
+            // Track the highest address we've looked up so far (need to cover the gap)
+            if (addressInfo.internal && addressInfo.index > highestChangeIndex) {
+                highestChangeIndex = addressInfo.index;
+
+            } else if (!addressInfo.internal && addressInfo.index > highestReceiveIndex) {
+                highestReceiveIndex = addressInfo.index;
+            }
         }
     }
 
@@ -463,17 +497,40 @@ HDWalletWorkerManager.prototype.checkTransactions = function(addressesOrMinimumA
 //        log("watcher :: " + this._coinType + " :: address used :: " + JSON.stringify(addressInfo));
 //    }
 
-
     var neededGenerate = false;
 
-    // Now see if we need to generate another receive address
+    var isSingleToken = HDWalletPouch.getStaticCoinPouchImplementation(this._coinType).pouchParameters['isSingleToken'];
+
+    var shouldGenerateReceive = false;
+    var shouldGenerateChange = false;
+
+//    if (this._coinType === COIN_TESTNET_ROOTSTOCK) {
+//        console.log("isSingleToken :: " + isSingleToken);
+//    }
+
     if (lastAndHighestDict.lastUsedReceiveIndex + 20 > lastAndHighestDict.highestReceiveIndex) {
+        if (isSingleToken === true && lastAndHighestDict.highestReceiveIndex > -1) {
+            shouldGenerateReceive = false;
+        } else {
+            shouldGenerateReceive = true;
+        }
+    }
+
+    if (lastAndHighestDict.lastUsedChangeIndex + 20 > lastAndHighestDict.highestChangeIndex) {
+        if (isSingleToken === true && lastAndHighestDict.highestChangeIndex > -1) {
+            shouldGenerateChange = false;
+        } else {
+            shouldGenerateChange = true;
+        }
+    }
+
+    if (shouldGenerateReceive === true) {
         var index = lastAndHighestDict.highestReceiveIndex + 1;
         var address = HDWalletPouch.getCoinAddress(this._coinType, this._receiveNode.derive(index)).toString();
 
-//        if (this._coinType === COIN_ETHEREUM) {
-//            log("watcher :: " + this._coinType + " :: address :: " + address + " :: index :: " + index + " :: receiveNode :: " +  this._receiveNode.derive(index) + " :: lastUsedReceiveIndex :: " + lastUsedReceiveIndex + " :: highestReceiveIndex :: " + highestReceiveIndex);
-//        }
+        //        if (this._coinType === COIN_ETHEREUM) {
+        //            log("watcher :: " + this._coinType + " :: address :: " + address + " :: index :: " + index + " :: receiveNode :: " +  this._receiveNode.derive(index) + " :: lastUsedReceiveIndex :: " + lastUsedReceiveIndex + " :: highestReceiveIndex :: " + highestReceiveIndex);
+        //        }
 
         this._addressMap[address] = {index: index, internal: 0, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0, isTheDAOAssociated: false, isAugurAssociated: false};
         this._watchAddress(address);
@@ -482,12 +539,12 @@ HDWalletWorkerManager.prototype.checkTransactions = function(addressesOrMinimumA
     }
 
     // Now see if we need to generate another change address
-    if (lastAndHighestDict.lastUsedChangeIndex + 20 > lastAndHighestDict.highestChangeIndex) {
+    if (shouldGenerateChange === true) {
         var index = lastAndHighestDict.highestChangeIndex + 1;
         var address = HDWalletPouch.getCoinAddress(this._coinType, this._changeNode.derive(index)).toString();
-//        if (this._coinType === COIN_ETHEREUM) {
-//            log("watcher :: " + this._coinType + " :: address :: " + address +  " :: index :: " + index + " :: changeNode :: " +  this._changeNode.derive(index) + " :: lastUsedChangeIndex :: " + lastUsedChangeIndex + " :: highestChangeIndex :: " + highestChangeIndex);
-//        }
+        //        if (this._coinType === COIN_ETHEREUM) {
+        //            log("watcher :: " + this._coinType + " :: address :: " + address +  " :: index :: " + index + " :: changeNode :: " +  this._changeNode.derive(index) + " :: lastUsedChangeIndex :: " + lastUsedChangeIndex + " :: highestChangeIndex :: " + highestChangeIndex);
+        //        }
         this._addressMap[address] = {index: index, internal: 1, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0, isTheDAOAssociated: false, isAugurAssociated: false};
         this._watchAddress(address);
 
@@ -622,7 +679,8 @@ onmessage = function(message) {
     } else if (message.data.action === 'triggerExtendedUpdate') {
         if (message.data.content.type && message.data.content.type === 'balances') {
             setTimeout(function() {
-                if (hdWalletWorkerManager._coinType === COIN_ETHEREUM || hdWalletWorkerManager._coinType === COIN_ETHEREUM_CLASSIC) {
+                if (hdWalletWorkerManager._coinType === COIN_ETHEREUM || hdWalletWorkerManager._coinType === COIN_ETHEREUM_CLASSIC ||
+                    hdWalletWorkerManager._coinType === COIN_TESTNET_ROOTSTOCK) {
                     log(hdWalletWorkerManager._coinWorkerImpl._coinName + " :: restore address map balance refresh");
                     hdWalletWorkerManager._coinWorkerImpl.updateBalances();
                 }
@@ -636,7 +694,8 @@ onmessage = function(message) {
 //        log('Refreshing...');
         setTimeout(function () {
             setTimeout(function() {
-                if (hdWalletWorkerManager._coinType === COIN_ETHEREUM || hdWalletWorkerManager._coinType === COIN_ETHEREUM_CLASSIC) {
+                if (hdWalletWorkerManager._coinType === COIN_ETHEREUM || hdWalletWorkerManager._coinType === COIN_ETHEREUM_CLASSIC ||
+                    hdWalletWorkerManager._coinType === COIN_TESTNET_ROOTSTOCK) {
                     log(hdWalletWorkerManager._coinWorkerImpl._coinName + " :: manual refresh balance refresh");
                     hdWalletWorkerManager._coinWorkerImpl.updateBalances();
                 }

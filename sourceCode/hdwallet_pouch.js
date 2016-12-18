@@ -126,10 +126,12 @@ HDWalletPouch.getStaticCoinPouchImplementation = function(coinType) {
         return CoinTokenAugurEthereum;
     } else if (coinType === COIN_LITECOIN) {
         return HDWalletPouchLitecoin;
-    }  else if (coinType === COIN_LISK) {
+    } else if (coinType === COIN_LISK) {
         return HDWalletPouchLisk;
-    }  else if (coinType === COIN_ZCASH) {
+    } else if (coinType === COIN_ZCASH) {
         return HDWalletPouchZCash;
+    } else if (coinType === COIN_TESTNET_ROOTSTOCK) {
+        return HDWalletPouchTestnetRootstock;
     }
 }
 
@@ -157,6 +159,8 @@ HDWalletPouch.getStaticCoinWorkerImplementation = function(coinType) {
         return HDWalletWorkerLisk;
     } else if (coinType === COIN_ZCASH) {
         return HDWalletWorkerZCash;
+    } else if (coinType === COIN_TESTNET_ROOTSTOCK) {
+        return HDWalletWorkerTestnetRootstock;
     }
 }
 
@@ -176,6 +180,8 @@ HDWalletPouch.getNewCoinPouchImplementation = function(coinType) {
         return new HDWalletPouchLisk();
     } else if (coinType === COIN_ZCASH) {
         return new HDWalletPouchZCash();
+    } else if (coinType === COIN_TESTNET_ROOTSTOCK) {
+        return new HDWalletPouchTestnetRootstock();
     }
 }
 
@@ -953,7 +959,7 @@ HDWalletPouch.prototype.getPublicAddress = function(internal, index, ignoreCache
 HDWalletPouch.prototype.getInternalIndexAddressDict = function(publicAddress) {
     var publicAddressKey = this._coinPouchImpl.fromChecksumAddress(publicAddress);
 
-    if (this._coinType === COIN_ETHEREUM || this._coinType === COIN_ETHEREUM_CLASSIC) {
+    if (this._coinType === COIN_ETHEREUM || this._coinType === COIN_ETHEREUM_CLASSIC || this._coinType === COIN_TESTNET_ROOTSTOCK) {
         var internalIndexAddress = this._internalIndexAddressCache[publicAddressKey];
 
         var addToCache = false;

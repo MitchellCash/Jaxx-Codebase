@@ -1,15 +1,13 @@
 var HDWalletPouchBitcoin = function() {
     this._doDebug = true;
-
     this._pouchManager = null;
-
     this._baseFormatCoinType = COIN_BITCOIN;
 }
-
 
 HDWalletPouchBitcoin.uiComponents = {
     coinFullName: 'Bitcoin',
     coinFullDisplayName: 'Bitcoin',
+    coinWalletSelector3LetterSymbol: 'BTC',
     coinSymbol: '\u0E3F',
     coinButtonSVGName: 'bitcoin-here',
     coinLargePngName: '.imgBTC',
@@ -28,6 +26,8 @@ HDWalletPouchBitcoin.pouchParameters = {
     coinHDType: 0,
     coinIsTokenSubtype: false,
     coinAbbreviatedName: 'BTC',
+    isSingleToken: false,
+    isTestnet: false,
 };
 
 HDWalletPouchBitcoin.networkDefinitions = {
@@ -775,27 +775,27 @@ HDWalletPouchBitcoin.prototype.prepareSweepTransaction = function(privateKey, ca
 
         var toSpend = [];
         var totalValue = 0;
-        for (var i = 0; i < data.data.unspent.length; i++) {
-            var tx = data.data.unspent[i];
+        var utxoList = data[Object.keys(data)[0]];
+        for (var i = 0; i < utxoList.length; i++) {
+            var tx = utxoList[i];
             var value = HDWalletHelper.convertBitcoinsToSatoshis(tx.amount);
 
             toSpend.push({
                 amount: value,
                 confirmations: tx.confirmations,
-                index: tx.n,
-                txid: tx.tx,
-
+                index: tx.index,
+                txid: tx.txid,
                 //Keys for BIP 0069 sorting library
-                vout: tx.n,
-                txId: tx.tx,
+                vout: tx.index,
+                txId: tx.txid,
             });
             mockTx.inputs.push({
                 address: "notmyaddress",
                 addressIndex: null,
                 addressInternal: null,
                 amount: -value,
-                previousIndex: tx.n,
-                previousTxid: tx.tx,
+                previousIndex: tx.index,
+                previousTxid: tx.txid,
                 standard: true,
             })
             totalValue += value;
@@ -812,7 +812,6 @@ HDWalletPouchBitcoin.prototype.prepareSweepTransaction = function(privateKey, ca
         //        console.log("sweep bitcoin :: totalValue :: " + totalValue + " :: transactionFee :: " + transactionFee);
         if (transactionFee >= totalValue) {
             console.log(JSON.stringify(callback));
-
             callback(new Error("the balance is lower than tx fee : " + HDWalletHelper.convertSatoshisToBitcoins(transactionFee)), null);
             return;
         }

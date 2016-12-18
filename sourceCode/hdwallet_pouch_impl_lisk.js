@@ -1,96 +1,95 @@
-var HDWalletPouchZCash = function() {
-    this._doDebug = true;
+var HDWalletPouchLisk = function() {
+    this._doDebug = false;
 
     this._pouchManager = null;
 
-    this._baseFormatCoinType = COIN_ZCASH;
+    this._baseFormatCoinType = COIN_BITCOIN;
 }
 
 
-HDWalletPouchZCash.uiComponents = {
-    coinFullName: 'ZCash',
-    coinFullDisplayName: 'ZCash',
-    coinWalletSelector3LetterSymbol: 'ZEC',
-    coinSymbol: '\u24E9',
-    coinButtonSVGName: 'zcash-here',
-    coinLargePngName: '.imgZEC',
-    coinButtonName: '.imageLogoBannerZEC',
-    coinSpinnerElementName: '.imageZCashWash',
-    coinDisplayColor: '#4094CC',
-    csvExportField: '.backupPrivateKeyListZEC',
-    transactionsListElementName: '.transactionsZCash',
-    transactionTemplateElementName: '.transactionZCash',
-    accountsListElementName: '.accountDataTableZCash',
-    accountTemplateElementName: '.accountDataZCash',
+HDWalletPouchLisk.uiComponents = {
+    coinFullName: 'Lisk',
+    coinFullDisplayName: 'Lisk',
+    coinWalletSelector3LetterSymbol: 'LSK',
+    coinSymbol: '\u2C60',
+    coinButtonSVGName: 'lisk-here',
+    coinLargePngName: '.imgLSK',
+    coinButtonName: '.imageLogoBannerLSK',
+    coinSpinnerElementName: '.imageLiskWash',
+    coinDisplayColor: '#196994',
+    csvExportField: '.backupPrivateKeyListLSK',
+    transactionsListElementName: '.transactionsLisk',
+    transactionTemplateElementName: '.transactionLisk',
+    accountsListElementName: '.accountDataTableLisk',
+    accountTemplateElementName: '.accountDataLisk',
     displayNumDecimals: 8,
 };
 
-HDWalletPouchZCash.pouchParameters = {
-    coinHDType: 133,
+HDWalletPouchLisk.pouchParameters = {
+    coinHDType: 134,
     coinIsTokenSubtype: false,
-    coinAbbreviatedName: 'ZEC',
+    coinAbbreviatedName: 'LSK',
     isSingleToken: false,
     isTestnet: false,
 };
 
-//@note: mainnet definitions from https://github.com/zcash/zcash/blob/90c116ac5400da94a0329d5af441f8f2c24d0e27/src/chainparams.cpp
-
-//base58Prefixes[EXT_PUBLIC_KEY]     = {0x04,0x88,0xB2,0x1E};
-//base58Prefixes[EXT_SECRET_KEY]     = {0x04,0x88,0xAD,0xE4};
-
-//@note: testnet definitions from https://github.com/zcash/zcash/blob/90c116ac5400da94a0329d5af441f8f2c24d0e27/src/chainparams.cppn
-
-//base58Prefixes[EXT_PUBLIC_KEY]     = {0x04,0x35,0x87,0xCF};
-//base58Prefixes[EXT_SECRET_KEY]     = {0x04,0x35,0x83,0x94};
-HDWalletPouchZCash.networkDefinitions = {
+HDWalletPouchLisk.networkDefinitions = {
     mainNet: {
-        messagePrefix: '\x19ZCash Signed Message:\n',
+        messagePrefix: '\x18Bitcoin Signed Message:\n',
         bip32: {
             public: 0x0488b21e,
             private: 0x0488ade4
         },
-            pubKeyHash: 0x1cb8,
-            scriptHash: 0x1cbd,
+        pubKeyHash: 0x00,
+        scriptHash: 0x05,
         wif: 0x80,
-        dustThreshold: 0
+        dustThreshold: 546
     },
     testNet: {
-        messagePrefix: '\x19ZCash Signed Message:\n',
+        messagePrefix: '\x18Bitcoin Signed Message:\n',
         bip32: {
             public: 0x043587cf,
             private: 0x04358394
         },
-        pubKeyHash: 0x1d25,
-        scriptHash: 0x1cba,
+        pubKeyHash: 0x6f,
+        scriptHash: 0xc4,
         wif: 0xef,
-        dustThreshold: 0
+        dustThreshold: 546
     },
-    testNet: {error: true}
 }
 
-HDWalletPouchZCash.networkDefinitionTestNet = {
+HDWalletPouchLisk.getCoinAddress = function(node) {
+//    if (!node.keyPair.d) {
+//        console.log("error in getting address for node :: " + node);
+//        return -1;
+//    }
 
-};
+//    var privateKey = node.keyPair.toWIF();
+//    var liskKeyDict = thirdparty.liskjs.crypto.getKeys(privateKey);
+//
+//    var liskAddress = thirdparty.liskjs.crypto.getAddress(liskKeyDict.publicKey)
+//
+//    console.log("correctly getting address for node :: " + node + " :: liskAddress :: " + liskAddress);
 
-HDWalletPouchZCash.networkDefinitionTestNet = null;
-
-HDWalletPouchZCash.getCoinAddress = function(node) {
-    var pubKey = node.keyPair.getPublicKeyBuffer();
-
-    var pubKeyHash = thirdparty.bitcoin.crypto.hash160(pubKey);
-
-    var payload = new thirdparty.Buffer.Buffer(22);
-//    console.log("bitcoin :: pubkeyhash :: " + node.keyPair.network.pubKeyHash);
-    payload.writeUInt16BE(node.keyPair.network.pubKeyHash, 0);
-    pubKeyHash.copy(payload, 2);
-
-    var address = thirdparty.bs58check.encode(payload);
-
-    //        console.log("[bitcoin] address :: " + address);
-    return address;
+    return "";//liskAddress;
+//
+//    var pubKey = node.keyPair.getPublicKeyBuffer();
+//
+//    var pubKeyHash = thirdparty.bitcoin.crypto.hash160(pubKey);
+//
+//    var payload = new thirdparty.Buffer.Buffer(21);
+////    console.log("bitcoin :: pubkeyhash :: " + node.keyPair.network.pubKeyHash);
+//    payload.writeUInt8(node.keyPair.network.pubKeyHash, 0);
+//    pubKeyHash.copy(payload, 1);
+//
+//    var address = thirdparty.bs58check.encode(payload);
+//
+//
+//    //        console.log("[bitcoin] address :: " + address);
+//    return address;
 }
 
-HDWalletPouchZCash.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
+HDWalletPouchLisk.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
     var coinAmount = 0;
 
     var satoshis = wallet.getHelper().convertFiatToSatoshis(fiatAmount);
@@ -99,51 +98,46 @@ HDWalletPouchZCash.prototype.convertFiatToCoin = function(fiatAmount, coinUnitTy
     return coinAmount;
 }
 
-HDWalletPouchZCash.prototype.initialize = function(pouchManager) {
+HDWalletPouchLisk.prototype.initialize = function(pouchManager) {
     this._pouchManager = pouchManager;
 }
 
-HDWalletPouchZCash.prototype.shutDown = function() {
+HDWalletPouchLisk.prototype.shutDown = function() {
 }
 
-HDWalletPouchZCash.prototype.setup = function() {
+HDWalletPouchLisk.prototype.setup = function() {
 }
 
-HDWalletPouchZCash.prototype.log = function(logString) {
+HDWalletPouchLisk.prototype.log = function(logString) {
     if (this._doDebug === false) {
         return;
     }
 
     var args = [].slice.call(arguments);
-    args.unshift('ZCashPouchLog:');
+    args.unshift('BitcoinPouchLog:');
     console.log(args);
 }
 
-HDWalletPouchZCash.prototype.updateMiningFees = function() {
+HDWalletPouchLisk.prototype.updateMiningFees = function() {
     var self = this;
 
-//    $.getJSON('https://api.blockcypher.com/v1/ltc/main', function (data) {
-//        if (!data || !data.medium_fee_per_kb) {
-//            this.log("HDWalletPouchZCash.updateMiningFees :: error :: cannot access default fee");
-//        } else  {
-//            var newMiningFeeDict = {
-//                fastestFee: data.high_fee_per_kb / 1000,
-//                halfHourFee: data.medium_fee_per_kb / 1000,
-//                hourFee: ((data.medium_fee_per_kb + data.low_fee_per_kb) / 2.0) / 1000
-//            }
-//            self._pouchManager._miningFeeDict = data;
-//            //@note: @here: default to "average"
-//            self._pouchManager._defaultTXFee = parseInt(data.medium_fee_per_kb);
-//        }
-//    });
+    $.getJSON('https://bitcoinfees.21.co/api/v1/fees/recommended', function (data) {
+        if (!data || !data.halfHourFee) {
+            this.log("HDWalletPouchBitcoin.updateMiningFees :: error :: cannot access default fee");
+        } else  {
+            self._pouchManager._miningFeeDict = data;
+            //@note: @here: default to "average"
+            self._pouchManager._defaultTXFee = parseInt(data.hourFee) * 1000;
+        }
+    });
 }
 
-HDWalletPouchZCash.prototype.requestBlockNumber = function(callback) {
+HDWalletPouchLisk.prototype.requestBlockNumber = function(callback) {
     callback(null);
 }
 
 
-HDWalletPouchZCash.prototype.updateTransactionsFromWorker = function(txid, transactions) {
+HDWalletPouchLisk.prototype.updateTransactionsFromWorker = function(txid, transactions) {
     var isTXUpdated = false;
 
     var existingTransaction = this._pouchManager._transactions[txid];
@@ -192,7 +186,7 @@ HDWalletPouchZCash.prototype.updateTransactionsFromWorker = function(txid, trans
     return isTXUpdated;
 }
 
-HDWalletPouchZCash.prototype.getTransactions = function() {
+HDWalletPouchLisk.prototype.getTransactions = function() {
     var res = [];
 
     /**
@@ -211,14 +205,11 @@ HDWalletPouchZCash.prototype.getTransactions = function() {
     return res;
 }
 
-HDWalletPouchZCash.prototype.calculateHistoryforTransaction = function(transaction) {
+HDWalletPouchLisk.prototype.calculateHistoryforTransaction = function(transaction) {
     var deltaBalance = 0;
     var miningFee = 0;
 
 //    console.log("[bitcoin pouch] :: transaction :: " + transaction.txid);
-
-    var myInputAddress = [];
-    var otherOutputAddress = [];
 
     for (var i = 0; i < transaction.inputs.length; i++) {
         var input = transaction.inputs[i];
@@ -229,10 +220,11 @@ HDWalletPouchZCash.prototype.calculateHistoryforTransaction = function(transacti
         // Our address, money sent (input values are always negative)
         if (input.addressIndex !== null) {
             deltaBalance += input.amount;
-            myInputAddress.push(input.address);
         }
     }
 
+    var myInputAddress = [];
+    var otherOutputAddress = [];
     for (var i = 0; i < transaction.outputs.length; i++) {
         var output = transaction.outputs[i];
 
@@ -242,6 +234,7 @@ HDWalletPouchZCash.prototype.calculateHistoryforTransaction = function(transacti
         // Our address, money received
         if (output.addressIndex !== null) {
             deltaBalance += output.amount;
+            myInputAddress.push(input.address);
         } else {
             otherOutputAddress.push(output.address);
         }
@@ -274,7 +267,7 @@ HDWalletPouchZCash.prototype.calculateHistoryforTransaction = function(transacti
     return newHistoryItem;
 }
 
-HDWalletPouchZCash.prototype.getPouchFoldBalance = function() {
+HDWalletPouchLisk.prototype.getPouchFoldBalance = function() {
     var balance = 0;
 
     var unspent = this._getUnspentOutputs();
@@ -286,7 +279,7 @@ HDWalletPouchZCash.prototype.getPouchFoldBalance = function() {
     return balance;
 }
 
-HDWalletPouchZCash.prototype._getUnspentOutputs = function() {
+HDWalletPouchLisk.prototype._getUnspentOutputs = function() {
     var unspent = {};
 
     // Sigh... We don't get the transaction index (within a block), so we can't strictly order them
@@ -328,7 +321,7 @@ HDWalletPouchZCash.prototype._getUnspentOutputs = function() {
     return result;
 }
 
-HDWalletPouchZCash.prototype.getAccountBalance = function(internal, index) {
+HDWalletPouchLisk.prototype.getAccountBalance = function(internal, index) {
     var accountBalance = 0;
 
     //@note:@todo:@optimization: this should probably be cached in the worker..
@@ -374,7 +367,7 @@ HDWalletPouchZCash.prototype.getAccountBalance = function(internal, index) {
     return accountBalance;
 }
 
-HDWalletPouchZCash.prototype.getSpendableBalance = function(minimumValue) {
+HDWalletPouchLisk.prototype.getSpendableBalance = function(minimumValue) {
     var spendableDict = {spendableBalance: 0,
                         numPotentialTX: 0};
 
@@ -395,7 +388,7 @@ HDWalletPouchZCash.prototype.getSpendableBalance = function(minimumValue) {
     return spendableDict;
 }
 
-HDWalletPouchZCash.prototype._buildBitcoinTransaction = function(toAddress, amount_smallUnit, transactionFee, doNotSign) {
+HDWalletPouchLisk.prototype._buildBitcoinTransaction = function(toAddress, amount_smallUnit, transactionFee, doNotSign) {
     var coinNetwork = null;
 
     if (this._pouchManager._TESTNET) {
@@ -523,9 +516,7 @@ HDWalletPouchZCash.prototype._buildBitcoinTransaction = function(toAddress, amou
     // Sign the transaction
     for (var i = 0; i < toSpend.length; i++) {
         var utxo = toSpend[i];
-
-        console.log("signing with :: " + this._pouchManager.getPrivateKey(utxo.addressInternal, utxo.addressIndex).toWIF() + " :: " + utxo.addressInternal);
-
+        //        console.log("signing with :: " + this.getPrivateKey(utxo.addressInternal, utxo.addressIndex).toWIF() + " :: " + utxo.addressInternal);
         tx.sign(i, this._pouchManager.getPrivateKey(utxo.addressInternal, utxo.addressIndex));
     }
 
@@ -554,12 +545,12 @@ HDWalletPouchZCash.prototype._buildBitcoinTransaction = function(toAddress, amou
 }
 
 
-HDWalletPouchZCash.prototype.buildBitcoinTransaction = function(toAddress, amount_smallUnit, doNotSign) {
+HDWalletPouchLisk.prototype.buildBitcoinTransaction = function(toAddress, amount_smallUnit, doNotSign) {
     var tx = null;
 
-    var currentZCashMiningFee = this._pouchManager.getCurrentMiningFee();
+    var currentBitcoinMiningFee = this._pouchManager.getCurrentMiningFee();
 
-    var totalTransactionFee = currentZCashMiningFee;
+    var totalTransactionFee = currentBitcoinMiningFee;
 
     //    console.log("buildBitcoinTransaction :: address :: " + toAddress + " :: currentBitcoinMiningFee :: " + currentBitcoinMiningFee);
     while (true) {
@@ -572,7 +563,7 @@ HDWalletPouchZCash.prototype.buildBitcoinTransaction = function(toAddress, amoun
 
         // How big is the transaction and what fee do we need? (we didn't sign so fill in 107 bytes for signatures)
         var size = tx.toHex().length / 2 + tx.ins.length * 107;
-        var targetTransactionFee = Math.ceil(size / 1024) * currentZCashMiningFee;
+        var targetTransactionFee = Math.ceil(size / 1024) * currentBitcoinMiningFee;
 
         //            console.log("targetTransactionFee :: " + targetTransactionFee)
         //            break;//
@@ -586,7 +577,7 @@ HDWalletPouchZCash.prototype.buildBitcoinTransaction = function(toAddress, amoun
 
         // Add at least enough tx fee to cover our size thus far (adding tx may increase fee)
         while (targetTransactionFee > totalTransactionFee) {
-            totalTransactionFee += currentZCashMiningFee;
+            totalTransactionFee += currentBitcoinMiningFee;
         }
     }
 
@@ -596,10 +587,10 @@ HDWalletPouchZCash.prototype.buildBitcoinTransaction = function(toAddress, amoun
     return tx;
 }
 
-HDWalletPouchZCash.prototype.updateTokenAddresses = function(addressMap) {
+HDWalletPouchLisk.prototype.updateTokenAddresses = function(addressMap) {
 }
 
-HDWalletPouchZCash.prototype.getAccountList = function(transactions) {
+HDWalletPouchLisk.prototype.getAccountList = function(transactions) {
     var result = [];
 
     var lastIndexChange = 0;
@@ -686,10 +677,10 @@ HDWalletPouchZCash.prototype.getAccountList = function(transactions) {
     return result;
 }
 
-HDWalletPouchZCash.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) {
+HDWalletPouchLisk.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) {
     var curRecAddr = this._pouchManager.getCurrentReceiveAddress();
 
-    var uri = "zcash:" + curRecAddr;
+    var uri = "bitcoin:" + curRecAddr;
 
     if (coinAmountSmallType) {
         uri += "?amount=" + coinAmountSmallType;
@@ -712,7 +703,7 @@ HDWalletPouchZCash.prototype.generateQRCode = function(largeFormat, coinAmountSm
     }
 }
 
-HDWalletPouchZCash.prototype.sendZCashTransaction = function(transaction, callback) {
+HDWalletPouchLisk.prototype.sendBitcoinTransaction = function(transaction, callback) {
     var mockTx = transaction._kkMockTx;
     var txid = mockTx.txid;
 
@@ -734,7 +725,8 @@ HDWalletPouchZCash.prototype.sendZCashTransaction = function(transaction, callba
 
 
     //@note: @here: @todo: @next: @relays:
-    g_JaxxApp.getZCashRelays().startRelayTaskWithBestRelay('pushRawTx', [transaction.toHex(), function (response){
+    // @todo: startRelayTaskWithBestRelay
+    g_JaxxApp.getBitcoinRelays().startRelayTaskWithDefaultRelay('pushRawTx', [transaction.toHex(), function (response){
         if ((response.status && response.status === 'success') || response === 'success') {
             self._pouchManager._transactions[txid].status = 'success';
             self._pouchManager._notify();
@@ -757,10 +749,10 @@ HDWalletPouchZCash.prototype.sendZCashTransaction = function(transaction, callba
     }], 1);
 }
 
-HDWalletPouchZCash.prototype.afterWorkerCacheInvalidate = function() {
+HDWalletPouchLisk.prototype.afterWorkerCacheInvalidate = function() {
 }
 
-HDWalletPouchZCash.prototype.prepareSweepTransaction = function(privateKey, callback) {
+HDWalletPouchLisk.prototype.prepareSweepTransaction = function(privateKey, callback) {
     var coinNetwork = null;
 
     if (this._pouchManager._TESTNET) {
@@ -768,7 +760,6 @@ HDWalletPouchZCash.prototype.prepareSweepTransaction = function(privateKey, call
     } else {
         coinNetwork = HDWalletPouch.getStaticCoinPouchImplementation(this._pouchManager._coinType).networkDefinitions.mainNet;
     }
-
     // Function is called when:
     // The user enters their private key from a paper wallet and presses the 'Next' button.
     // Returns:
@@ -833,7 +824,7 @@ HDWalletPouchZCash.prototype.prepareSweepTransaction = function(privateKey, call
 
         var signedTransaction = null;
 
-        var transactionFee = wallet.getPouchFold(COIN_ZCASH).getDefaultTransactionFee();
+        var transactionFee = wallet.getPouchFold(COIN_BITCOIN).getDefaultTransactionFee();
 
         //        console.log("sweep bitcoin :: totalValue :: " + totalValue + " :: transactionFee :: " + transactionFee);
         if (transactionFee >= totalValue) {
@@ -845,7 +836,7 @@ HDWalletPouchZCash.prototype.prepareSweepTransaction = function(privateKey, call
 
         while ((totalValue - transactionFee) > 0) {
             var tx = new thirdparty.bitcoin.TransactionBuilder(coinNetwork);
-            tx.addOutput(wallet.getPouchFold(COIN_ZCASH).getCurrentChangeAddress(), totalValue - transactionFee);
+            tx.addOutput(wallet.getPouchFold(COIN_BITCOIN).getCurrentChangeAddress(), totalValue - transactionFee);
 
             for (var i = 0; i < toSpend.length; i++) {
                 var utxo = toSpend[i];
@@ -854,7 +845,7 @@ HDWalletPouchZCash.prototype.prepareSweepTransaction = function(privateKey, call
 
             var unsignedTransaction = tx.buildIncomplete();
             var size = unsignedTransaction.toHex().length / 2 + unsignedTransaction.ins.length * 107;
-            var targetTransactionFee = Math.ceil(size / 1024) * wallet.getPouchFold(COIN_ZCASH).getDefaultTransactionFee();
+            var targetTransactionFee = Math.ceil(size / 1024) * wallet.getPouchFold(COIN_BITCOIN).getDefaultTransactionFee();
 
             if (targetTransactionFee <= transactionFee) {
                 for (var i = 0; i < toSpend.length; i++) {
@@ -867,7 +858,7 @@ HDWalletPouchZCash.prototype.prepareSweepTransaction = function(privateKey, call
 
             // Add at least enough tx fee to cover our size thus far (adding tx may increase fee)
             while (targetTransactionFee > transactionFee) {
-                transactionFee += wallet.getPouchFold(COIN_ZCASH).getDefaultTransactionFee();
+                transactionFee += wallet.getPouchFold(COIN_BITCOIN).getDefaultTransactionFee();
             }
         }
 
@@ -885,8 +876,8 @@ HDWalletPouchZCash.prototype.prepareSweepTransaction = function(privateKey, call
         mockTx.txid = txid;
 
         mockTx.outputs.push({
-            address: wallet.getPouchFold(COIN_ZCASH).getCurrentChangeAddress(),
-            addressIndex: wallet.getPouchFold(COIN_ZCASH).getCurrentChangeIndex(),
+            address: wallet.getPouchFold(COIN_BITCOIN).getCurrentChangeAddress(),
+            addressIndex: wallet.getPouchFold(COIN_BITCOIN).getCurrentChangeIndex(),
             addressInternal: true,
             confirmations: 0,
             index: 0,
@@ -906,26 +897,27 @@ HDWalletPouchZCash.prototype.prepareSweepTransaction = function(privateKey, call
         });
     }
 
-    g_JaxxApp.getZCashRelays().getUTXO(keypair.getAddress(), prepareTransaction); // Code for new relay system
+    // btcRelays.getCurrentRelay().getUTXO(keypair.getAddress(), prepareTransaction); // Code for legacy relay system
+    g_JaxxApp.getBitcoinRelays().getUTXO(keypair.getAddress(), prepareTransaction); // Code for new relay system
 
-    console.log("zcash relay :: " + g_JaxxApp.getZCashRelays());
+    console.log("bitcoin relay :: " + g_JaxxApp.getBitcoinRelays());
 
     return true;
 }
 
-HDWalletPouchZCash.prototype.fromChecksumAddress = function(address) {
+HDWalletPouchLisk.prototype.fromChecksumAddress = function(address) {
     return address;
 }
 
-HDWalletPouchZCash.prototype.toChecksumAddress = function(address) {
+HDWalletPouchLisk.prototype.toChecksumAddress = function(address) {
     return address;
 }
 
-HDWalletPouchZCash.prototype.getBaseCoinAddressFormatType = function() {
+HDWalletPouchLisk.prototype.getBaseCoinAddressFormatType = function() {
     return this._baseFormatCoinType;
 }
 
-HDWalletPouchZCash.prototype.createTransaction = function(address, amount) {
+HDWalletPouchLisk.prototype.createTransaction = function(address, amount) {
     //@note: @here: this should check for address, amount validity.
     //@note: @todo: maybe a transaction queue?
 

@@ -27,12 +27,12 @@ LTCBlockrRelay.prototype.fetchLastBlockHeight = function(callback, passthroughPa
         if(response.status == "success"){
             //this._lastBlock = response.data.last_block.nb;
             self.setLastBlockHeight(response.data.last_block.nb);
-            self._relayManager.relayLog("Chain Relay :: Updated blockr height: " + self.getLastBlockHeight()); // We cannot use 'this' since the function is contained inside a callback.
+            self._relayManager.relayLog("Chain Relay :: Updated " + self._name + " :: height :: " + self.getLastBlockHeight()); // We cannot use 'this' since the function is contained inside a callback.
             // @Note: Potential problem with btcRelays on next line.
             //self._relayManager.relayLog("Chain Relay :: Updated Blockr.io height: " + this._lastBlock);
         }
         else {
-            self._relayManager.relayLog("Chain Relay :: No connection with " + this._name + ". Setting height to 0");
+            self._relayManager.relayLog("Chain Relay :: No connection with " + self._name + ". Setting height to 0");
             self._lastBlock = 0;
         }
 
@@ -184,7 +184,9 @@ LTCBlockrRelay.prototype.getTxDetails = function(txHash, callback) {
     this._relayManager.relayLog("Chain Relay :: " + this._name+" - Requested tx details for "+txHash);
     // RequestSerializer.getJSON('https://btc.blockr.io/api/v1/tx/info/5a4cae32b6cd0b8146cbdf32dd746ddc42bdec89c574fa07b204ddea36549e65?amount_format=string', function(){console.log(arugments)})
 
-    RequestSerializer.getJSON(this._baseUrl+'api/v1/tx/info/'+txHash+'?amount_format=string', function (response,status) {
+    var requestString = this._baseUrl + 'api/v1/tx/info/' + txHash + '?amount_format=string';
+
+    RequestSerializer.getJSON(requestString, function (response, status) {
         var txDetails = null;
 
         if(status==='error'){
@@ -368,9 +370,9 @@ LTCBlockrRelay.prototype.getRelayType = function() {
     return 'LTCBlockrRelay';
 }
 
-LTCBlockrRelay.prototype.getRelayTypeWithCallback = function(callback) {
+LTCBlockrRelay.prototype.getRelayTypeWithCallback = function(callback, passthroughParams) {
     var relayName = 'LTCBlockrRelay';
-    callback("success", relayName);
+    callback("success", relayName, passthroughParams);
     return relayName;
 }
 

@@ -1,5 +1,6 @@
 var LTCJaxxCustomRelay = function() {
     this._baseUrl = "https://api.jaxx.io/api/ltc/";
+    //this._baseUrl = "https://api.jaxx.io/api/ltc/";
     this._getTxListPrepend = 'transactions/';
     this._getTxListAppend = '';
     this._getTxDetailsPrepend = 'transactionParams/';
@@ -11,6 +12,8 @@ var LTCJaxxCustomRelay = function() {
     this._lastBlock = 0;
 
     this._relayManager = null;
+
+    this._fixedBlockHeight = false;
 }
 
 LTCJaxxCustomRelay.prototype.initialize = function(relayManager) {
@@ -23,22 +26,30 @@ LTCJaxxCustomRelay.prototype.getLastBlockHeight = function(){
 }
 
 LTCJaxxCustomRelay.prototype.setLastBlockHeight = function(newHeight){
-	this._lastBlock = newHeight;
+	if (this._fixedBlockHeight){
+        this._lastBlock = this._fixedBlockHeight;
+    } else {
+        this._lastBlock = newHeight;
+    }
 }
 
 LTCJaxxCustomRelay.prototype.fetchLastBlockHeight  = function(callback, passthroughParams) {
     var self = this; // For references inside the callback function.
 	this._relayManager.relayLog("Fetching the block height for " + this._name);
-    RequestSerializer.getJSON(this._baseUrl + 'status?q=getBlockCount', function (response, status, passthroughParams) {
-        if(status === 'error'){
-            self._relayManager.relayLog("Chain Relay :: No connection with " + this._name + ". Setting height to 0");
-            self._lastBlock = 0;
+    RequestSerializer.getJSON(this._baseUrl + 'blockchainInfo', function (response, status, passthroughParams) {
+        if (status === 'error'){
+            self._relayManager.relayLog("Chain Relay :: No connection with " + self._name + ". Setting height to 0");
+            if (self._fixedBlockHeight) {
+                self._lastBlock = self._fixedBlockHeight;
+            } else {
+                self._lastBlock = 0;
+            }
         }
         else {
             //this._lastBlock = response.blockcount;
             //self._relayManager.relayLog("Chain Relay :: Updated blockrexplorer.com height: " + this._lastBlock);
-			self.setLastBlockHeight(response.blockcount);
-            self._relayManager.relayLog("Chain Relay :: Updated blockexplorer height: " + self.getLastBlockHeight()); // We cannot use 'this' since the function is contained inside a callback.
+            self.setLastBlockHeight(response.height);
+            self._relayManager.relayLog("Chain Relay :: Updated " + self._name + " :: blockheight :: " + self.getLastBlockHeight()); // We cannot use 'this' since the function is contained inside a callback.
         }
 
         callback(status, passthroughParams);
@@ -92,9 +103,14 @@ LTCJaxxCustomRelay.prototype.getTxListParse = function(primaryTxListData, passth
     var txListForAddresses = [];
 
     for (var i = 0; i < allKeys.length; i++) {
+        var sourceTxs = primaryTxListData[allKeys[i]];
+        var targetTxs = [];
+        for (var j = 0; j < sourceTxs.length; j++){
+            targetTxs.push({"txHash" : sourceTxs[j]});
+        }
         var newTxList = {
             address: allKeys[i],
-            txs: primaryTxListData[allKeys[i]],
+            txs: targetTxs,
             unconfirmed: {}
         };
 
@@ -106,12 +122,12 @@ LTCJaxxCustomRelay.prototype.getTxListParse = function(primaryTxListData, passth
     return returnData;
 }
 
-LTCJaxxCustomRelay.prototype.getTxCount  = function(addresses, callback) {
+LTCJaxxCustomRelay.prototype.getTxCount = function(addresses, callback) {
     var self = this;
 
     this._relayManager.relayLog("Chain Relay :: " + this._name + " :: requested txCount for :: " + addresses);
 
-    var requestString = this._baseUrl + 'addrs/' + addresses + "/txs";
+    var requestString = this._baseUrl + 'transactions/' + addresses;
 
     this._relayManager.relayLog("relay :: " + this._name + " :: requesting :: " + requestString);
 
@@ -121,119 +137,163 @@ LTCJaxxCustomRelay.prototype.getTxCount  = function(addresses, callback) {
         if (status === 'error') {
             self._relayManager.relayLog("Chain Relay :: Cannot get txCount : No connection with " + self._name);
         } else {
-            txCount = response.totalItems;
+            txCount = 0;
+
+            var allKeys = Object.keys(response);
+
+            for (var i = 0; i < allKeys.length; i++) {
+                var allTxKeys = Object.keys(response[allKeys[i]]);
+
+                txCount += allTxKeys.length;
+            }
 //            console.log("found :: " + JSON.stringify(response));
         }
-//        else if(response.txs.length) {
-//            txCount = response.txs.length;
-//            self._relayManager.relayLog("Chain Relay :: " + self._name+" Tx Count :"+txCount);
-//        }
-//        else{
-//            self._relayManager.relayLog("Chain Relay :: " + self._name+" cannot get Tx Count ");
-//        }
+
+        //@note: @here: @todo: get unconfirmed tx?
+        ///api/ltc/unconfirmedTransactions/LhGYSWAabViCqsLiGKCwND7aC1yDC9TApd,LYsBRZqfme1hjTYPnxEm8hpYJaDZYZrky8
 
         callback(status, txCount);
     },true);
 }
 
-LTCJaxxCustomRelay.prototype.getTxDetails  = function(txHashes, callback) {
-    console.log("LTCJaxxCustomRelay :: getTxDetails :: currently unimplemented");
-//    var self = this;
-//
-//    this._relayManager.relayLog("Chain Relay :: " + this._name + " :: requested tx details for :: " + txHashes);
-//
-//    var txDetailsStatus = {numHashesTotal: txHashes.length, numHashesProcessed: 0, allHashes: txHashes, numHashRequestsSucceeded: 0, allTxDetails: []};
-//
-//    for (var i = 0; i < txHashes.length; i++) {
-//        var curHash = txHashes[i];
-//
-//        var requestString = this._baseUrl + 'tx/' + curHash;
-//
-//        this._relayManager.relayLog("relay :: " + this._name + " :: requesting :: " + requestString);
-//
-//        var passthroughParams = {curHash: curHash, txDetailsStatus: txDetailsStatus};
-//
-//        RequestSerializer.getJSON(requestString, function (response, status, passthroughParams) {
-//            //        console.log("response :: " + JSON.stringify(response) + " :: status :: " + status);
-//            if (status==='error') {
-//                self._relayManager.relayLog("Chain Relay :: Cannot get tx details : No connection with "+ self._name);
-//            } else {
-//
-//                self._relayManager.relayLog("Chain Relay :: " + self._name + " :: Tx Details Raw response :: " + JSON.stringify(response));
-//
-//                var txDetails = self.getTxDetailsParse(response);
-//
-//                passthroughParams.txDetailsStatus.numHashRequestsSucceeded++;
-//                passthroughParams.txDetailsStatus.numHashesProcessed++;
-//                passthroughParams.txDetailsStatus.allTxDetails.push(txDetails);
-//
-//                if (passthroughParams.txDetailsStatus.numHashesProcessed === passthroughParams.txDetailsStatus.numHashesTotal) {
-//                    var finalStatus = "success";
-//
-//                    if (passthroughParams.txDetailsStatus.numHashRequestsSucceeded !== passthroughParams.txDetailsStatus.numHashesTotal) {
-//                        finalStatus = "error";
-//                    }
-//
-//                    passthroughParams.txDetailsStatus.allTxDetails.sort(function(a, b) {
-//                       return a.txid > b.txid;
-//                    });
-//
-//                    callback(finalStatus, passthroughParams.txDetailsStatus.allTxDetails);
-//                }
-//            }
-//        }, true, passthroughParams);
-//    }
+LTCJaxxCustomRelay.prototype.getTxDetails = function(txHashes, callback) {
+
+//    console.log("LTCJaxxCustomRelay :: getTxDetails :: currently unimplemented");
+    var self = this;
+
+    this._relayManager.relayLog("Chain Relay :: " + this._name + " :: requested tx details for :: " + txHashes);
+
+    //var txDetailsStatus = {numHashesTotal: txHashes.length, numHashesProcessed: 0, allHashes: txHashes, numHashRequestsSucceeded: 0, allTxDetails: []};
+
+    var requestString = this._baseUrl + 'transactionInfo/' + txHashes.join(',');
+    // Sample requestString: https://api.jaxx.io/api/ltc/transactionInfo/3b40250a08e7cb493981adfc6637235835998347e059565eb24f9d6268cea70f,9f4da4554f02c209e98040cc478720c922b50edb14f4071f8c4c73e74a9243bf
+
+    RequestSerializer.getJSON(requestString, function (response, status, passthroughParams) {
+        var data = [];
+        if (status === 'error'){
+
+        } else {
+            callbackData = self.getTxDetailsParse(response);
+        }
+
+        callback(status, callbackData);
+    });
 }
 
-LTCJaxxCustomRelay.prototype.getTxDetailsParse = function(primaryTxDetailData) {
-//    console.log(primaryTxDetailData)
+LTCJaxxCustomRelay.prototype.getTxDetailsParse = function(response) {
 
-    var outputs = [];
-    var inputs = [];
+//{
+//    "1df9a5db8f3dbeac96d3b20cab807634b34ecea5915d5dbdadca95b1c8ec8c41": {
+//        "hash": "1df9a5db8f3dbeac96d3b20cab807634b34ecea5915d5dbdadca95b1c8ec8c41",
+//        "vin": [],
+//        "vout": [
+//            {
+//                "standard": true,
+//                "address": "LMTGkzHF6d2HpKrcoGGqrAMtKpDBLmUhRs",
+//                "value": "50",
+//                "spent": true
+//            }
+//        ],
+//        "blockheight": 124,
+//        "time_utc": "2011-10-13T03:07:20.000Z",
+//        "standard": false,
+//        "confirmations": 1079282
+//    },
+//        "caaeb42a2367f9d0dcd5bfdb6d90fb7d9fef0bffbf147a9775a0f5d831e4b780": {
+//        "hash": "caaeb42a2367f9d0dcd5bfdb6d90fb7d9fef0bffbf147a9775a0f5d831e4b780",
+//        "vin": [
+//            {
+//                "address": "LNDfDcG5hDwqXSMo6nK8RdfvtUegSD3mqi",
+//                "amount": "-12.29454249",
+//                "previousTxId": "ee67e7fcc582503082d69dcb625a583b5c21c55cd62b6db89e157d9ee2e2dfad",
+//                "previousIndex": 1,
+//                "standard": true
+//            }
+//        ],
+//        "vout": [
+//            {
+//                "standard": true,
+//                "address": "LTvsAa42uedYggGnHP5Zk3tZ91jXuws6rL",
+//                "value": "1.27889497",
+//                "spent": true
+//            },
+//            {
+//                "standard": true,
+//                "address": "LQquUJvPFoKzM8PozDRA7edcZvSpxbGmZm",
+//                "value": "11.01464752",
+//                "spent": true
+//            }
+//        ],
+//        "blockheight": 1078431,
+//        "time_utc": "2016-10-12T19:30:32.000Z",
+//        "confirmations": 975
+//    }
+//}
 
-    for (i = 0; i < primaryTxDetailData.vout.length; i++) {
-        var output = primaryTxDetailData.vout[i];
+    var allTxDetails = [];
 
-        outputs.push({
-            address: output.scriptPubKey.addresses[0],
-            amount: output.value,
-            index: i,
-            spent: !(output.spentTxId === 'null'),
-            standard: !(primaryTxDetailData.vin[0].scriptPubKey === 'null')
-        });
+    var allAddressData = response;
+
+    var addressKeys = Object.keys(response);
+
+    for (var idx = 0; idx < addressKeys.length; idx++) {
+        var curAddress = addressKeys[idx];
+
+        var curData = response[curAddress];
+
+
+        var outputs = [];
+        var inputs = [];
+
+        for (i = 0; i < curData.vout.length; i++) {
+            var output = curData.vout[i];
+
+            outputs.push({
+                address: output.address,
+                amount: parseFloat(output.amount).toFixed(8),
+                index: i,
+                spent: output.spent,
+                standard: output.standard
+            });
+        }
+
+        for (i = 0; i < curData.vin.length; i++) {
+            var input = curData.vin[i];
+
+            inputs.push({
+                address: input.address,
+                //@note: @here: @todo: balance calculation bug?
+                amount: parseFloat(input.amount).toFixed(8),
+                index: i,
+                previousTxid: input.previousTxId,
+                previousIndex: input.previousIndex,
+                standard: input.standard
+            })
+        }
+
+        var tx = {
+            txid: curData.hash,
+            block: curData.blockheight,
+            confirmations: curData.confirmations,
+            time_utc: new Date(curData.time_utc).getTime() / 1000.0,
+            inputs: inputs,
+            outputs: outputs
+        }
+
+        allTxDetails.push(tx);
     }
 
-    for (i = 0; i < primaryTxDetailData.vin.length; i++) {
-        var input = primaryTxDetailData.vin[i];
-
-        inputs.push({
-            address: input.addr,
-            amount: parseFloat(-input.value).toFixed(8),
-            index: i,
-            previousTxid: input.txid,
-            previousIndex: input.vout,
-            standard: !(input.scriptSig === 'null')
-        })
-    }
-
-    var tx = {
-        txid: primaryTxDetailData.txid,
-        block: primaryTxDetailData.blockheight,
-        confirmations: primaryTxDetailData.confirmations,
-        time_utc: primaryTxDetailData.time,
-        inputs: inputs,
-        outputs: outputs
-
-    }
-//    console.log(tx)
-    return tx;
+    return allTxDetails;
 }
 
 LTCJaxxCustomRelay.prototype.getAddressBalance = function(address, callback) {
 
     var self = this;
 
-    RequestSerializer.getJSON(this._baseUrl + 'api/addr/' + address , function (response,status) {
+    var requestString = this._baseUrl + 'api/addr/' + address;
+    // https://api.jaxx.io/api/ltc/balance/LhGYSWAabViCqsLiGKCwND7aC1yDC9TApd,LYsBRZqfme1hjTYPnxEm8hpYJaDZYZrky8
+
+    RequestSerializer.getJSON(requestString, function (response,status) {
         var balance = -1;
 
         if(status==='error'){
@@ -252,8 +312,9 @@ LTCJaxxCustomRelay.prototype.getAddressBalance = function(address, callback) {
 LTCJaxxCustomRelay.prototype.getFixedBlockHeight = function( address, callback ) {
     var self = this;
 
-    RequestSerializer.getJSON(this._baseUrl + 'api/txs/?address=' + address , function (response,status) {
+    var requestString = this._baseUrl + 'api/txs/?address=' + address;
 
+    RequestSerializer.getJSON(requestString, function (response,status) {
         if(status==='error'){
             self._relayManager.relayLog("Chain Relay :: Cannot get Tx Block Height : No connection with "+ self._name);
         }
@@ -305,28 +366,27 @@ LTCJaxxCustomRelay.prototype.getUTXO  = function(address, callback) {
 }
 
 LTCJaxxCustomRelay.prototype.pushRawTx  = function(hex, callback) {
-//    this._relayManager.relayLog("Chain Relay :: " + this._name+ " pushing raw tx : " + hex);
-//    $.ajax(this._baseUrl+'api/tx/send', {
-//        complete: function(ajaxRequest, status) {
-//			var response;
-//			var responseText;
-//            if (status === 'success') {
-//                response = '{"status": "success"}';
-//            }
-//            else {
-//				responseText = JSON.stringify(ajaxRequest.responseText)
-//                response = '{"status": "fail" , "message": ' + responseText + '}';
-//            }
-//			callback(status, JSON.parse(response));
-//        },
-//        contentType: 'application/x-www-form-urlencoded',
-//        data: "rawtx="+ hex,
-//        type: 'POST'
-//    });
-    var urlToCall = this._baseUrl + 'api/tx/send';
-    var dataToSend = "rawtx=" + hex;
+    var requestString = this._baseUrl + 'rawTransaction';
 
-    BTCRelayHelper.pushRawTx(this._name, urlToCall, dataToSend, callback, null);
+    this._relayManager.relayLog("Chain Relay :: " + this._name + " pushing raw tx : " + hex);
+
+    $.ajax(requestString, {
+        complete: function(ajaxRequest, status) {
+			var response;
+			var responseText;
+            if (status === 'success') {
+                response = '{"status": "success"}';
+            }
+            else {
+				responseText = JSON.stringify(ajaxRequest.responseText)
+                response = '{"status": "fail" , "message": ' + responseText + '}';
+            }
+			callback(status, JSON.parse(response));
+        },
+        contentType: 'application/x-www-form-urlencoded',
+        data: "transaction="+ hex,
+        type: 'PUT'
+    });
 }
 
 // *******************************************************
@@ -337,9 +397,9 @@ LTCJaxxCustomRelay.prototype.getRelayType = function() {
     return 'LTCJaxxCustomRelay';
 }
 
-LTCJaxxCustomRelay.prototype.getRelayTypeWithCallback = function(callback) {
+LTCJaxxCustomRelay.prototype.getRelayTypeWithCallback = function(callback, passthroughParams) {
     var relayName = 'LTCJaxxCustomRelay';
-	callback("success", relayName);
+	callback("success", relayName, passthroughParams);
 	return relayName;
 }
 

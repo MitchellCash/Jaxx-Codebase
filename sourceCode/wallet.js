@@ -251,16 +251,16 @@ HDWallet.parseBitcoinURI = function(uri) {
         uri = uri.substring(8);
     }
 
-    //    console.log("< parsing :: " + uri + " >");
+        console.log("< parsing :: " + uri + " >");
 
     var comps = uri.split('?');
 
     var result = {address: comps[0]};
-    if (getAddresCoinType(result.address) != COIN_BITCOIN) {
-        //        console.log("<address invalid :: " + result.address + ">")
+    if (getAddressCoinType(result.address) != COIN_BITCOIN) {
+                console.log("<address invalid :: " + result.address + ">")
         return null;
     } else {
-        //        console.log("<address valid :: " + result.address + ">")
+                console.log("<address valid :: " + result.address + ">")
     }
 
     if (comps.length > 1) {

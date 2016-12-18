@@ -321,7 +321,7 @@ HDWalletMain.prototype.checkAddress = function() {
 
     console.log("A2 :: pubKeyHash :: " + pubKeyHash + " :: " + pubKeyHash.length);
 
-    var payload = new Buffer(21);
+    var payload = new thirdparty.Buffer.Buffer(21);
     payload.writeUInt8(keyPair.network.pubKeyHash, 0);
     pubKeyHash.copy(payload, 1);
 
@@ -461,7 +461,7 @@ HDWalletMain.prototype.checkAddress = function() {
     //        var pubKey = this.getPublicKeyBuffer()
     //        var pubKeyHash = bcrypto.hash160(pubKey)
     //
-    //        var payload = new Buffer(21)
+    //        var payload = new thirdparty.Buffer.Buffer(21)
     //        payload.writeUInt8(this.network.pubKeyHash, 0)
     //        pubKeyHash.copy(payload, 1)
     //

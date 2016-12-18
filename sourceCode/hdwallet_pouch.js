@@ -1235,7 +1235,7 @@ HDWalletPouch.prototype.manuallyDeriveUnhardened = function(fromNode, index) {
     var curve = thirdparty.ecurve.getCurveByName('secp256k1');
 
     var isHardened = index >= thirdparty.bitcoin.HDNode.HIGHEST_BIT
-    var data = new Buffer(37)
+    var data = new thirdparty.Buffer.Buffer(37)
 
     // Hardened child
     if (isHardened) {

@@ -40,7 +40,7 @@ function privateToAddress(privateKey) {
     var x = publicKey.x.toArray(), y = publicKey.y.toArray();
     inplacePad32Array(x);
     inplacePad32Array(y);
-    var hash = new ethUtil.sha3(Buffer.concat([new Buffer(x), new Buffer(y)]));
+    var hash = new ethUtil.sha3(Buffer.concat([new thirdparty.Buffer.Buffer(x), new thirdparty.Buffer.Buffer(y)]));
     return hash.toString('hex').slice(-40);
 }
 */
@@ -138,7 +138,7 @@ EthereumWallet.prototype.initAndLoadAsync = function() {
 
     if (typeof(cachedPrivateHex) !== 'undefined' && cachedPrivateHex != null) {
         console.log("[ EthereumWallet Legacy :: loading from cached seed ]");
-        var cachedPrivate = new Buffer(cachedPrivateHex, 'hex');
+        var cachedPrivate = new thirdparty.Buffer.Buffer(cachedPrivateHex, 'hex');
         w_Obj._private = cachedPrivate;
         w_Obj._address = cachedAddress;
 //        console.log("@removeLog :: ethereum :: _private ::" + w_Obj._private);
@@ -157,10 +157,24 @@ EthereumWallet.prototype.initAndLoadAsync = function() {
                 w_Obj.initHDStore(true);
             } else {
                 console.log("[ EthereumWallet Legacy :: Loading lightwallet.js ]");
-                loadScript(this._unitTestPath + 'js/thirdparty/lightwallet.min.js', w_Obj.callbackOnLoadedLightwallet, w_Obj.callbackOnErrorLoadingLightwallet);
+                loadScript(w_Obj._unitTestPath + 'js/thirdparty/lightwallet.min.js', w_Obj.callbackOnLoadedLightwallet, w_Obj.callbackOnErrorLoadingLightwallet);
+
+//                console.log("[ EthereumWallet Legacy :: Loading ethereumjs-tx.js ]");
+//                loadScript(w_Obj._unitTestPath + 'js/thirdparty/ethereumjs-tx.js', w_Obj.callbackOnLoadedEthereumJSTxLib, w_Obj.callbackOnErrorLoadingEthereumJSTxLib);
             }
         }
     }
+}
+
+EthereumWallet.prototype.callbackOnLoadedEthereumJSTxLib = function() {
+    console.log("[ EthereumWallet Legacy :: Loaded ethereum-js-tx.js ]");
+
+    console.log("[ EthereumWallet Legacy :: Loading lightwallet.js ]");
+    loadScript(w_Obj._unitTestPath + 'js/thirdparty/lightwallet.min.js', w_Obj.callbackOnLoadedLightwallet, w_Obj.callbackOnErrorLoadingLightwallet);
+}
+
+EthereumWallet.prototype.callbackOnErrorLoadingEthereumJSTxLib = function(jqXHR, textStatus, errorThrown) {
+    console.log("[ EthereumWallet Legacy :: Error Loading ethereumjs-tx.js :: " + errorThrown + " ]");
 }
 
 EthereumWallet.prototype.callbackOnLoadedLightwallet = function() {
@@ -252,7 +266,7 @@ EthereumWallet.prototype.initHDStore = function(checkForEthereumIssue) {
 
     //            console.log("hexSeedETH :: " + hexSeedETH + " :: " + hexSeedETH.length);
 
-                w_Obj._private = new Buffer(hexSeedETH, 'hex');
+            w_Obj._private = new thirdparty.Buffer.Buffer(hexSeedETH, 'hex');
                 w_Obj._address = '0x' + incompleteAddress; //Add 0x to indicate hex
 
                 storeData('ethereum_cachedPrivateFromStorage_' + w_Obj._storageKey, hexSeedETH,true);
@@ -337,7 +351,7 @@ EthereumWallet.hexSeedFromJSON = function(password, json, callback) {
 
 EthereumWallet._hexSeedFromJSONEthSale = function(password, payload, callback) {
 
-    var encseed = new Buffer(payload.encseed, 'hex');
+    var encseed = new thirdparty.Buffer.Buffer(payload.encseed, 'hex');
 
     var key = thirdparty.pbkdf2.pbkdf2Sync(password, password, 2000, 32, 'sha256').slice(0, 16);
 
@@ -371,7 +385,7 @@ EthereumWallet._hexSeedFromJSONEthSale = function(password, payload, callback) {
     for (var i = 0; i < seed.length - pad; i++) {
         seedHex += String.fromCharCode(seed[i]);
     }
-    seed = new Buffer(ethUtil.sha3(new Buffer(seedHex)));
+    seed = new thirdparty.Buffer.Buffer(ethUtil.sha3(new thirdparty.Buffer.Buffer(seedHex)));
 
     //var address = ethUtil.publicToAddress(ethUtil.privateToPublic(seed)).toString('hex')
     var address = ethUtil.privateToAddress(seed).toString('hex')
@@ -409,7 +423,7 @@ EthereumWallet._hexSeedFromJSONVersion3 = function(password, payload, callback) 
         return current;
     }
 
-    var ciphertext = new Buffer(getValue("crypto/ciphertext"), 'hex');
+    var ciphertext = new thirdparty.Buffer.Buffer(getValue("crypto/ciphertext"), 'hex');
 
     var key = null;
 
@@ -418,7 +432,7 @@ EthereumWallet._hexSeedFromJSONVersion3 = function(password, payload, callback) 
     if (kdf && kdf.toLowerCase() === "scrypt") {
 
         // Scrypt parameters
-        var salt = new Buffer(getValue('crypto/kdfparams/salt'), 'hex');
+        var salt = new thirdparty.Buffer.Buffer(getValue('crypto/kdfparams/salt'), 'hex');
         var N = getValue('crypto/kdfparams/n');
         var r = getValue('crypto/kdfparams/r');
         var p = getValue('crypto/kdfparams/p');
@@ -433,7 +447,7 @@ EthereumWallet._hexSeedFromJSONVersion3 = function(password, payload, callback) 
         }
 
         // Derive the key, calling the callback periodically with progress updates
-        var derivedKey = thirdparty.scryptsy(new Buffer(password), salt, N, r, p, dkLen, function(progress) {
+        var derivedKey = thirdparty.scryptsy(new thirdparty.Buffer.Buffer(password), salt, N, r, p, dkLen, function(progress) {
             if (callback) {
                 callback(progress.percent);
             }
@@ -456,7 +470,7 @@ EthereumWallet._hexSeedFromJSONVersion3 = function(password, payload, callback) 
 
     var cipher = getValue('crypto/cipher');
     if (cipher === 'aes-128-ctr') {
-        var counter = new thirdparty.aes.Counter(new Buffer(getValue('crypto/cipherparams/iv'), 'hex'));
+        var counter = new thirdparty.aes.Counter(new thirdparty.Buffer.Buffer(getValue('crypto/cipherparams/iv'), 'hex'));
 
         var aes = new thirdparty.aes.ModeOfOperation.ctr(key, counter);
 
@@ -585,9 +599,9 @@ EthereumWallet.prototype.exportJSON = function(password, callback, randomBytes) 
     }
 
     if (!randomBytes) {
-        randomBytes = new Buffer(crypto.getRandomValues(new Uint8Array(32 + 16 + 16)))
+        randomBytes = new thirdparty.Buffer.Buffer(crypto.getRandomValues(new Uint8Array(32 + 16 + 16)))
     } else {
-        randomBytes = new Buffer(randomBytes);
+        randomBytes = new thirdparty.Buffer.Buffer(randomBytes);
     }
 
     var nextRandomIndex = 0;
@@ -605,7 +619,7 @@ EthereumWallet.prototype.exportJSON = function(password, callback, randomBytes) 
     var salt = getRandomValues(32);
     var iv = getRandomValues(16);
 
-    var derivedKey = thirdparty.scryptsy(new Buffer(password), salt, 262144, 1, 8, 32, function(progress) {
+    var derivedKey = thirdparty.scryptsy(new thirdparty.Buffer.Buffer(password), salt, 262144, 1, 8, 32, function(progress) {
         if (callback) {
             callback(progress.percent);
         }
@@ -888,7 +902,7 @@ EthereumWallet.hexify = function (value) {
             hex = '0' + hex;
         }
 
-        return new Buffer(hex, 'hex');
+    return new thirdparty.Buffer.Buffer(hex, 'hex');
 }
 
 /**

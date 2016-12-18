@@ -34,7 +34,7 @@ HDWalletPouchDash.getCoinAddress = function(node) {
     var pubKeyHash = thirdparty.bitcoin.crypto.hash160(pubKey);
 
 
-    var payload = new Buffer(21);
+    var payload = new thirdparty.Buffer.Buffer(21);
 
     //@note: https://github.com/richardkiss/pycoin/blob/1608c4744e1d31d3f25e03da33bd170653401706/pycoin/networks.py
 
@@ -384,7 +384,7 @@ HDWalletPouchDash.prototype._buildBitcoinTransaction = function(toAddress, amoun
         confirmations: 0,
         inputs: [],
         outputs: [],
-        timestamp: (new Date()).getTime(),
+        timestamp: (new Date()).getTime() / 1000.0,
     }
 
     var self = this;

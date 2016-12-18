@@ -358,7 +358,7 @@ HDWalletPouchEthereum.prototype._buildEthereumTransaction = function(fromNodeInt
     var transaction = new thirdparty.ethereum.tx(rawTx);
     //    console.log("ethereum buildTransaction :: " + JSON.stringify(transaction));
 
-    //    var privateKeyB = new Buffer('e331b6d69882b4cb4ea581d88e0b604039a3de5967688d3dcffdd2270c0fd109', 'hex')
+    //    var privateKeyB = new thirdparty.Buffer.Buffer('e331b6d69882b4cb4ea581d88e0b604039a3de5967688d3dcffdd2270c0fd109', 'hex')
     //
     //    console.log("private key :: " + this._private + " :: " +  + this._private.length + " :: privateKeyB :: " + privateKeyB + " :: " + privateKeyB.length);
 

@@ -9,7 +9,7 @@ HDWalletPouchBitcoin.getCoinAddress = function(node) {
 
     var pubKeyHash = thirdparty.bitcoin.crypto.hash160(pubKey);
 
-    var payload = new Buffer(21);
+    var payload = new thirdparty.Buffer.Buffer(21);
 //    console.log("bitcoin :: pubkeyhash :: " + node.keyPair.network.pubKeyHash);
     payload.writeUInt8(node.keyPair.network.pubKeyHash, 0);
     pubKeyHash.copy(payload, 1);

@@ -526,7 +526,10 @@ HDWallet.prototype._load = function() {
 
     this._seedHex = seedHex;
 
-//    this._rootNode = thirdparty.bitcoin.HDNode.fromSeedHex(seedHex, NETWORK);
+//    this.buildNodes(COIN_BITCOIN);
+//    this.buildNodes(COIN_ETHEREUM);
+
+    //    this._rootNode = thirdparty.bitcoin.HDNode.fromSeedHex(seedHex, NETWORK);
     //@note: and another 50ms
     var rootNodeBase58 = CacheUtils.getCachedOrRun("wRTn_" + w_gObj._storageKey, function() {
         var rootNodeBase58 = thirdparty.bitcoin.HDNode.fromSeedHex(w_gObj._seedHex, NETWORK).toBase58();
@@ -579,11 +582,226 @@ HDWallet.prototype._load = function() {
 
     this._currentReceiveAddress = currentReceiveAddress;
 
+//    this.checkAddress();
+
     //@note: @todo: @next: @optimization: pretty sure that this could be cached as it is generated.
 
     //this._currentChangeAddress = this._changeNode.derive(0).getAddress().toString();
     this._currentChangeAddress = HDWallet._derive(this._changeNode, 0, false).getAddress().toString();
     //HDWallet._derive(this._rootNode, 2, true);
+}
+
+HDWallet.prototype.getBitcoinAddress = function(node) {
+    var pubKey = node.keyPair.getPublicKeyBuffer();
+
+    var pubKeyHash = thirdparty.bitcoin.crypto.hash160(pubKey);
+
+    var payload = new Buffer(21);
+    payload.writeUInt8(node.keyPair.network.pubKeyHash, 0);
+    pubKeyHash.copy(payload, 1);
+
+    var address = thirdparty.bs58check.encode(payload);
+
+    console.log("[bitcoin]Â address :: " + address);
+    return address;
+}
+
+HDWallet.prototype.getEthereumAddress = function(node) {
+    var ethKeyPair = node.keyPair;
+
+    //@note: @here: hack to get the Q to regenerate on the next 'get', triggered by getPublicKeyBuffer.
+    ethKeyPair.__Q = null;
+    ethKeyPair.compressed = false;
+
+    var ethKeyPairPublicKey = ethKeyPair.getPublicKeyBuffer();
+
+    var pubKeyHexEth = ethKeyPairPublicKey.toString('hex').slice(2);
+
+    var pubKeyWordArrayEth = thirdparty.CryptoJS.enc.Hex.parse(pubKeyHexEth);
+
+    var hashEth = thirdparty.CryptoJS.SHA3(pubKeyWordArrayEth, { outputLength: 256 });
+
+    var addressEth = hashEth.toString(thirdparty.CryptoJS.enc.Hex).slice(24);
+
+    console.log("[ethereum]Â address :: " + addressEth);
+    return addressEth;
+}
+
+HDWallet.prototype.checkAddress = function() {
+
+    var checkNode = HDWallet._derive(this._receiveNode, 0, false);
+
+    console.log("private key :: " + checkNode.keyPair.toWIF() + " :: " + this._privateKey(false, 0).toWIF());
+
+    var keyPair = checkNode.keyPair;//this._privateKey(false, 0);
+
+    var keyPairB = thirdparty.bitcoin.ECPair.fromWIF("KxxUwg3CwN8YjpnV8TzFRHmwrzP2vbkD9TymbdFM8EQnzpnRHDra", keyPair.network);
+
+    console.log("WIFCheck :: " + (keyPair.getPublicKeyBuffer().toString('hex') == keyPairB.getPublicKeyBuffer().toString('hex')));
+
+//    console.log("CryptoJS :: " + thirdparty.CryptoJS.enc.Hex.parse);
+    console.log("PRE :: keyPair.compressed :: " + keyPair.compressed);
+
+    //@note: @todo: @next:
+    //using the keypair, get the public key buffer.
+    //then, run that through the ethereum sha3 methodology.
+
+    var pubKey = keyPair.getPublicKeyBuffer();
+    var privateKey = keyPair.d.toBuffer(32);
+
+    console.log("A :: pubKey :: " + pubKey + " :: " + pubKey.toString('hex'));
+    console.log("privateKey :: " + privateKey + " :: " + privateKey.toString('hex'));
+
+    var pubKeyHash = thirdparty.bitcoin.crypto.hash160(pubKey);
+
+    console.log("A2 :: pubKeyHash :: " + pubKeyHash + " :: " + pubKeyHash.length);
+
+    var payload = new Buffer(21);
+    payload.writeUInt8(keyPair.network.pubKeyHash, 0);
+    pubKeyHash.copy(payload, 1);
+
+    console.log("A3 :: pubKeyHash :: " + pubKeyHash + " :: " + pubKeyHash.length);
+
+    console.log("thirdparty.bitcoin.base58 :: " + thirdparty.bs58check);
+
+    var address = thirdparty.bs58check.encode(payload);
+
+    console.log("A4 :: address :: " + address + " :: " + checkNode.keyPair.getAddress());
+
+
+    //@note: this looks fine, the fromWIF with a bitcoin private key does relate to the proper output public address.
+
+
+
+//    console.log("A2 :: .network.pubKeyHash :: " + keyPair.network.pubKeyHash)
+//    var pubKeyHex = pubKey.toString('hex');
+
+//    console.log("thirdparty.elliptic :: " + thirdparty.elliptic);
+//    console.log("thirdparty.elliptic.ec :: " + thirdparty.elliptic.ec);
+
+    var secp256k1Curve = new thirdparty.elliptic.ec('secp256k1');
+
+//    console.log("secp256k1Curve :: " + secp256k1Curve.genKeyPair);
+
+    var kp = secp256k1Curve.genKeyPair();
+
+    console.log("kp :: " + kp);
+
+    kp._importPrivate("1dd2359ba67c76414c22b068a131caba6fe4f85a918f93a263cfd4a59f7e0f77", 'hex');
+
+    var compact = false;
+
+    var pubKeyHex = kp.getPublic(compact, 'hex').slice(2);
+    console.log("A :: pubKeyHex :: " + pubKeyHex);
+
+    var pubKeyWordArray = thirdparty.CryptoJS.enc.Hex.parse(pubKeyHex);
+    console.log("B :: pubKeyWordArray :: " + pubKeyWordArray);
+
+    var hash = thirdparty.CryptoJS.SHA3(pubKeyWordArray, { outputLength: 256 });
+    console.log("C :: hash :: " + hash);
+
+    var address = hash.toString(thirdparty.CryptoJS.enc.Hex).slice(24);
+    console.log("D :: address :: " + address);
+
+    //@note: this looks fine, the importprivate with an ethereum private key does relate to the proper output public address.
+
+
+
+    kp = secp256k1Curve.genKeyPair();
+
+//    var b58res = thirdparty.bs58check.decode("KxxUwg3CwN8YjpnV8TzFRHmwrzP2vbkD9TymbdFM8EQnzpnRHDra");
+
+//    console.log("b58res :: " + b58res.toString('hex'));
+
+//    kp._importPrivate(b58res.toString('hex'), 'hex');
+    kp._importPrivate(privateKey.toString('hex'), 'hex');
+
+    compact = true;
+    pubKeyHex = kp.getPublic(compact, 'hex');//.slice(2);
+
+    console.log("R :: " + pubKeyHex + " :: " + pubKey.toString('hex'));
+
+
+    //@note: okay, so this works.
+
+
+    var ethRootNode = HDWallet._derive(HDWallet._derive(HDWallet._derive(w_gObj._rootNode, 44, true), 60, true), 0, true);
+
+    var ethAccountNode = HDWallet._derive(ethRootNode, 0, false);
+
+    var ethKeyPair = ethAccountNode.keyPair;
+
+    //@note: @here: hack to get the Q to regenerate on the next 'get', triggered by getPublicKeyBuffer.
+    ethKeyPair.__Q = null;
+    ethKeyPair.compressed = false;
+
+    var ethKeyPairPublicKey = ethKeyPair.getPublicKeyBuffer();
+
+    console.log("ethKeyPairPublicKey :: " + ethKeyPairPublicKey + " :: " + ethKeyPairPublicKey.toString('hex').slice(2));
+
+
+    var pubKeyHexEth = ethKeyPairPublicKey.toString('hex').slice(2);
+    console.log("M :: pubKeyHexEth :: " + pubKeyHexEth);
+
+    var pubKeyWordArrayEth = thirdparty.CryptoJS.enc.Hex.parse(pubKeyHexEth);
+    console.log("N :: pubKeyWordArrayEth :: " + pubKeyWordArrayEth);
+
+    var hashEth = thirdparty.CryptoJS.SHA3(pubKeyWordArrayEth, { outputLength: 256 });
+    console.log("O :: hashEth :: " + hashEth);
+
+    var addressEth = hashEth.toString(thirdparty.CryptoJS.enc.Hex).slice(24);
+    console.log("P :: addressEth :: " + addressEth + " :: " + address);
+
+    console.log("proper conversion :: " + (addressEth === address) );
+
+
+
+
+    var gatheredBitcoinAddress = this.getBitcoinAddress(checkNode);
+    var gatheredEthereumAddress = this.getEthereumAddress(ethAccountNode);
+
+
+//    var bigNumC = thirdparty.BigInteger.fromBuffer(
+//    var keyPairC = thirdparty.bitcoin.ECPair(keyPair.network
+
+
+
+
+
+//    pubKeyWordArray = thirdparty.CryptoJS.enc.Hex.parse(pubKeyHex);
+//    console.log("B :: pubKeyWordArray :: " + pubKeyWordArray);
+//    hash = thirdparty.CryptoJS.SHA3(pubKeyWordArray, { outputLength: 256 });
+//    console.log("C :: hash :: " + hash);
+//    address = hash.toString(thirdparty.CryptoJS.enc.Hex).slice(24);
+//    console.log("D :: address :: " + address);
+
+    console.log("" + this.totally.wont.exist)
+
+    //https://github.com/ConsenSys/eth-lightwallet/blob/master/lib/keystore.js
+//    KeyStore._computeAddressFromPrivKey = function (privKey) {
+//        var keyPair = ec.genKeyPair();
+//        keyPair._importPrivate(privKey, 'hex');
+//        var compact = false;
+//        var pubKey = keyPair.getPublic(compact, 'hex').slice(2);
+//        var pubKeyWordArray = CryptoJS.enc.Hex.parse(pubKey);
+//        var hash = CryptoJS.SHA3(pubKeyWordArray, { outputLength: 256 });
+//        var address = hash.toString(CryptoJS.enc.Hex).slice(24);
+//
+//        return address;
+//    };
+
+    //https://github.com/bitcoinjs/bitcoinjs-lib/blob/master/src/ecpair.js
+
+//    ECPair.prototype.getAddress = function () {
+//        var pubKey = this.getPublicKeyBuffer()
+//        var pubKeyHash = bcrypto.hash160(pubKey)
+//
+//        var payload = new Buffer(21)
+//        payload.writeUInt8(this.network.pubKeyHash, 0)
+//        pubKeyHash.copy(payload, 1)
+//
+//        return bs58check.encode(payload)
+//    }
 }
 
 HDWallet.prototype.purgeCache = function() {

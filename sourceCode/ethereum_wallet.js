@@ -94,6 +94,11 @@ function EthereumWallet(noBootstrap) {
 
     this._keystore = null;
 
+    this._addressTypeMap = {};
+
+    this._customGasLimit = 21000;
+    this._recommendedCustomGasLimit = 21000;
+
     if (window.chrome && chrome.extension && chrome.extension.getBackgroundPage) {
         this._lightwallet = chrome.extension.getBackgroundPage().lightwallet;
     }
@@ -524,12 +529,12 @@ EthereumWallet.convertEtherToWei = function(ether) {
 
 
 EthereumWallet.getAddressFromKey = function(privateKey) {
-    //Lets re-use the already imported library ethutil-tx to avoid adding burden
+    // re-use the already imported library ethereumjs-tx to avoid adding burden
     //Create a fake tx
     var mockupTxRaw = {
         nonce: EthereumWallet.hexify(1),
         gasPrice: EthereumWallet.hexify(thirdparty.web3.toBigNumber(thirdparty.web3.toWei(50, 'shannon')).plus(1000000000).toDigits(1)),
-        gasLimit: EthereumWallet.hexify(30000),
+        gasLimit: EthereumWallet.hexify(21000),
         to: ethereumWallet.getAddress() ,
         value: EthereumWallet.hexify(1),
     };
@@ -760,7 +765,7 @@ EthereumWallet.prototype.getAddress = function () {
 })();
 
 EthereumWallet.prototype.getSpendableBalance = function() {
-    var spendableEther = thirdparty.web3.toBigNumber(this.getBalance()).minus(this.getDefaultGasPrice()*30000).toString();
+    var spendableEther = thirdparty.web3.toBigNumber(this.getBalance()).minus(this.getDefaultGasPrice()*this.getCustomGasLimit()).toString();
 
     return (spendableEther > 0) ? spendableEther : 0;
 }
@@ -776,6 +781,10 @@ EthereumWallet.prototype.getDefaultGasPrice = function() {
     return thirdparty.web3.toWei(thirdparty.web3.toBigNumber('50'), 'shannon');
 };
 
+
+EthereumWallet.prototype.getDefaultGasLimit = function() {
+    return 21000;
+};
 
 /**
  *  The QR Code.
@@ -828,14 +837,14 @@ EthereumWallet.prototype.getHistory = function() {
 
         var txid = transaction.hash;
 
-        var gasPrice = thirdparty.web3.fromWei(transaction.gas * transaction.gasPrice);
+        var gasUsed = thirdparty.web3.fromWei(transaction.gasPrice * transaction.gasUsed);
 
         history.push({
             toAddress: toAddress,
             blockNumber: transaction.blockNumber,
             confirmations: transaction.confirmations,
             deltaBalance: deltaBalance,
-            gasPriceEther: gasPrice,
+            gasUsed: gasUsed,
             timestamp: transaction.timeStamp,
             txid: txid
         });
@@ -861,7 +870,7 @@ EthereumWallet.hexify = function (value) {
 /**
  *  Create a transaction to address for amount in wei.
  */
-EthereumWallet.prototype.buildTransaction = function (address, amountWei) {
+EthereumWallet.prototype.buildTransaction = function (address, amountWei, customGasLimit, txData) {
     if (address.substring(0, 2) != '0x') {
         address = '0x' + address;
     }
@@ -884,18 +893,22 @@ EthereumWallet.prototype.buildTransaction = function (address, amountWei) {
     var rawTx = {
         nonce: EthereumWallet.hexify(nonce),
         gasPrice: EthereumWallet.hexify(thirdparty.web3.toBigNumber(gasPrice).toDigits(1)),
-        gasLimit: EthereumWallet.hexify(30000),
+        gasLimit: EthereumWallet.hexify(this.getDefaultGasLimit()),
         to: address,
         value: EthereumWallet.hexify(amountWei),
         //data: '',
     };
 
-    var transaction = new thirdparty.ethereum.tx(rawTx);
-//    console.log("ethereum buildTransaction :: " + JSON.stringify(transaction));
+    if (customGasLimit) {
+        rawTx.gasLimit = customGasLimit;
+    }
 
-//    var privateKeyB = new Buffer('e331b6d69882b4cb4ea581d88e0b604039a3de5967688d3dcffdd2270c0fd109', 'hex')
-//
-//    console.log("private key :: " + this._private + " :: " +  + this._private.length + " :: privateKeyB :: " + privateKeyB + " :: " + privateKeyB.length);
+    if (txData) {
+        rawTx.data = txData;
+    }
+
+    var transaction = new thirdparty.ethereum.tx(rawTx);
+//    console.log("A :: ethereum buildTransaction :: " + JSON.stringify(transaction));
 
     transaction.sign(this._private);
 
@@ -909,6 +922,8 @@ EthereumWallet.prototype.buildTransaction = function (address, amountWei) {
         nonce: nonce,
         value: amountWei,
     };
+
+//    console.log("B :: ethereum buildTransaction :: " + JSON.stringify(transaction));
 
     return transaction;
 }
@@ -1158,3 +1173,107 @@ EthereumWallet.prototype._update = function(callback) {
 EthereumWallet.prototype.refresh = function(callback) {
     this._update(callback);
 };
+
+// ---------------------- Determine valid ETH smartcontract address
+/*
+  Async call to etherscan
+  var contract = "0xf45717552f12ef7cb65e95476f217ea008167ae3";
+  var person = "0x18e113d8177c691a61be785852fa5bb47aeebdaf";
+  isSmartContractQuery(contract);
+  isSmartContractQuery(person);
+*/
+
+
+//function isSmartContractCallback(ETHaddress,hasCode){
+//    if(hasCode){
+//        console.log('0x' + ETHaddress+' is a contract');
+//    }
+//    else {
+//        console.log('0x' +ETHaddress+' is NOT the address of a contract');
+//    }
+//}
+
+EthereumWallet.prototype.hasCachedAddressAsContract = function(address) {
+    if (this._addressTypeMap[address]) {
+        if (this._addressTypeMap[address] === true) {
+            return true;
+        } else {
+            return false;
+        }
+    } else {
+        return false;
+    }
+}
+
+//Uses etherscan geth proxy, getcode method.
+EthereumWallet.prototype.checkIsSmartContractQuery = function(address, callback)
+{
+    if (this._addressTypeMap[address]) {
+        callback(null, this._addressTypeMap[address]);
+    }
+
+    var self = this;
+
+    var url = "http://api.etherscan.io/api?module=proxy&action=eth_getCode&address=" + address + "&tag=latest";
+
+    RequestSerializer.getJSON(url, function (data) {
+        if (!data) {
+            var errStr = "failed to get address info from :: " + url + " :: " + data;
+            callback(errStr, null);
+        }
+
+        //@note: contractCode here results in *only* "0x" if it's not a contract, and the full code if it is.
+        var contractCode = data.result;
+        if (contractCode === '0x') {
+            self._addressTypeMap[address] = false;
+            callback(null, false);
+        } else {
+            self._addressTypeMap[address] = true;
+            callback(null, true);
+        }
+    });
+}
+
+/* this is the equivalent using ether.camp
+function isSmartContractQueryEthercamp(ETHaddress)
+{
+    //Remove 0x
+    if(ETHaddress.substr(0, 2) == '0x'){
+        ETHaddress = ETHaddress.substr(2);
+    }
+
+    //Check validity
+    if(ETHaddress.length != 40){
+      console.log("Invalid Address :"+ETHaddress);
+      return ;
+    }
+
+    var url = "https://state.ether.camp/api/v1/accounts/" + ETHaddress;
+
+    RequestSerializer.getJSON(url, function (data) {
+            if (!data) {
+                console.log('Failed to get address info from :'+url, data);
+                isSmartContractCallback(ETHaddress,null)
+            }
+            isSmartContractCallback(ETHaddress,data.code)
+        });
+}
+*/
+
+// -----------------------END ETH smartcontract detection
+
+EthereumWallet.prototype.getCustomGasLimit = function() {
+    return this._customGasLimit;
+}
+
+EthereumWallet.prototype.setCustomGasLimit = function(customGasLimit) {
+    this._customGasLimit = customGasLimit;
+}
+
+EthereumWallet.prototype.getRecommendedCustomGasLimit = function() {
+    return this._recommendedCustomGasLimit;
+}
+
+EthereumWallet.prototype.setRecommendedCustomGasLimit = function(recommendedCustomGasLimit) {
+    this._recommendedCustomGasLimit = recommendedCustomGasLimit;
+}

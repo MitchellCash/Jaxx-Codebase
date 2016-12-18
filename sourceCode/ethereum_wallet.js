@@ -112,7 +112,7 @@ function EthereumWallet(noBootstrap) {
 };
 
 EthereumWallet.prototype.initAndLoadAsync = function() {
-    console.log("[ Ethereum InitAndLoadAsync ]");
+    console.log("[ EthereumWallet Legacy :: InitAndLoadAsync ]");
 
     var mnemonic = getStoredData('mnemonic',true); //Get mnemonic from localstorage
     var hashMnemonicKey = mnemonic + (TESTNET ? '-test': '-main');
@@ -122,13 +122,20 @@ EthereumWallet.prototype.initAndLoadAsync = function() {
     var cachedPrivateHex = getStoredData('ethereum_cachedPrivateFromStorage_' + this._storageKey,true);
     var cachedAddress = getStoredData('ethereum_cachedAddressFromStorage_' + this._storageKey,true);
 
+    var legacyCacheReset = getStoredData('ethereum_hasResetLegacyCache', false);
+    if (typeof(legacyCacheReset) !== 'undefined' && legacyCacheReset !== null && legacyCacheReset !== 'true') {
+        storeData('ethereum_hasResetLegacyCache', 'true', false);
+        cachedPrivateHex = null;
+        cachedAddress = null;
+    }
+
     var self = this;
 
     w_Obj = this;
 //    console.log("compare A :: " + (w_Obj === this));
 
     if (typeof(cachedPrivateHex) !== 'undefined' && cachedPrivateHex != null) {
-        console.log("[ EthereumWallet :: loading from cached seed ]");
+        console.log("[ EthereumWallet Legacy :: loading from cached seed ]");
         var cachedPrivate = new Buffer(cachedPrivateHex, 'hex');
         w_Obj._private = cachedPrivate;
         w_Obj._address = cachedAddress;
@@ -138,16 +145,16 @@ EthereumWallet.prototype.initAndLoadAsync = function() {
         w_Obj.initializeAfterLoad();
     } else {
         if (w_Obj._lightwallet !== null) {
-            w_Obj.initHDStore(false);
+            w_Obj.initHDStore(true);
         } else {
 //            lightwallet = null;
 
             if (typeof(lightwallet) !== 'undefined' && lightwallet !== null) {
-                console.log("[ EthereumWallet :: Found Lightwallet ]");
+                console.log("[ EthereumWallet Legacy :: Found Lightwallet ]");
                 w_Obj._lightwallet = lightwallet;
                 w_Obj.initHDStore(true);
             } else {
-                console.log("[ EthereumWallet :: Loading lightwallet.js ]");
+                console.log("[ EthereumWallet Legacy :: Loading lightwallet.js ]");
                 loadScript(this._unitTestPath + 'js/thirdparty/lightwallet.min.js', w_Obj.callbackOnLoadedLightwallet, w_Obj.callbackOnErrorLoadingLightwallet);
             }
         }
@@ -155,7 +162,7 @@ EthereumWallet.prototype.initAndLoadAsync = function() {
 }
 
 EthereumWallet.prototype.callbackOnLoadedLightwallet = function() {
-    console.log("[ EthereumWallet :: Loaded lightwallet.js ]");
+    console.log("[ EthereumWallet Legacy :: Loaded lightwallet.js ]");
 
     if (w_Obj._lightwallet == null) {
         w_Obj._lightwallet = lightwallet;
@@ -165,7 +172,7 @@ EthereumWallet.prototype.callbackOnLoadedLightwallet = function() {
 }
 
 EthereumWallet.prototype.callbackOnErrorLoadingLightwallet = function(jqXHR, textStatus, errorThrown) {
-    console.log("[ EthereumWallet :: Error Loading lightwallet.js :: " + errorThrown + " ]");
+    console.log("[ EthereumWallet Legacy :: Error Loading lightwallet.js :: " + errorThrown + " ]");
 
 }
 
@@ -178,7 +185,7 @@ EthereumWallet.prototype.getPublicAddress = function(){
 }
 
 EthereumWallet.prototype.initHDStore = function(checkForEthereumIssue) {
-    console.log("[ EthereumWallet :: Init HD Store ]");
+    console.log("[ EthereumWallet Legacy :: Init HD Store ]");
 
     var secretSeed = getStoredData('mnemonic',true); //Get mnemonic from localstorage
 
@@ -201,7 +208,7 @@ EthereumWallet.prototype.initHDStore = function(checkForEthereumIssue) {
             w_Obj._keystore.addHdDerivationPath(hdPath, pwDerivedKey, {curve: 'secp256k1', purpose: 'sign'});
 
             //--------------------Test validity of ETH creation mechanism. @TODO Remove after we nail this issue down
-            var ethGenTestPass = false; //default to false
+            var ethGenTestPass = "false"; //default to false
             if(PlatformUtils.mobileAndroidCheck() && checkForEthereumIssue === true) {
 
                 var testMnemonicString = "film jaguar grow betray sense offer motor wisdom prefer blur beach cave";
@@ -211,11 +218,11 @@ EthereumWallet.prototype.initHDStore = function(checkForEthereumIssue) {
                 _keystore_test.generateNewAddress(pwDerivedKey, 1, hdPath);  //Generate a new address
                 var generatedAddr = '0x'+ _keystore_test.getAddresses(hdPath)[0];
                 if(generatedAddr==testAddress){
-                   ethGenTestPass = true;
+                   ethGenTestPass = "true";
                 }
             }
             else {
-                ethGenTestPass = true; //Assume that on non-android device generation is ok
+                ethGenTestPass = "true"; //Assume that on non-android device generation is ok
             }
 
             //-------END test
@@ -223,7 +230,7 @@ EthereumWallet.prototype.initHDStore = function(checkForEthereumIssue) {
 
 //            ethGenTestPass = false;
 
-            if(ethGenTestPass){
+//            if(ethGenTestPass){
                 w_Obj._keystore.generateNewAddress(pwDerivedKey, 1, hdPath);  //Generate a new address
 
                 //Get private key
@@ -257,24 +264,33 @@ EthereumWallet.prototype.initHDStore = function(checkForEthereumIssue) {
 
                 //    console.log("compare B :: " + (w_Obj === this));
                 w_Obj.initializeAfterLoad();
-            }
-            else {
-                g_JaxxApp.getUI().hideEthereumMode();
-                g_JaxxApp.getUI().showEthereumTestFailedModal();
-            }
+//            }
+//            else {
+//                g_JaxxApp.getUI().hideEthereumMode();
+//                g_JaxxApp.getUI().showEthereumTestFailedModal();
+//            }
         }
     });
 }
 
 EthereumWallet.prototype.initializeAfterLoad = function() {
-    console.log("[ Ethereum Initialize ]");
+    console.log("[ EthereumWallet Legacy :: Initialize ]");
     this._update();
 
     var self = this;
     this._poll = setInterval(function() { self._update(); }, 15000);
 
     if (this._finishedLoadingEthereumCallback !== null) {
-        this._finishedLoadingEthereumCallback();
+//        storeData('ethereum_generationPassed_' + w_Obj._storageKey, "false", false);
+
+//        console.log("ethereum_generationPassed :: " + getStoredData('ethereum_generationPassed_' + w_Obj._storageKey, false) + " :: " + typeof(getStoredData('ethereum_generationPassed_' + w_Obj._storageKey, false)));
+
+        var isGlitchedWallet = false;
+        if (getStoredData('ethereum_generationPassed_' + w_Obj._storageKey, false) !== "true") {
+            isGlitchedWallet = true;
+        }
+
+        this._finishedLoadingEthereumCallback(isGlitchedWallet);
     }
 }
 
@@ -455,7 +471,7 @@ EthereumWallet._hexSeedFromJSONVersion3 = function(password, payload, callback) 
 
 EthereumWallet.convertWeiToFiat = function(wei, fiatUnit, noPrefix) {
 
-    var prefix = HDWallet.getFiatUnitPrefix(fiatUnit);
+    var prefix = HDWalletHelper.getFiatUnitPrefix(fiatUnit);
 
     var rate = 0;
     if (EthereumWallet._exchangeRates[fiatUnit]) {
@@ -765,7 +781,7 @@ EthereumWallet.prototype.getAddress = function () {
 })();
 
 EthereumWallet.prototype.getSpendableBalance = function() {
-    var spendableEther = thirdparty.web3.toBigNumber(this.getBalance()).minus(this.getDefaultGasPrice()*this.getCustomGasLimit()).toString();
+    var spendableEther = thirdparty.web3.toBigNumber(this.getBalance()).minus(HDWalletHelper.getDefaultEthereumGasLimit().mul(HDWalletHelper.getDefaultEthereumGasPrice())).toString();
 
     return (spendableEther > 0) ? spendableEther : 0;
 }
@@ -1103,9 +1119,9 @@ EthereumWallet.prototype._updateExchangeRates = function() {
 
 EthereumWallet.prototype.getFiatUnit = function() {
     var fiatUnit = getStoredData('fiat');
-    if (HDWallet.getFiatUnitPrefix(fiatUnit) === 'XX$') {
-        fiatUnit = 'USD';
-    }
+//    if (HDWallet.getFiatUnitPrefix(fiatUnit) === 'XX$') {
+//        fiatUnit = 'USD';
+//    }
     return fiatUnit;
 }
 
@@ -1119,7 +1135,7 @@ EthereumWallet.prototype.convertFiatToWei = function(fiatAmount) {
 
 // Called by a polling interval to update balance and transaction history
 EthereumWallet.prototype._update = function(callback) {
-    console.log('[ Updating Ethereum ]');
+//    console.log('[ Updating Ethereum ]');
 
     var self = this;
     var populateConfirmations = function() {

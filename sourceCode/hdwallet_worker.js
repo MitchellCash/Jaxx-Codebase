@@ -93,12 +93,12 @@ HDWalletWorker.prototype.initialize = function(coinType, testNet) {
 
         this._STATIC_RELAY_URL = "https://api.etherscan.io";
         this._GATHER_TX = "/api?module=account&action=txlist&address=";
-        this._GATHER_TX_APPEND = "&sort=asc"
+        this._GATHER_TX_APPEND = "&sort=asc&apikey=" + HDWalletHelper.jaxxEtherscanAPIKEY;
 
         this._GATHER_UNCONFIRMED_TX = "";
 
         this._MULTI_BALANCE = "/api?module=account&action=balancemulti&address=";
-        this._MULTI_BALANCE_APPEND = "&tag=latest";
+        this._MULTI_BALANCE_APPEND = "&tag=latest&apikey=" + HDWalletHelper.jaxxEtherscanAPIKEY;
     }
 
     var self = this;
@@ -360,7 +360,7 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
         if (this._coinType === COIN_BITCOIN) {
             if (this._hasForcedRecheck === false) {
                 this._hasForcedRecheck = true;
-                console.log("forcing recheck with max addresses :: " + Object.keys(this._addressMap).length);
+//                console.log("forcing recheck with max addresses :: " + Object.keys(this._addressMap).length);
                 this._transactions = {};
                 this.checkTransactions(0);
             }

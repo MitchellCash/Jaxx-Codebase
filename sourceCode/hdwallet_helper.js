@@ -23,6 +23,8 @@ var HDWalletHelper = function() {
 
 HDWalletHelper.theDAOAddress = "0xbb9bc244d798123fde783fcc1c72d3bb8c189413";
 
+HDWalletHelper.jaxxEtherscanAPIKEY = "WGWHHAU4F2Y58UW5FQWTUJWSXBNHU7WBSX";
+
 HDWalletHelper.checkMnemonic = function() {
     //@note: @here: @todo: check for 12 word mnemonics.
     if (thirdparty.bip39.validateMnemonic(mnemonic)) {

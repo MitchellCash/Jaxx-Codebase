@@ -9,9 +9,10 @@ When a send occurs, the receives nodes, highest index to lowest, are checked for
 
 From here, there are two options: the first is that the receive nodes could forward balances to another internal change node, in which case the change node would have a balance and the sending could be from that. This would have a degree of latency to the transaction as the sweep phase would need to be completed ("cleared") before the actual transaction could be sent out.
 
-The second, which is being implemented here, is that the lowest index that has the balance available is used. If that isn't enough, more nodes with higher indexes are used. While not taking additional time to clear, this has the side effect that multiple small receive nodes are necessarily compiled and sent with larger transaction fees than you'd need for one transaction.
+The second, which is being implemented here, is that the highest valued index that has the balance available is used. If that isn't enough, more nodes with lower valued indexes are used. While not taking additional time to clear, this has the side effect that multiple large to small receive nodes are necessarily compiled and sent with larger transaction fees than you'd need for one transaction.
 
 */
+
 
 var HDWalletPouch = function() {
     this._coinType = -1;
@@ -26,6 +27,8 @@ var HDWalletPouch = function() {
     this._storageKey = "";
 
     this._w_addressMap = {};
+
+    this._token = [];
 
     this._currentReceiveAddress = null;
     this._currentChangeAddress = null;
@@ -181,7 +184,7 @@ HDWalletPouch.prototype.setup = function(coinType, testNet, helper) {
     } else if (this._coinType === COIN_ETHEREUM) {
         this._STATIC_RELAY_URL = "https://api.etherscan.io";
         this._GATHER_TX = "api?module=account&action=txlist&address=";
-        this._GATHER_TX_APPEND = "&sort=asc"
+        this._GATHER_TX_APPEND = "&sort=asc&apikey=" + HDWalletHelper.jaxxEtherscanAPIKEY;
 
         this._GATHER_UNCONFIRMED_TX = "";
     }
@@ -235,6 +238,8 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
             }
         });
     }, this._blockRequestTimeout);
+
+    this.setupTokens();
 }
 
 HDWalletPouch.prototype.update = function() {
@@ -463,7 +468,17 @@ HDWalletPouch.prototype.setupWorkers = function() {
 //                            console.log(self._coinFullName + " ::  updating transaction cache");
 //                        }
                         self._txCacheValid = true;
+
+//                        var zip = new thirdparty.zip();
+//                        zip.file('txfiles', JSON.stringify(self._transactions));
+//
+//                        var data = zip.generate({base64:true, compression:'DEFLATE'});
+//                        console.log("transaction data :: " + JSON.stringify(self._transactions).length + " :: compressed :: " + data.length);
+//
+
                         storeData('wTxCache_' + self._coinFullName + "_" + self._storageKey, JSON.stringify(self._transactions), true);
+
+//                        storeData('wTxCacheCompressed_' + self._coinFullName + "_" + self._storageKey, data, true);
                     } else {
 //                        if (self._coinType === COIN_BITCOIN) {
 //                            console.log(self._coinFullName + " ::  not updating transaction cache");
@@ -515,6 +530,11 @@ HDWalletPouch.prototype.setupWorkers = function() {
                     }
 
                     if (self._wkrCacheValid === false || numPrevWorkerCacheKeys < numUpdatedWorkerCacheKeys || cacheBalancesUpdated === true) {
+
+                        if (this._coinType === COIN_ETHEREUM) {
+                            this.updateTokenAddresses(workerCacheAddressMap);
+                        }
+
                         self._wkrCacheValid = true;
                         storeData('wWrkrCacheAddrMap_' + self._coinFullName + "_" + self._storageKey, JSON.stringify(workerCacheAddressMap), true);
                     } else {
@@ -609,6 +629,12 @@ HDWalletPouch.prototype.shutDown = function() {
         this._worker.postMessage({
             action: 'shutDown',
         });
+    }
+
+    if (this._coinType === COIN_ETHEREUM) {
+        for (var i = 0; i < CoinToken.numCoinTokens; i++) {
+            this._token[i].shutDown();
+        }
     }
 }
 
@@ -1785,7 +1811,7 @@ HDWalletPouch.prototype.sendEthereumTransaction = function(transaction, callback
 //
     var self = this;
 
-    $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_sendRawTransaction&hex=' + hex, function (data) {
+    $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_sendRawTransaction&hex=' + hex + "&apikey=" + HDWalletHelper.jaxxEtherscanAPIKEY, function (data) {
         self.invalidateTransactionCache();
         self.invalidateWorkerCache();
 
@@ -1895,7 +1921,7 @@ HDWalletPouch.prototype._requestBlockNumber = function(callback) {
     } else if (this._coinType === COIN_ETHEREUM) {
         var self = this;
 
-        $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_blockNumber', function (data) {
+        $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=' + HDWalletHelper.jaxxEtherscanAPIKEY, function (data) {
             if (!data || !data.result) {
                 if (self._currentBlock === -1) {
                     self._currentBlock = 0;
@@ -2239,4 +2265,56 @@ HDWalletPouch.prototype.manuallyDeriveUnhardened = function(fromNode, index) {
     hd.parentFingerprint = fromNode.getFingerprint().readUInt32BE(0)
 
     return hd;
+}
+
+HDWalletPouch.prototype.setupTokens = function() {
+    if (this._coinType === COIN_ETHEREUM) {
+        for (var i = 0; i < CoinToken.numCoinTokens; i++) {
+            this._token[i] = new CoinToken();
+        }
+
+        this._token[CoinToken.TheDAO].initialize("TheDAO", "DAO", CoinToken.TheDAO);
+
+        this.updateTokenAddresses(this._w_addressMap);
+    }
+}
+
+HDWalletPouch.prototype.updateTokenAddresses = function(addressMap) {
+    var transferrableMap = {};
+    var votableMap = {};
+
+    for (var publicAddress in addressMap) {
+        var addressInfo = addressMap[publicAddress];
+
+        //    console.log("internal :: " + internal + " :: index :: " + index + " :: publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo) + " :: _w_addressMap :: " + JSON.stringify(this._w_addressMap));
+
+        if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
+            transferrableMap[publicAddress] = addressInfo.tokenTransferrableList;
+            votableMap[publicAddress] = addressInfo.tokenVotableList;
+        }
+    }
+
+    for (var i = 0; i < CoinToken.numCoinTokens; i++) {
+        var tokenTransferrableMap = [];
+        var tokenVotableMap = [];
+
+        //@note: tokens are transferrable by default. however, if they are explicitly marked as not transferrable, respect that.
+        for (publicAddress in transferrableMap) {
+            var curTransferrableToken = transferrableMap[publicAddress];
+            if ((typeof(curTransferrableToken) !== undefined && curTransferrableToken !== null && curTransferrableToken !== false) || (typeof(curTransferrableToken) === undefined || curTransferrableToken === null))  {
+                tokenTransferrableMap.push(publicAddress);
+            }
+        }
+
+        //@note: tokens are not votable by default.
+        for (publicAddress in votableMap) {
+            var curVotableToken = votableMap[publicAddress];
+            if (typeof(curVotableToken) !== undefined && curVotableToken !== null && curVotableToken === true) {
+                tokenVotableMap.push(publicAddress);
+            }
+        }
+
+        this._token[i].setIsTransferable(tokenTransferrableMap);
+        this._token[i].setIsVotable(tokenVotableMap);
+    }
 }

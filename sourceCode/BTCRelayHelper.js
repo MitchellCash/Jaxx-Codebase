@@ -1,6 +1,6 @@
 var BTCRelayHelper = function(){};
 
-BTCRelayHelper.pushRawTx = function(relayName, urlToCall, dataToSend, callback, passThrough) {
+BTCRelayHelper.pushRawTx = function(relayName, urlToCall, dataToSend, callback, passthroughParams) {
     g_JaxxApp.getBitcoinRelays().relayLog("BTCRelayHelper :: pushRawTx :: " + relayName + " :: pushing raw tx :: dataToSend :: " + dataToSend + " :: urlToCall :: " + urlToCall);
 
 
@@ -25,11 +25,11 @@ BTCRelayHelper.pushRawTx = function(relayName, urlToCall, dataToSend, callback, 
 //        type: 'POST'
 //    });
 
-    RequestSerializer.postUrlEncoded(urlToCall, dataToSend, function(data, status, passThrough) {
+    RequestSerializer.postUrlEncoded(urlToCall, dataToSend, function(data, status, passthroughParams) {
         console.log(relayName + " :: sendtx post :: received status :: " + status + " :: data :: " + JSON.stringify(data));
 
-        callback(status, JSON.parse(data), passThrough);
-    }, true, passThrough);
+        callback(status, JSON.parse(data), passthroughParams);
+    }, true, passthroughParams);
 }
 
 //BTCRelayHelper.getTxList = function(address, relayName, urlToCall){

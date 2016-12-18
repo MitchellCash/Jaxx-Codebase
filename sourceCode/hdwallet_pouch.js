@@ -90,6 +90,8 @@ var HDWalletPouch = function() {
     this._miningFeeDict = {"fastestFee": 40, "halfHourFee": 20, "hourFee": 10};
 
     this._miningFeeLevel = -1;
+
+    this._workerIsAvailable = true;
 }
 
 HDWalletPouch.MiningFeeLevelSlow = 0;
@@ -123,8 +125,11 @@ HDWalletPouch.getStaticCoinPouchImplementation = function(coinType) {
         //@note: @here: @todo: this should be a thedao specific cointoken.
         return CoinTokenAugurEthereum;
     } else if (coinType === COIN_LITECOIN) {
-        //@note: @here: @todo: this should be a thedao specific cointoken.
         return HDWalletPouchLitecoin;
+    }  else if (coinType === COIN_LISK) {
+        return HDWalletPouchLisk;
+    }  else if (coinType === COIN_ZCASH) {
+        return HDWalletPouchZCash;
     }
 }
 
@@ -147,9 +152,11 @@ HDWalletPouch.getStaticCoinWorkerImplementation = function(coinType) {
         //@note: @here: this doesn't have the same parameters like block number.
         return CoinTokenWorker;
     } else if (coinType === COIN_LITECOIN) {
-        //@note: @here: @todo: this should be a thedao specific cointoken.
-        //@note: @here: this doesn't have the same parameters like block number.
         return HDWalletWorkerLitecoin;
+    } else if (coinType === COIN_LISK) {
+        return HDWalletWorkerLisk;
+    } else if (coinType === COIN_ZCASH) {
+        return HDWalletWorkerZCash;
     }
 }
 
@@ -165,6 +172,10 @@ HDWalletPouch.getNewCoinPouchImplementation = function(coinType) {
         return new HDWalletPouchDash();
     } else if (coinType === COIN_LITECOIN) {
         return new HDWalletPouchLitecoin();
+    } else if (coinType === COIN_LISK) {
+        return new HDWalletPouchLisk();
+    } else if (coinType === COIN_ZCASH) {
+        return new HDWalletPouchZCash();
     }
 }
 
@@ -493,6 +504,33 @@ HDWalletPouch.prototype.loadAndCache = function() {
 HDWalletPouch.prototype.setupWorkers = function() {
     // Background thread to run heavy HD algorithms and keep the state up to date
     try {
+        var cryptoCurrenciesAllowed = {};
+        if (PlatformUtils.mobileiOSCheck()) {
+            cryptoCurrenciesAllowed = HDWalletHelper.cryptoCurrenciesAllowed.ios;
+        } else {
+            cryptoCurrenciesAllowed = HDWalletHelper.cryptoCurrenciesAllowed.regular;
+        }
+
+        for (var curCryptoName in HDWalletHelper.dictCryptoCurrency) {
+            var curCryptoDict = HDWalletHelper.dictCryptoCurrency[curCryptoName];
+
+            if (curCryptoDict.index === this._coinType) {
+                if (typeof(cryptoCurrenciesAllowed[curCryptoName]) !== 'undefined' &&
+                    cryptoCurrenciesAllowed[curCryptoName] !== null &&
+                    cryptoCurrenciesAllowed[curCryptoName] === true) {
+                    this._workerIsAvailable = true;
+                } else {
+                    this._workerIsAvailable = false;
+                }
+            }
+        }
+
+        if (this._workerIsAvailable !== true) {
+            console.log("[ HDWalletPouch :: " + this._coinFullName + " ] :: crypto disabled :: " + this._coinType);
+            return;
+        }
+
+
         this._worker = new Worker('./js/wallet/hdwallet_worker_manager.js');
 
         var self = this;
@@ -689,17 +727,36 @@ HDWalletPouch.prototype.completeWorkerInitialization = function() {
             }
         });
 
-        this._worker.postMessage({
-            action: 'setExtendedPublicKeys',
-            content: {
-                change: self._changeNode.neutered().toBase58(),
-                receive: self._receiveNode.neutered().toBase58()
-            }
-        });
+//        if (this._coinType === COIN_LISK) {
+//            var unneuteredKeys = {
+//                action: 'setExtendedPublicKeys',
+//                content: {
+//                    change: self._changeNode.toBase58(),
+//                    receive: self._receiveNode.toBase58()
+//                }
+//            };
+//
+//
+//            this._worker.postMessage(unneuteredKeys);
+//
+//            if (shouldNotify === true) {
+//                this._notify();
+//            }
+//        } else {
+            var neuteredKeys = {
+                action: 'setExtendedPublicKeys',
+                content: {
+                    change: self._changeNode.neutered().toBase58(),
+                    receive: self._receiveNode.neutered().toBase58()
+                }
+            };
 
-        if (shouldNotify === true) {
-            this._notify();
-        }
+            this._worker.postMessage(neuteredKeys);
+
+            if (shouldNotify === true) {
+                this._notify();
+            }
+//        }
     }
 }
 
@@ -1148,6 +1205,10 @@ HDWalletPouch.prototype.refresh = function () {
             content: { }
         });
     }
+}
+
+HDWalletPouch.prototype.getWorker = function(){
+    return this._worker;
 }
 
 HDWalletPouch.prototype.refreshIfNecessary = function() {

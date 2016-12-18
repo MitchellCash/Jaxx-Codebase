@@ -1,5 +1,6 @@
 importScripts('../../thirdparty.js');
 importScripts('../../request.js');
+importScripts('../../platform/platformUtils.js');
 
 //importScripts('../network.js');
 importScripts('../../jaxx_main/jaxx_constants.js');
@@ -18,7 +19,7 @@ function log() {
     var args = [].slice.call(arguments);
     args.unshift('WorkerLog:');
     console.log(args);
-    //    postMessage({action: 'log', content: args});
+//    postMessage({action: 'log', content: args});
 }
 
 var CoinTokenWorker = function() {
@@ -31,6 +32,8 @@ var CoinTokenWorker = function() {
 
     this._transactions = {};
     this._addressMap = {};
+
+    this._isAvailable = true;
 //
 //    this._lastReceiveIndex = -1;
 //    this._currentReceiveAddress = null;
@@ -396,6 +399,40 @@ var coinTokenWorker = new CoinTokenWorker();
 onmessage = function(message) {
     if (message.data.action === 'initialize') {
 //        log("message.data :: " + JSON.stringify(message.data));
+        var mainCoinType = CoinToken.getTokenToMainTypeMap(message.data.content.tokenCoinType);
+
+        var cryptoCurrenciesAllowed = {};
+        if (PlatformUtils.mobileiOSCheck()) {
+            cryptoCurrenciesAllowed = HDWalletHelper.cryptoCurrenciesAllowed.ios;
+        } else {
+            cryptoCurrenciesAllowed = HDWalletHelper.cryptoCurrenciesAllowed.regular;
+        }
+
+        for (var curCryptoName in HDWalletHelper.dictCryptoCurrency) {
+            var curCryptoDict = HDWalletHelper.dictCryptoCurrency[curCryptoName];
+
+            if (curCryptoDict.index === mainCoinType) {
+                if (typeof(cryptoCurrenciesAllowed[curCryptoName]) !== 'undefined' &&
+                    cryptoCurrenciesAllowed[curCryptoName] !== null &&
+                    cryptoCurrenciesAllowed[curCryptoName] === true) {
+                    this._isAvailable = true;
+                } else {
+                    this._isAvailable = false;
+                }
+
+                break;
+            }
+        }
+
+        if (this._isAvailable !== true) {
+            var curDoDebugLog = doDebug;
+            doDebug = true;
+            log("[ CoinTokenWorker ] :: crypto disabled :: " + mainCoinType);
+            doDebug = curDoDebugLog;
+
+            return;
+        }
+
         coinTokenWorker.initialize(message.data.content.tokenName, message.data.content.tokenSymbol, message.data.content.tokenCoinType);
     }
     if (message.data.action === 'setTokenAddresses') {

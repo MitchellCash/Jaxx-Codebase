@@ -1,13 +1,13 @@
-var LTCJaxxCustomRelay = function() {
-    this._baseUrl = "https://api.jaxx.io/api/ltc/";
-    //this._baseUrl = "https://api.jaxx.io/api/ltc/";
+var ZECJaxxCustomRelay = function() {
+//    this._baseUrl = "http://52.36.145.169:3006/api/zec/";
+    this._baseUrl = "https://api.jaxx.io/api/zec/";
     this._getTxListPrepend = 'transactions/';
     this._getTxListAppend = '';
     this._getTxDetailsPrepend = 'transactionParams/';
     this._getTxDetailsAppend = '';
     this._getAccountBalancePrepend = 'balance/';
     this._getAccountBalanceAppend = '';
-    this._name = "Jaxx Litecoin Custom API";
+    this._name = "Jaxx ZCash Custom API";
     this._reliable = "true";
     this._lastBlock = 0;
 
@@ -16,16 +16,16 @@ var LTCJaxxCustomRelay = function() {
     this._fixedBlockHeight = false;
 }
 
-LTCJaxxCustomRelay.prototype.initialize = function(relayManager) {
+ZECJaxxCustomRelay.prototype.initialize = function(relayManager) {
     this._relayManager = relayManager;
 }
 
-LTCJaxxCustomRelay.prototype.getLastBlockHeight = function(){
+ZECJaxxCustomRelay.prototype.getLastBlockHeight = function(){
 	// This function shares a common interface with the other relays.
 	return this._lastBlock;
 }
 
-LTCJaxxCustomRelay.prototype.setLastBlockHeight = function(newHeight){
+ZECJaxxCustomRelay.prototype.setLastBlockHeight = function(newHeight){
 	if (this._fixedBlockHeight){
         this._lastBlock = this._fixedBlockHeight;
     } else {
@@ -33,7 +33,7 @@ LTCJaxxCustomRelay.prototype.setLastBlockHeight = function(newHeight){
     }
 }
 
-LTCJaxxCustomRelay.prototype.fetchLastBlockHeight  = function(callback, passthroughParams) {
+ZECJaxxCustomRelay.prototype.fetchLastBlockHeight  = function(callback, passthroughParams) {
     var self = this; // For references inside the callback function.
 	this._relayManager.relayLog("Fetching the block height for " + this._name);
     RequestSerializer.getJSON(this._baseUrl + 'blockchainInfo', function (response, status, passthroughParams) {
@@ -56,7 +56,7 @@ LTCJaxxCustomRelay.prototype.fetchLastBlockHeight  = function(callback, passthro
     }, true, passthroughParams);
 }
 
-LTCJaxxCustomRelay.prototype.checkCurrentHeightForAnomalies  = function() {
+ZECJaxxCustomRelay.prototype.checkCurrentHeightForAnomalies  = function() {
     if(this._lastBlock ==0 || typeof this._lastBlock == "undefined"){
         this._reliable=false;
     }
@@ -67,7 +67,7 @@ LTCJaxxCustomRelay.prototype.checkCurrentHeightForAnomalies  = function() {
 
 //@note: @here: this is using insight.io, which has the issue with the transactions not being associated to the proper addresses if using multiple.
 
-LTCJaxxCustomRelay.prototype.getTxList  = function(addresses, callback, passthroughParams) {
+ZECJaxxCustomRelay.prototype.getTxList  = function(addresses, callback, passthroughParams) {
     this._relayManager.relayLog("Chain Relay :: " + this._name+ " - Requested txlist for " + addresses);
 
     var self = this;
@@ -95,7 +95,7 @@ LTCJaxxCustomRelay.prototype.getTxList  = function(addresses, callback, passthro
     }, true, passthroughParams);
 }
 
-LTCJaxxCustomRelay.prototype.getTxListParse = function(primaryTxListData) {
+ZECJaxxCustomRelay.prototype.getTxListParse = function(primaryTxListData) {
     var returnData = {data: []};
 
     var allKeys = Object.keys(primaryTxListData);
@@ -122,7 +122,7 @@ LTCJaxxCustomRelay.prototype.getTxListParse = function(primaryTxListData) {
     return returnData;
 }
 
-LTCJaxxCustomRelay.prototype.getTxCount = function(addresses, callback, passthroughParams) {
+ZECJaxxCustomRelay.prototype.getTxCount = function(addresses, callback, passthroughParams) {
     var self = this;
 
     this._relayManager.relayLog("Chain Relay :: " + this._name + " :: requested txCount for :: " + addresses);
@@ -156,9 +156,9 @@ LTCJaxxCustomRelay.prototype.getTxCount = function(addresses, callback, passthro
     },true, passthroughParams);
 }
 
-LTCJaxxCustomRelay.prototype.getTxDetails = function(txHashes, callback, passthroughParams) {
+ZECJaxxCustomRelay.prototype.getTxDetails = function(txHashes, callback, passthroughParams) {
 
-//    console.log("LTCJaxxCustomRelay :: getTxDetails :: currently unimplemented");
+//    console.log("ZECJaxxCustomRelay :: getTxDetails :: currently unimplemented");
     var self = this;
 
     this._relayManager.relayLog("Chain Relay :: " + this._name + " :: requested tx details for :: " + txHashes);
@@ -166,8 +166,10 @@ LTCJaxxCustomRelay.prototype.getTxDetails = function(txHashes, callback, passthr
     //var txDetailsStatus = {numHashesTotal: txHashes.length, numHashesProcessed: 0, allHashes: txHashes, numHashRequestsSucceeded: 0, allTxDetails: []};
 
     var requestString = this._baseUrl + 'transactionInfo/' + txHashes.join(',');
-    // Sample requestString: https://api.jaxx.io/api/ltc/transactionInfo/3b40250a08e7cb493981adfc6637235835998347e059565eb24f9d6268cea70f,9f4da4554f02c209e98040cc478720c922b50edb14f4071f8c4c73e74a9243bf
+    // Sample requestString: http://52.41.118.219:3004/api/zec/transactionInfo/ebd4982cf3ac622689e26ceb44b5cec4c04085450f37049e80e67ac7dc2accef,e35533b64a9e686be58484aeb15131de52f4f4e2c0efbd2ba4f42645fdb0a841 // https://api.jaxx.io/api/ltc/transactionInfo/3b40250a08e7cb493981adfc6637235835998347e059565eb24f9d6268cea70f,9f4da4554f02c209e98040cc478720c922b50edb14f4071f8c4c73e74a9243bf
 
+
+    // http://52.41.118.219:3004/api/zec/transactionInfo/2430dec07fd27c4dc637303f3e3e35d4580099f55ff1f0eee7f6e5f27836897c,2430dec07fd27c4dc637303f3e3e35d4580099f55ff1f0eee7f6e5f27836897c
     RequestSerializer.getJSON(requestString, function (response, status) {
         var data = [];
         if (status === 'error'){
@@ -180,7 +182,7 @@ LTCJaxxCustomRelay.prototype.getTxDetails = function(txHashes, callback, passthr
     });
 }
 
-LTCJaxxCustomRelay.prototype.getTxDetailsParse = function(response) {
+ZECJaxxCustomRelay.prototype.getTxDetailsParse = function(response) {
 
 //{
 //    "1df9a5db8f3dbeac96d3b20cab807634b34ecea5915d5dbdadca95b1c8ec8c41": {
@@ -286,7 +288,7 @@ LTCJaxxCustomRelay.prototype.getTxDetailsParse = function(response) {
     return allTxDetails;
 }
 
-LTCJaxxCustomRelay.prototype.getAddressBalance = function(address, callback, passthroughParams) {
+ZECJaxxCustomRelay.prototype.getAddressBalance = function(address, callback, passthroughParams) {
     // @TODO: Program Blockr and Custom Relay for multiple addresses
     var self = this;
 
@@ -310,11 +312,11 @@ LTCJaxxCustomRelay.prototype.getAddressBalance = function(address, callback, pas
             callback(status, balance, passthroughParams);
         });
     } catch (error) {
-        callback("LTCJaxxCustomRelay :: getAddressBalance :: Request serializer exception." ,0, passthroughParams);
+        callback("ZECJaxxCustomRelay :: getAddressBalance :: Request serializer exception." ,0, passthroughParams);
     }
 }
 
-LTCJaxxCustomRelay.prototype.getFixedBlockHeight = function( address, callback, passthroughParams) {
+ZECJaxxCustomRelay.prototype.getFixedBlockHeight = function( address, callback, passthroughParams) {
     var self = this;
 
     var requestString = this._baseUrl + 'api/txs/?address=' + address;
@@ -335,12 +337,12 @@ LTCJaxxCustomRelay.prototype.getFixedBlockHeight = function( address, callback, 
     });
 }
 
-LTCJaxxCustomRelay.prototype.getUTXO  = function(address, callback, passthroughParams) {
+ZECJaxxCustomRelay.prototype.getUTXO  = function(address, callback, passthroughParams) {
     if (!callback) { throw new Error('missing callback'); }
     var url=this._baseUrl+'api/addr/'+address+'/utxo';
     this._relayManager.relayLog("Chain Relay :: " + this._name+" - Requested UTXO for "+address + " :: url :: " + url);
 	var self = this;
-
+    // http://52.41.118.219:3004/api/zec/api/addr/tmRqAQWsY37h2FYr7cueRTNEiSkz1TkuHoD,tmDBA6bZRGVwA6tSduJPpZQQJyjMbkkJV44/utxo // url to paste in browser
     RequestSerializer.getJSON(url, function (response,status) {
         if(status==='error'){
             self._relayManager.relayLog("Chain Relay :: Cannot get UTXO: No connection with "+ self._name);
@@ -370,7 +372,7 @@ LTCJaxxCustomRelay.prototype.getUTXO  = function(address, callback, passthroughP
     },true, passthroughParams);
 }
 
-LTCJaxxCustomRelay.prototype.pushRawTx  = function(hex, callback) {
+ZECJaxxCustomRelay.prototype.pushRawTx  = function(hex, callback) {
     var requestString = this._baseUrl + 'rawTransaction';
 
     this._relayManager.relayLog("Chain Relay :: " + this._name + " pushing raw tx : " + hex);
@@ -398,22 +400,22 @@ LTCJaxxCustomRelay.prototype.pushRawTx  = function(hex, callback) {
 // Some test stubs:
 // *******************************************************
 
-LTCJaxxCustomRelay.prototype.getRelayType = function() {
-    return 'LTCJaxxCustomRelay';
+ZECJaxxCustomRelay.prototype.getRelayType = function() {
+    return 'ZECJaxxCustomRelay';
 }
 
-LTCJaxxCustomRelay.prototype.getRelayTypeWithCallback = function(callback, passthroughParams) {
-    var relayName = 'LTCJaxxCustomRelay';
+ZECJaxxCustomRelay.prototype.getRelayTypeWithCallback = function(callback, passthroughParams) {
+    var relayName = 'ZECJaxxCustomRelay';
 	callback("success", relayName, passthroughParams);
 	return relayName;
 }
 
-LTCJaxxCustomRelay.prototype.getRelayTypeWithCallbackForgettingStatus = function(callback) {
-	var relayName = 'LTCJaxxCustomRelay';
+ZECJaxxCustomRelay.prototype.getRelayTypeWithCallbackForgettingStatus = function(callback) {
+	var relayName = 'ZECJaxxCustomRelay';
 	callback(relayName);
 	return relayName;
 }
 
 if (typeof(exports) !== 'undefined') {
-    exports.relayJaxxCustom = LTCJaxxCustomRelay;
+    exports.relayJaxxCustom = ZECJaxxCustomRelay;
 }

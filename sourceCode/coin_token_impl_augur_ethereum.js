@@ -5,7 +5,7 @@ var CoinTokenAugurEthereum = function() {
 CoinTokenAugurEthereum.uiComponents = {
     coinFullName: 'AugurEthereum',
     coinFullDisplayName: 'REP',
-    coinSymbol: '\u0024',
+    coinSymbol: '\u024C',
     coinButtonSVGName: 'REPlogo',
     coinLargePngName: '.imgREP',
     coinButtonName: '.imageLogoBannerREP',

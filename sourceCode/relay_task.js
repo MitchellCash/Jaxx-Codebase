@@ -101,7 +101,8 @@ RelayTask.prototype.isCallbackPermanentFailure = function(status) {
 }
 
 RelayTask.prototype.takeActionOnTaskFailure = function() {
-	return this._actionTakenWhenTaskIsNotExecuted(arguments);
+    // "{"0":"failure","1":{"data":"","2":["passthroughParameters"]}" // JSON.stringify(arguments);
+    return this._actionTakenWhenTaskIsNotExecuted(arguments);
 }
 
 RelayTask.prototype.getRelayPassthroughParams = function() {

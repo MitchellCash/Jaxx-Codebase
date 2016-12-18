@@ -409,32 +409,56 @@ BTCBlockrRelay.prototype.getUTXO = function(address, callback, passthroughParams
 
 	var self = this;
 
-    RequestSerializer.getJSON(url, function (response,status) {
+    // https://btc.blockr.io/api/v1/address/unspent/1NoMhneypFEt2VvPBkn8cUXxb7vhhUBKLE,156NsCs1jrKbb1zNne6jB2ZqMfBnd6KRve?unconfirmed=1 // url: try this in the browser // test case 2 - multiple addresses
+    // https://btc.blockr.io/api/v1/address/unspent/1NoMhneypFEt2VvPBkn8cUXxb7vhhUBKLE,156NsCs1jrKbb1zNne6jB2ZqMfBnd6KRve?unconfirmed=1 // url: try this in the browser // test case 1 - one addresses
+    RequestSerializer.getJSON(url, function (response,status, passthroughParams) {
+        // "{"status":"success","data":[{"address":"1NoMhneypFEt2VvPBkn8cUXxb7vhhUBKLE","unspent":[],"with_unconfirmed":true},{"address":"156NsCs1jrKbb1zNne6jB2ZqMfBnd6KRve","unspent":[],"with_unconfirmed":true}],"code":200,"message":""}" // JSON.stringify(response) // JSON.stringify(response) - test case 2 - more addresses
+        // "{"status":"success","data":{"address":"1NoMhneypFEt2VvPBkn8cUXxb7vhhUBKLE","unspent":[],"with_unconfirmed":true},"code":200,"message":""}" // JSON.stringify(response) - test case 1 - 1 address
         if(status==='error'){
             self._relayManager.relayLog("Chain Relay :: Cannot get UTXO: No connection with "+ self._name);
-            callback(status, {}, passthroughParams);
+            callback(status, "The server returned an error", passthroughParams);
         }
         else if (response.data){
             //self._relayManager.relayLog("Chain Relay :: " + btcRelays.blockr.name+" UTXO Raw :"+JSON.stringify(response.data.unspent));
 
-            var unspent = [];
-
-            for(i=0;i<response.data.unspent.length;i++){
-                var tempRemote = response.data.unspent[i];
-                var tempTx = { tx: tempRemote.tx , amount: tempRemote.amount, n: tempRemote.n, confirmations: tempRemote.confirmations };
-                unspent[i] = tempTx;
-            }
-            var dataToReturn = {data : { unspent: unspent}};
+            var dataToReturn = self.getUTXOParse(response.data);
 
             self._relayManager.relayLog("Chain Relay :: " + self._name+" UTXO minified :"+JSON.stringify(dataToReturn));
 
+            // test case 1 - assertion -
             callback("success", dataToReturn, passthroughParams);
+            // "[{"unspent":[],"address":"1NoMhneypFEt2VvPBkn8cUXxb7vhhUBKLE"}]" // JSON.stringify(dataToReturn) - test case 1
+            // "[{"unspent":[],"address":"1NoMhneypFEt2VvPBkn8cUXxb7vhhUBKLE"},{"unspent":[],"address":"156NsCs1jrKbb1zNne6jB2ZqMfBnd6KRve"}]" // JSON.stringify(dataToReturn) - test case 2
         }
         else {
             self._relayManager.relayLog("Chain Relay :: " + self._name+" : Cannot get UTXO. ");
             callback("error: cannot get utxo", {}, passthroughParams);
         }
-    },true);
+    },true, passthroughParams);
+}
+
+BTCBlockrRelay.prototype.getUTXOParse = function(responseData){
+    var returnData = []
+
+    if (Array.isArray(responseData)){
+        for (var i = 0; i < responseData.length; i++){
+            returnData.push(this.getUTXOParseForOneAddress(responseData[i]));
+        }
+    } else {
+        returnData.push(this.getUTXOParseForOneAddress(responseData));
+    }
+
+    return returnData;
+}
+
+BTCBlockrRelay.prototype.getUTXOParseForOneAddress = function(responseDataForOneAddress){
+    var unspent = [];
+    for (var i = 0 ; i < responseDataForOneAddress.unspent.length ; i++){
+        var tempRemote = responseDataForOneAddress.unspent[i];
+        var tempTx = { txid: tempRemote.tx , amount: tempRemote.amount, index: tempRemote.n, confirmations: tempRemote.confirmations };
+        unspent[i] = tempTx;
+    }
+    return unspent;
 }
 
 BTCBlockrRelay.prototype.pushRawTx = function(hex, callback, passthroughParams) {

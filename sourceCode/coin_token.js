@@ -690,7 +690,7 @@ CoinToken.prototype.getPouchFoldBalance = function() {
 
 CoinToken.prototype._notify = function(reason) {
     for (var i = 0; i < this._listeners.length; i++) {
-        this._listeners[i](this._tokenCoinType);
+        this._listeners[i](CoinToken.getTokenToMainTypeMap(this._tokenCoinType));
     }
 }
 

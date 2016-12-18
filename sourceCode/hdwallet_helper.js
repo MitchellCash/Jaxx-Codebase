@@ -27,17 +27,17 @@ HDWalletHelper.etcEthSplitOpCode = "0x0f2c9329";
 HDWalletHelper.apiKeyEtherScan = "WGWHHAU4F2Y58UW5FQWTUJWSXBNHU7WBSX";
 
 HDWalletHelper.baseInitialCryptoCurrencies = {
-    "regular": {"BTC": true, "ETH": true, "DAO": true, "DASH": false, "ETC": false, "REP": false, "LTC": false}//,
+    "regular": {"BTC": true, "ETH": true, "DAO": true, "DASH": false, "ETC": false, "REP": false, "LTC": false, "LSK": false, "ZEC": false}//,
 //    "ios": {"BTC": true, "ETH": true, "DAO": true, "DASH": false, "ETC": true}
 }
 
 HDWalletHelper.cryptoCurrenciesAllowed = {
-    "regular": {"BTC": true, "ETH": true, "DAO": true, "DASH": true, "ETC": true, "REP": true, "LTC": true},
-    "ios": {"BTC": true, "ETH": true, "DAO": true, "DASH": false, "ETC": true, "REP": false, "LTC": true}
+    "regular": {"BTC": true, "ETH": true, "DAO": true, "DASH": true, "ETC": true, "REP": true, "LTC": true, "LSK": false, "ZEC": true},
+    "ios": {"BTC": true, "ETH": true, "DAO": false, "DASH": true, "ETC": true, "REP": true, "LTC": true, "LSK": false, "ZEC": false}
 }
 
 HDWalletHelper.shapeShiftCryptoCurrenciesAllowed = {
-    "regular": {"BTC": true, "ETH": true, "DAO": false, "DASH": true, "ETC": true, "REP": true, "LTC": true},
+    "regular": {"BTC": true, "ETH": true, "DAO": false, "DASH": true, "ETC": true, "REP": true, "LTC": true, "LSK": false, "ZEC": true},
 }
 
 HDWalletHelper.dictCryptoCurrency = {
@@ -46,8 +46,11 @@ HDWalletHelper.dictCryptoCurrency = {
     ,"DAO" : {"prefix" : "\u0110", "name" : "The DAO", "bannerName": "DAO", "index" : 2}
     ,"DASH" : {"prefix" : "\u2145", "name" : "Dash", "bannerName": "DSH", "index" : 3}
     ,"ETC" : {"prefix" : "\u039E", "name" : "Ethereum Classic", "bannerName": "ETC", "index" : 4}
-    ,"REP" : {"prefix" : "\u0202", "name" : "Augur", "bannerName": "REP", "index" : 5}
-    ,"LTC" : {"prefix" : "\u0202", "name" : "Litecoin", "bannerName": "LTC", "index" : 6}
+    ,"REP" : {"prefix" : "\u024C", "name" : "Augur", "bannerName": "REP", "index" : 5}
+    ,"LTC" : {"prefix" : "\u0141", "name" : "Litecoin", "bannerName": "LTC", "index" : 6}
+    ,"LSK" : {"prefix" : "\u2C60", "name" : "Lisk", "bannerName": "LSK", "index" : 7}
+    //@note@:@here:@zcash
+        ,"ZEC" : {"prefix" : "\u24E9", "name" : "ZCash", "bannerName": "ZEC", "index" : 8}
 };
 
 HDWalletHelper.dictFiatCurrency = {
@@ -185,6 +188,12 @@ HDWalletHelper.getDefaultRegulatedTXFee = function(coinType) {
         return 20000;
     } else if (coinType === COIN_LITECOIN) {
         return 100000;
+    } else if (coinType === COIN_LISK) {
+        //@note: @here: @bug: @lisk: this is definitely wrong.
+        return 100000;
+    } else if (coinType === COIN_ZCASH) {
+        //@note: @here: @bug: @zcash: this is definitely wrong.
+        return 10000;
     }
 
     console.log("error :: HDWalletHelper.getDefaultRegulatedTXFee :: no value defined for coin type :: " + coinType);
@@ -1376,6 +1385,11 @@ HDWalletHelper.convertCoinToUnitType = function(coinType, coinAmount, coinUnitTy
         coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertWeiToEther(coinAmount) : HDWalletHelper.convertEtherToWei(coinAmount);
     } else if (coinType === COIN_LITECOIN) {
         coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertSatoshisToBitcoins(coinAmount) : HDWalletHelper.convertBitcoinsToSatoshis(coinAmount);
+    } else if (coinType === COIN_LISK) {
+        //@note: @here: @todo: @lisk:
+//        coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertSatoshisToBitcoins(coinAmount) : HDWalletHelper.convertBitcoinsToSatoshis(coinAmount);
+    } else if (coinType === COIN_ZCASH) {
+        coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertSatoshisToBitcoins(coinAmount) : HDWalletHelper.convertBitcoinsToSatoshis(coinAmount);
     }
 
     return coinOtherUnitAmount;
@@ -1435,6 +1449,15 @@ HDWalletHelper.prototype.convertCoinToFiatWithFiatType = function(coinType, coin
         var litecoinAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertBitcoinsToSatoshis(coinAmount) : coinAmount;
 
         fiatAmount = wallet.getHelper().convertBitcoinLikeSmallUnitToFiat(COIN_LITECOIN, litecoinAmount, fiatUnit, noPrefix);
+    } else if (coinType === COIN_LISK) {
+        //@note: @here: @todo: @lisk:
+//        var litecoinAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertBitcoinsToSatoshis(coinAmount) : coinAmount;
+//
+//        fiatAmount = wallet.getHelper().convertBitcoinLikeSmallUnitToFiat(COIN_LITECOIN, litecoinAmount, fiatUnit, noPrefix);
+    } else if (coinType === COIN_ZCASH) {
+        var zcashAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertBitcoinsToSatoshis(coinAmount) : coinAmount;
+
+        fiatAmount = wallet.getHelper().convertBitcoinLikeSmallUnitToFiat(COIN_ZCASH, zcashAmount, fiatUnit, noPrefix);
     }
     //    console.log("convertCoinToFiat :: coinAmount :: " + coinAmount + " :: fiatAmount :: " + fiatAmount + " :: " + noPrefix);
 

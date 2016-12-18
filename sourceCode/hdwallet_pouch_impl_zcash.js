@@ -1,66 +1,85 @@
-var HDWalletPouchLitecoin = function() {
+var HDWalletPouchZCash = function() {
     this._doDebug = true;
 
     this._pouchManager = null;
 
-    this._baseFormatCoinType = COIN_LITECOIN;
+    this._baseFormatCoinType = COIN_ZCASH;
 }
 
 
-HDWalletPouchLitecoin.uiComponents = {
-    coinFullName: 'Litecoin',
-    coinFullDisplayName: 'Litecoin',
-    coinSymbol: '\u0141',
-    coinButtonSVGName: 'litecoin-here',
-    coinLargePngName: '.imgLTC',
-    coinButtonName: '.imageLogoBannerLTC',
-    coinSpinnerElementName: '.imageLitecoinWash',
-    coinDisplayColor: '#F7931A',
-    csvExportField: '.backupPrivateKeyListLTC',
-    transactionsListElementName: '.transactionsLitecoin',
-    transactionTemplateElementName: '.transactionLitecoin',
-    accountsListElementName: '.accountDataTableLitecoin',
-    accountTemplateElementName: '.accountDataLitecoin',
+HDWalletPouchZCash.uiComponents = {
+    coinFullName: 'ZCash',
+    coinFullDisplayName: 'ZCash',
+    coinSymbol: '\u24E9',
+    coinButtonSVGName: 'zcash-here',
+    coinLargePngName: '.imgZEC',
+    coinButtonName: '.imageLogoBannerZEC',
+    coinSpinnerElementName: '.imageZCashWash',
+    coinDisplayColor: '#4094CC',
+    csvExportField: '.backupPrivateKeyListZEC',
+    transactionsListElementName: '.transactionsZCash',
+    transactionTemplateElementName: '.transactionZCash',
+    accountsListElementName: '.accountDataTableZCash',
+    accountTemplateElementName: '.accountDataZCash',
     displayNumDecimals: 8,
 };
 
-HDWalletPouchLitecoin.pouchParameters = {
-    coinHDType: 2,
+HDWalletPouchZCash.pouchParameters = {
+    coinHDType: 133,
     coinIsTokenSubtype: false,
-    coinAbbreviatedName: 'LTC',
+    coinAbbreviatedName: 'ZEC',
 };
 
-HDWalletPouchLitecoin.networkDefinitions = {
+//@note: mainnet definitions from https://github.com/zcash/zcash/blob/90c116ac5400da94a0329d5af441f8f2c24d0e27/src/chainparams.cpp
+
+//base58Prefixes[EXT_PUBLIC_KEY]     = {0x04,0x88,0xB2,0x1E};
+//base58Prefixes[EXT_SECRET_KEY]     = {0x04,0x88,0xAD,0xE4};
+
+//@note: testnet definitions from https://github.com/zcash/zcash/blob/90c116ac5400da94a0329d5af441f8f2c24d0e27/src/chainparams.cppn
+
+//base58Prefixes[EXT_PUBLIC_KEY]     = {0x04,0x35,0x87,0xCF};
+//base58Prefixes[EXT_SECRET_KEY]     = {0x04,0x35,0x83,0x94};
+HDWalletPouchZCash.networkDefinitions = {
     mainNet: {
-        messagePrefix: '\x19Litecoin Signed Message:\n',
+        messagePrefix: '\x19ZCash Signed Message:\n',
         bip32: {
-            public: 0x019da462,
-            private: 0x019d9cfe
+            public: 0x0488b21e,
+            private: 0x0488ade4
         },
-        pubKeyHash: 0x30,
-        scriptHash: 0x05,
-        wif: 0xb0,
+            pubKeyHash: 0x1cb8,
+            scriptHash: 0x1cbd,
+        wif: 0x80,
         dustThreshold: 0
     },
-    //@note: @todo: @here: needs to update to have litecoin testnet definitions.
-    testNet: {error: true},
+    testNet: {
+        messagePrefix: '\x19ZCash Signed Message:\n',
+        bip32: {
+            public: 0x043587cf,
+            private: 0x04358394
+        },
+        pubKeyHash: 0x1d25,
+        scriptHash: 0x1cba,
+        wif: 0xef,
+        dustThreshold: 0
+    },
+    testNet: {error: true}
 }
 
-HDWalletPouchLitecoin.networkDefinitionTestNet = {
+HDWalletPouchZCash.networkDefinitionTestNet = {
 
 };
 
-HDWalletPouchLitecoin.networkDefinitionTestNet = null;
+HDWalletPouchZCash.networkDefinitionTestNet = null;
 
-HDWalletPouchLitecoin.getCoinAddress = function(node) {
+HDWalletPouchZCash.getCoinAddress = function(node) {
     var pubKey = node.keyPair.getPublicKeyBuffer();
 
     var pubKeyHash = thirdparty.bitcoin.crypto.hash160(pubKey);
 
-    var payload = new thirdparty.Buffer.Buffer(21);
+    var payload = new thirdparty.Buffer.Buffer(22);
 //    console.log("bitcoin :: pubkeyhash :: " + node.keyPair.network.pubKeyHash);
-    payload.writeUInt8(node.keyPair.network.pubKeyHash, 0);
-    pubKeyHash.copy(payload, 1);
+    payload.writeUInt16BE(node.keyPair.network.pubKeyHash, 0);
+    pubKeyHash.copy(payload, 2);
 
     var address = thirdparty.bs58check.encode(payload);
 
@@ -68,7 +87,7 @@ HDWalletPouchLitecoin.getCoinAddress = function(node) {
     return address;
 }
 
-HDWalletPouchLitecoin.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
+HDWalletPouchZCash.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
     var coinAmount = 0;
 
     var satoshis = wallet.getHelper().convertFiatToSatoshis(fiatAmount);
@@ -77,51 +96,51 @@ HDWalletPouchLitecoin.prototype.convertFiatToCoin = function(fiatAmount, coinUni
     return coinAmount;
 }
 
-HDWalletPouchLitecoin.prototype.initialize = function(pouchManager) {
+HDWalletPouchZCash.prototype.initialize = function(pouchManager) {
     this._pouchManager = pouchManager;
 }
 
-HDWalletPouchLitecoin.prototype.shutDown = function() {
+HDWalletPouchZCash.prototype.shutDown = function() {
 }
 
-HDWalletPouchLitecoin.prototype.setup = function() {
+HDWalletPouchZCash.prototype.setup = function() {
 }
 
-HDWalletPouchLitecoin.prototype.log = function(logString) {
+HDWalletPouchZCash.prototype.log = function(logString) {
     if (this._doDebug === false) {
         return;
     }
 
     var args = [].slice.call(arguments);
-    args.unshift('LitecoinPouchLog:');
+    args.unshift('ZCashPouchLog:');
     console.log(args);
 }
 
-HDWalletPouchLitecoin.prototype.updateMiningFees = function() {
+HDWalletPouchZCash.prototype.updateMiningFees = function() {
     var self = this;
 
-    $.getJSON('https://api.blockcypher.com/v1/ltc/main', function (data) {
-        if (!data || !data.medium_fee_per_kb) {
-            this.log("HDWalletPouchLitecoin.updateMiningFees :: error :: cannot access default fee");
-        } else  {
-            var newMiningFeeDict = {
-                fastestFee: data.high_fee_per_kb / 1000,
-                halfHourFee: data.medium_fee_per_kb / 1000,
-                hourFee: ((data.medium_fee_per_kb + data.low_fee_per_kb) / 2.0) / 1000
-            }
-            self._pouchManager._miningFeeDict = data;
-            //@note: @here: default to "average"
-            self._pouchManager._defaultTXFee = parseInt(data.medium_fee_per_kb);
-        }
-    });
+//    $.getJSON('https://api.blockcypher.com/v1/ltc/main', function (data) {
+//        if (!data || !data.medium_fee_per_kb) {
+//            this.log("HDWalletPouchZCash.updateMiningFees :: error :: cannot access default fee");
+//        } else  {
+//            var newMiningFeeDict = {
+//                fastestFee: data.high_fee_per_kb / 1000,
+//                halfHourFee: data.medium_fee_per_kb / 1000,
+//                hourFee: ((data.medium_fee_per_kb + data.low_fee_per_kb) / 2.0) / 1000
+//            }
+//            self._pouchManager._miningFeeDict = data;
+//            //@note: @here: default to "average"
+//            self._pouchManager._defaultTXFee = parseInt(data.medium_fee_per_kb);
+//        }
+//    });
 }
 
-HDWalletPouchLitecoin.prototype.requestBlockNumber = function(callback) {
+HDWalletPouchZCash.prototype.requestBlockNumber = function(callback) {
     callback(null);
 }
 
 
-HDWalletPouchLitecoin.prototype.updateTransactionsFromWorker = function(txid, transactions) {
+HDWalletPouchZCash.prototype.updateTransactionsFromWorker = function(txid, transactions) {
     var isTXUpdated = false;
 
     var existingTransaction = this._pouchManager._transactions[txid];
@@ -170,7 +189,7 @@ HDWalletPouchLitecoin.prototype.updateTransactionsFromWorker = function(txid, tr
     return isTXUpdated;
 }
 
-HDWalletPouchLitecoin.prototype.getTransactions = function() {
+HDWalletPouchZCash.prototype.getTransactions = function() {
     var res = [];
 
     /**
@@ -189,11 +208,14 @@ HDWalletPouchLitecoin.prototype.getTransactions = function() {
     return res;
 }
 
-HDWalletPouchLitecoin.prototype.calculateHistoryforTransaction = function(transaction) {
+HDWalletPouchZCash.prototype.calculateHistoryforTransaction = function(transaction) {
     var deltaBalance = 0;
     var miningFee = 0;
 
 //    console.log("[bitcoin pouch] :: transaction :: " + transaction.txid);
+
+    var myInputAddress = [];
+    var otherOutputAddress = [];
 
     for (var i = 0; i < transaction.inputs.length; i++) {
         var input = transaction.inputs[i];
@@ -204,11 +226,10 @@ HDWalletPouchLitecoin.prototype.calculateHistoryforTransaction = function(transa
         // Our address, money sent (input values are always negative)
         if (input.addressIndex !== null) {
             deltaBalance += input.amount;
+            myInputAddress.push(input.address);
         }
     }
 
-    var myInputAddress = [];
-    var otherOutputAddress = [];
     for (var i = 0; i < transaction.outputs.length; i++) {
         var output = transaction.outputs[i];
 
@@ -218,7 +239,6 @@ HDWalletPouchLitecoin.prototype.calculateHistoryforTransaction = function(transa
         // Our address, money received
         if (output.addressIndex !== null) {
             deltaBalance += output.amount;
-            myInputAddress.push(input.address);
         } else {
             otherOutputAddress.push(output.address);
         }
@@ -251,7 +271,7 @@ HDWalletPouchLitecoin.prototype.calculateHistoryforTransaction = function(transa
     return newHistoryItem;
 }
 
-HDWalletPouchLitecoin.prototype.getPouchFoldBalance = function() {
+HDWalletPouchZCash.prototype.getPouchFoldBalance = function() {
     var balance = 0;
 
     var unspent = this._getUnspentOutputs();
@@ -263,7 +283,7 @@ HDWalletPouchLitecoin.prototype.getPouchFoldBalance = function() {
     return balance;
 }
 
-HDWalletPouchLitecoin.prototype._getUnspentOutputs = function() {
+HDWalletPouchZCash.prototype._getUnspentOutputs = function() {
     var unspent = {};
 
     // Sigh... We don't get the transaction index (within a block), so we can't strictly order them
@@ -305,7 +325,7 @@ HDWalletPouchLitecoin.prototype._getUnspentOutputs = function() {
     return result;
 }
 
-HDWalletPouchLitecoin.prototype.getAccountBalance = function(internal, index) {
+HDWalletPouchZCash.prototype.getAccountBalance = function(internal, index) {
     var accountBalance = 0;
 
     //@note:@todo:@optimization: this should probably be cached in the worker..
@@ -351,7 +371,7 @@ HDWalletPouchLitecoin.prototype.getAccountBalance = function(internal, index) {
     return accountBalance;
 }
 
-HDWalletPouchLitecoin.prototype.getSpendableBalance = function(minimumValue) {
+HDWalletPouchZCash.prototype.getSpendableBalance = function(minimumValue) {
     var spendableDict = {spendableBalance: 0,
                         numPotentialTX: 0};
 
@@ -372,7 +392,7 @@ HDWalletPouchLitecoin.prototype.getSpendableBalance = function(minimumValue) {
     return spendableDict;
 }
 
-HDWalletPouchLitecoin.prototype._buildBitcoinTransaction = function(toAddress, amount_smallUnit, transactionFee, doNotSign) {
+HDWalletPouchZCash.prototype._buildBitcoinTransaction = function(toAddress, amount_smallUnit, transactionFee, doNotSign) {
     var coinNetwork = null;
 
     if (this._pouchManager._TESTNET) {
@@ -531,7 +551,7 @@ HDWalletPouchLitecoin.prototype._buildBitcoinTransaction = function(toAddress, a
 }
 
 
-HDWalletPouchLitecoin.prototype.buildBitcoinTransaction = function(toAddress, amount_smallUnit, doNotSign) {
+HDWalletPouchZCash.prototype.buildBitcoinTransaction = function(toAddress, amount_smallUnit, doNotSign) {
     var tx = null;
 
     var currentLitecoinMiningFee = this._pouchManager.getCurrentMiningFee();
@@ -573,10 +593,10 @@ HDWalletPouchLitecoin.prototype.buildBitcoinTransaction = function(toAddress, am
     return tx;
 }
 
-HDWalletPouchLitecoin.prototype.updateTokenAddresses = function(addressMap) {
+HDWalletPouchZCash.prototype.updateTokenAddresses = function(addressMap) {
 }
 
-HDWalletPouchLitecoin.prototype.getAccountList = function(transactions) {
+HDWalletPouchZCash.prototype.getAccountList = function(transactions) {
     var result = [];
 
     var lastIndexChange = 0;
@@ -663,7 +683,7 @@ HDWalletPouchLitecoin.prototype.getAccountList = function(transactions) {
     return result;
 }
 
-HDWalletPouchLitecoin.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) {
+HDWalletPouchZCash.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) {
     var curRecAddr = this._pouchManager.getCurrentReceiveAddress();
 
     var uri = "litecoin:" + curRecAddr;
@@ -689,7 +709,7 @@ HDWalletPouchLitecoin.prototype.generateQRCode = function(largeFormat, coinAmoun
     }
 }
 
-HDWalletPouchLitecoin.prototype.sendLitecoinTransaction = function(transaction, callback) {
+HDWalletPouchZCash.prototype.sendZCashTransaction = function(transaction, callback) {
     var mockTx = transaction._kkMockTx;
     var txid = mockTx.txid;
 
@@ -711,7 +731,7 @@ HDWalletPouchLitecoin.prototype.sendLitecoinTransaction = function(transaction, 
 
 
     //@note: @here: @todo: @next: @relays:
-    g_JaxxApp.getLitecoinRelays().startRelayTaskWithBestRelay('pushRawTx', [transaction.toHex(), function (response){
+    g_JaxxApp.getZCashRelays().startRelayTaskWithBestRelay('pushRawTx', [transaction.toHex(), function (response){
         if ((response.status && response.status === 'success') || response === 'success') {
             self._pouchManager._transactions[txid].status = 'success';
             self._pouchManager._notify();
@@ -734,10 +754,10 @@ HDWalletPouchLitecoin.prototype.sendLitecoinTransaction = function(transaction, 
     }], 1);
 }
 
-HDWalletPouchLitecoin.prototype.afterWorkerCacheInvalidate = function() {
+HDWalletPouchZCash.prototype.afterWorkerCacheInvalidate = function() {
 }
 
-HDWalletPouchLitecoin.prototype.prepareSweepTransaction = function(privateKey, callback) {
+HDWalletPouchZCash.prototype.prepareSweepTransaction = function(privateKey, callback) {
     var coinNetwork = null;
 
     if (this._pouchManager._TESTNET) {
@@ -810,7 +830,7 @@ HDWalletPouchLitecoin.prototype.prepareSweepTransaction = function(privateKey, c
 
         var signedTransaction = null;
 
-        var transactionFee = wallet.getPouchFold(COIN_LITECOIN).getDefaultTransactionFee();
+        var transactionFee = wallet.getPouchFold(COIN_ZCASH).getDefaultTransactionFee();
 
         //        console.log("sweep bitcoin :: totalValue :: " + totalValue + " :: transactionFee :: " + transactionFee);
         if (transactionFee >= totalValue) {
@@ -822,7 +842,7 @@ HDWalletPouchLitecoin.prototype.prepareSweepTransaction = function(privateKey, c
 
         while ((totalValue - transactionFee) > 0) {
             var tx = new thirdparty.bitcoin.TransactionBuilder(coinNetwork);
-            tx.addOutput(wallet.getPouchFold(COIN_LITECOIN).getCurrentChangeAddress(), totalValue - transactionFee);
+            tx.addOutput(wallet.getPouchFold(COIN_ZCASH).getCurrentChangeAddress(), totalValue - transactionFee);
 
             for (var i = 0; i < toSpend.length; i++) {
                 var utxo = toSpend[i];
@@ -831,7 +851,7 @@ HDWalletPouchLitecoin.prototype.prepareSweepTransaction = function(privateKey, c
 
             var unsignedTransaction = tx.buildIncomplete();
             var size = unsignedTransaction.toHex().length / 2 + unsignedTransaction.ins.length * 107;
-            var targetTransactionFee = Math.ceil(size / 1024) * wallet.getPouchFold(COIN_LITECOIN).getDefaultTransactionFee();
+            var targetTransactionFee = Math.ceil(size / 1024) * wallet.getPouchFold(COIN_ZCASH).getDefaultTransactionFee();
 
             if (targetTransactionFee <= transactionFee) {
                 for (var i = 0; i < toSpend.length; i++) {
@@ -844,7 +864,7 @@ HDWalletPouchLitecoin.prototype.prepareSweepTransaction = function(privateKey, c
 
             // Add at least enough tx fee to cover our size thus far (adding tx may increase fee)
             while (targetTransactionFee > transactionFee) {
-                transactionFee += wallet.getPouchFold(COIN_LITECOIN).getDefaultTransactionFee();
+                transactionFee += wallet.getPouchFold(COIN_ZCASH).getDefaultTransactionFee();
             }
         }
 
@@ -862,8 +882,8 @@ HDWalletPouchLitecoin.prototype.prepareSweepTransaction = function(privateKey, c
         mockTx.txid = txid;
 
         mockTx.outputs.push({
-            address: wallet.getPouchFold(COIN_LITECOIN).getCurrentChangeAddress(),
-            addressIndex: wallet.getPouchFold(COIN_LITECOIN).getCurrentChangeIndex(),
+            address: wallet.getPouchFold(COIN_ZCASH).getCurrentChangeAddress(),
+            addressIndex: wallet.getPouchFold(COIN_ZCASH).getCurrentChangeIndex(),
             addressInternal: true,
             confirmations: 0,
             index: 0,
@@ -890,19 +910,19 @@ HDWalletPouchLitecoin.prototype.prepareSweepTransaction = function(privateKey, c
     return true;
 }
 
-HDWalletPouchLitecoin.prototype.fromChecksumAddress = function(address) {
+HDWalletPouchZCash.prototype.fromChecksumAddress = function(address) {
     return address;
 }
 
-HDWalletPouchLitecoin.prototype.toChecksumAddress = function(address) {
+HDWalletPouchZCash.prototype.toChecksumAddress = function(address) {
     return address;
 }
 
-HDWalletPouchLitecoin.prototype.getBaseCoinAddressFormatType = function() {
+HDWalletPouchZCash.prototype.getBaseCoinAddressFormatType = function() {
     return this._baseFormatCoinType;
 }
 
-HDWalletPouchLitecoin.prototype.createTransaction = function(address, amount) {
+HDWalletPouchZCash.prototype.createTransaction = function(address, amount) {
     //@note: @here: this should check for address, amount validity.
     //@note: @todo: maybe a transaction queue?
 

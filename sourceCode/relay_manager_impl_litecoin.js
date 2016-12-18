@@ -13,7 +13,8 @@ RelayManagerLitecoin.prototype.initialize = function() {
 
     this._relayNodes = [
         new LTCBlockrRelay(),
-        new LTCJaxxCustomRelay(),
+        new LTCBlockrRelay()
+        // new LTCJaxxCustomRelay(),
     ]
 }
 

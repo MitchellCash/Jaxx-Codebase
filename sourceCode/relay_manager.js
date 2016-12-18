@@ -33,7 +33,7 @@ RelayManager.prototype.initialize = function(relaysImplementation) {
     }
 }
 
-RelayManager.prototype.setup = function(callback) {
+RelayManager.prototype.setup = function(initializationCallback, passthroughParams) {
     console.log("[ " + this._name + " Setup ] :: setup with " + this._relays.length + " relays");
 
     var self = this;
@@ -53,7 +53,7 @@ RelayManager.prototype.setup = function(callback) {
             }
         });
 
-        callback(resultParams);
+        initializationCallback(resultParams, passthroughParams);
 
         setInterval(function() {
             self.checkRelayForRoundRobin();
@@ -154,6 +154,10 @@ RelayManager.prototype.setBestRelayIndex = function(newRelayIndex){ // Setter me
 	this._bestRelay = newRelayIndex;
 }
 
+RelayManager.prototype.getDefaultRelayIndex = function() {
+    return this._relaysImplementation.getDefaultRelayIndex();
+}
+
 RelayManager.prototype.checkRelayForRoundRobin = function(callback) {
 	// @Note: Ensure the best relay is set at this point.
 	if (this.isBestRelayValidInteger()) {
@@ -210,6 +214,10 @@ RelayManager.prototype.isBestRelayValidInteger = function() {
 
 RelayManager.prototype.startRelayTaskWithBestRelay = function(delegateFunction, delegateArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted, passthroughParams){
     this.startRelayTaskWithArbitraryRelay(this.getBestRelayIndex(), delegateFunction, delegateArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted, passthroughParams);
+}
+
+RelayManager.prototype.startRelayTaskWithDefaultRelay = function(delegateFunction, delegateArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted, passthroughParams) {
+    this.startRelayTaskWithArbitraryRelay(this.getDefaultRelayIndex(), delegateFunction, delegateArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted, passthroughParams);
 }
 
 RelayManager.prototype.startRelayTaskWithArbitraryRelay = function(relayIndex, delegateFunction, delegateArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted, passthroughParams) {
@@ -277,7 +285,7 @@ RelayManager.prototype.launchRelayTask = function(relayTaskIndex){
 //            console.log("arguments(a) :: " + JSON.stringify(arguments));
 //            console.log("passthroughParams :: " + JSON.stringify(passthroughParams));
 
-            arguments[Object.keys(arguments).length] = passthroughParams
+            //arguments[Object.keys(arguments).length] = passthroughParams
 
 //            console.log("arguments(b) :: " + JSON.stringify(arguments));
 			// The reserved word 'arguments' is used here to handle the arguments that are given by the callback.
@@ -289,10 +297,11 @@ RelayManager.prototype.launchRelayTask = function(relayTaskIndex){
 		// Substitute the callback variable of newArgumentss with 'substituteCallback'.
 		var functionToCall = this.getRelayByIndex(currentRelayIndex)[delegateFunction];
 		if (typeof(functionToCall) !== 'undefined' && functionToCall !== null) {
-			currentRelayTask.setReturnValue(functionToCall.apply(currentRelay, newArguments)); // Call the delegate function with 'newArguments'.
+			newArguments.push(passthroughParams);
+            currentRelayTask.setReturnValue(functionToCall.apply(currentRelay, newArguments)); // Call the delegate function with 'newArguments'.
 		} else {
             this.relayLog("[ " + this._name + " ] :: launchRelayTask :: The function was not defined for the target relay.");
-			this.relayTaskCallbackHelper(currentRelayTaskIndex, "", []);
+			this.relayTaskCallbackHelper(relayTaskIndex, callback, ["failure", "the function is not defined for the selected relay", passthroughParams]);
 		}
 		return currentRelayTask.getReturnValue();
 //	} catch(err) {

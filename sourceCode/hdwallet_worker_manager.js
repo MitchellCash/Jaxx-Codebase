@@ -4,6 +4,7 @@
  *  Every 90 seconds, request info for all addresses that haven't been updated in the last 60s?
  */
 
+importScripts('../platform/platformUtils.js');
 importScripts('../thirdparty.js');
 importScripts('../request.js');
 
@@ -25,6 +26,7 @@ importScripts('../wallet/hdwallet_worker_impl_dash.js');
 importScripts('../wallet/hdwallet_worker_impl_ethereum_classic.js');
 importScripts('../wallet/hdwallet_worker_impl_litecoin.js');
 importScripts('../wallet/hdwallet_worker_impl_lisk.js');
+importScripts('../wallet/hdwallet_worker_impl_zcash.js');
 
 var doDebug = true;
 
@@ -102,6 +104,8 @@ HDWalletWorkerManager.prototype.initialize = function(coinType, testNet) {
             this._relayManagerImplementation = new RelayManagerLitecoin();
         } else if (this._coinType === COIN_LISK) {
             this._relayManagerImplementation = new RelayManagerLisk();
+        } else if (this._coinType === COIN_ZCASH) {
+            this._relayManagerImplementation = new RelayManagerZCash();
         }
 
         this._relayManager = new RelayManager();
@@ -147,6 +151,10 @@ HDWalletWorkerManager.prototype.finishInitialization = function() {
         importScripts('../wallet/hdwallet_worker_impl_lisk.js');
         importScripts('../wallet/hdwallet_pouch_impl_lisk.js');
         this._coinWorkerImpl = new HDWalletWorkerLisk();
+    } else if (this._coinType === COIN_ZCASH) {
+        importScripts('../wallet/hdwallet_worker_impl_zcash.js');
+        importScripts('../wallet/hdwallet_pouch_impl_zcash.js');
+        this._coinWorkerImpl = new HDWalletWorkerZCash();
     }
 
     log("[ HDWalletWorkerManager ] :: init :: " + this._coinType);

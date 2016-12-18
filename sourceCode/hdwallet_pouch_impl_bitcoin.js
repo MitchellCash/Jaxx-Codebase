@@ -707,7 +707,9 @@ HDWalletPouchBitcoin.prototype.sendBitcoinTransaction = function(transaction, ca
 
 
     //@note: @here: @todo: @next: @relays:
-    g_JaxxApp.getBitcoinRelays().getRelayByIndex(0).pushRawTx(transaction.toHex(), function (response){
+    // @todo: startRelayTaskWithBestRelay
+//    g_JaxxApp.getBitcoinRelays().startRelayTaskWithDefaultRelay('pushRawTx', [transaction.toHex(), function (response){
+    g_JaxxApp.getBitcoinRelays().startRelayTaskWithBestRelay('pushRawTx', [transaction.toHex(), function (response){
         if ((response.status && response.status === 'success') || response === 'success') {
             self._pouchManager._transactions[txid].status = 'success';
             self._pouchManager._notify();
@@ -727,7 +729,7 @@ HDWalletPouchBitcoin.prototype.sendBitcoinTransaction = function(transaction, ca
             }
             callback(returnVar, transaction);
         }
-    });
+    }], 1);
 }
 
 HDWalletPouchBitcoin.prototype.afterWorkerCacheInvalidate = function() {

@@ -24,6 +24,7 @@ importScripts('../wallet/hdwallet_worker_impl_ethereum.js');
 importScripts('../wallet/hdwallet_worker_impl_dash.js');
 importScripts('../wallet/hdwallet_worker_impl_ethereum_classic.js');
 importScripts('../wallet/hdwallet_worker_impl_litecoin.js');
+importScripts('../wallet/hdwallet_worker_impl_lisk.js');
 
 var doDebug = true;
 
@@ -99,6 +100,8 @@ HDWalletWorkerManager.prototype.initialize = function(coinType, testNet) {
             this._relayManagerImplementation = new RelayManagerBitcoin();
         } else if (this._coinType === COIN_LITECOIN) {
             this._relayManagerImplementation = new RelayManagerLitecoin();
+        } else if (this._coinType === COIN_LISK) {
+            this._relayManagerImplementation = new RelayManagerLisk();
         }
 
         this._relayManager = new RelayManager();
@@ -140,6 +143,10 @@ HDWalletWorkerManager.prototype.finishInitialization = function() {
         importScripts('../wallet/hdwallet_worker_impl_litecoin.js');
         importScripts('../wallet/hdwallet_pouch_impl_litecoin.js');
         this._coinWorkerImpl = new HDWalletWorkerLitecoin();
+    } else if (this._coinType === COIN_LISK) {
+        importScripts('../wallet/hdwallet_worker_impl_lisk.js');
+        importScripts('../wallet/hdwallet_pouch_impl_lisk.js');
+        this._coinWorkerImpl = new HDWalletWorkerLisk();
     }
 
     log("[ HDWalletWorkerManager ] :: init :: " + this._coinType);
@@ -298,6 +305,7 @@ HDWalletWorkerManager.prototype._watchAddress = function(address) {
 
         } else {
             this._watcherWebSocket.send("{ \"event\": \"tx-confirmation\" , \"address\" : \"" + address + "\" ,\"token\": \"" + this._blockCypherToken + "\" }");
+            this._watcherWebSocket.send("{ \"event\": \"unconfirmed-tx\" , \"address\" : \"" + address + "\" ,\"token\": \"" + this._blockCypherToken + "\" }");
         }
     } else {
 

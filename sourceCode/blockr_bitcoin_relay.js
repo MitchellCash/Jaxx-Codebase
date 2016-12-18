@@ -3,8 +3,16 @@ var BTCBlockrRelay = function() {
     this._name = 'Bitcoin Blockr.io API';
     this._reliable = true;
     this._lastBlock = 0;
-
     this._relayManager = null;
+    this._forceThisRelayToFail = false; // This is for testing purposes.
+}
+
+BTCBlockrRelay.prototype.isForceThisRelayToFail = function(){
+    return this._forceThisRelayToFail;
+}
+
+BTCBlockrRelay.prototype.getName = function(){
+    return this._name;
 }
 
 BTCBlockrRelay.prototype.initialize = function(relayManager) {
@@ -20,24 +28,36 @@ BTCBlockrRelay.prototype.setLastBlockHeight = function(newHeight){
 	this._lastBlock = newHeight;
 }
 
-BTCBlockrRelay.prototype.fetchLastBlockHeight = function(callback, passthroughParam) {
-    var self = this; // For references inside the callback function.
-	this._relayManager.relayLog("Fetching the block height for " + this._name);
-    RequestSerializer.getJSON(this._baseUrl+'api/v1/coin/info', function(response, status, passthroughParam) {
-        if(response.status == "success"){
+BTCBlockrRelay.prototype.fetchLastBlockHeight = function(callback, passthroughParams) {
+    if (this._forceThisRelayToFail) {
+        this._relayManager.relayLog("Chain Relay :: " + this._name + " :: fetchLastBlockHeight :: Forcing Fail");
+
+        setTimeout(function() {
+            callback("error: forced error state", passthroughParams);
+        }, 100);
+
+        return;
+    }
+
+    var self = this;
+
+    this._relayManager.relayLog("Fetching the block height for " + this._name);
+
+    RequestSerializer.getJSON(this._baseUrl+'api/v1/coin/info', function(response, status, passthroughParams) {
+        if (response.status === "success"){
             //this._lastBlock = response.data.last_block.nb;
-			self.setLastBlockHeight(response.data.last_block.nb);
+            self.setLastBlockHeight(response.data.last_block.nb);
             self._relayManager.relayLog("Chain Relay :: Updated blockr height: " + self.getLastBlockHeight()); // We cannot use 'this' since the function is contained inside a callback.
-			// @Note: Potential problem with btcRelays on next line.
+            // @Note: Potential problem with btcRelays on next line.
             //self._relayManager.relayLog("Chain Relay :: Updated Blockr.io height: " + this._lastBlock);
         }
         else {
-            self._relayManager.relayLog("Chain Relay :: No connection with " + this._name + ". Setting height to 0");
+            self._relayManager.relayLog("Chain Relay :: No connection with " + self._name + ". Setting height to 0");
             self._lastBlock = 0;
         }
 
-        callback(status, passthroughParam);
-    }, true, passthroughParam);
+        callback(response.status, passthroughParams);
+    }, true, passthroughParams);
 }
 
 
@@ -51,42 +71,52 @@ BTCBlockrRelay.prototype.checkCurrentHeightForAnomalies = function() {
 }
 
 //@note: this takes in an array of addresses.
-BTCBlockrRelay.prototype.getTxList = function(addresses, callback) {
+BTCBlockrRelay.prototype.getTxList = function(addresses, callback, passthroughParams) {
+    if (this._forceThisRelayToFail) {
+        this._relayManager.relayLog("Chain Relay :: " + this._name + " :: getTxList :: Forcing Fail");
+
+        setTimeout(function() {
+            callback("error: forced error state", {}, passthroughParams);
+        }, 100);
+
+        return;
+    }
+
     this._relayManager.relayLog("Chain Relay :: " + this._name+ " :: Requested txlist for :: " + addresses);
 
     var self = this;
-    RequestSerializer.getJSON(this._baseUrl + 'api/v1/address/txs/' + addresses, function(response, status, passthroughParams) {
+    RequestSerializer.getJSON(this._baseUrl + 'api/v1/address/txs/' + addresses, function(response, status, addressPassthrough) {
         var returnTxList = null;
 
         if (status==='error') {
             self._relayManager.relayLog("Chain Relay :: Cannot get txList : No connection with " + self._name);
 
-            callback(status, returnTxList);
+            callback(status, returnTxList, passthroughParams);
         } else {
             self._relayManager.relayLog("Chain Relay :: " + self._name+" Tx List Raw response:"+JSON.stringify(response));
 
-            var passthrough = {response: response, callback: callback, addressList: passthroughParams};
+            var passthroughFromConfirmed = {response: response, callback: callback, addressList: addressPassthrough};
 
-            RequestSerializer.getJSON(self._baseUrl + 'api/v1/address/unconfirmed/ '+ addresses, function (response, status, passthrough) {
+            RequestSerializer.getJSON(self._baseUrl + 'api/v1/address/unconfirmed/' + addresses, function (response, status, passthrough) {
                 if (status === 'error'){
-                    self._relayManager.relayLog("Chain Relay :: Cannot get txList : No connection with "+ self._name);
+                    self._relayManager.relayLog("Chain Relay :: Cannot get txList : No connection with " + self._name);
                 } else {
                     self._relayManager.relayLog("Chain Relay :: " + self._name+ " Tx List (unconfirmed) Raw response:" + JSON.stringify(response));
 
                     returnTxList = self.getTxListParse(passthrough.response, response);
                 }
 
-                callback(status, returnTxList);
+                callback(status, returnTxList, passthroughParams);
 
-//                    console.log(passthrough.response)
-//                    console.log(passthrough.response.data)
-            }, true, passthrough);
+                //                    console.log(passthrough.response)
+                //                    console.log(passthrough.response.data)
+            }, true, passthroughFromConfirmed);
         }
     }, true, addresses);
 }
 
 BTCBlockrRelay.prototype.getTxListParse = function(primaryTXListData, unconfirmedTXListData) {
-    var txListForAddresses = [];
+    var txDictForAddresses = {};
 
     for (var addrIdx = 0; addrIdx < primaryTXListData.data.length; addrIdx++) {
         var curAddrData = primaryTXListData.data[addrIdx];
@@ -103,23 +133,87 @@ BTCBlockrRelay.prototype.getTxListParse = function(primaryTXListData, unconfirme
 //                confirmations: txItem.confirmations,
 //                time_utc: parseInt(new Date(txItem.time_utc).getTime()) / 1e3,
                 txHash: txItem.tx
-            })
+            });
         }
 
         var newTxList = {
             address: curAddress,
             txs: txListItems,
-            unconfirmed: unconfirmedTXListData
+            unconfirmed: []
         }
 
-        txListForAddresses.push(newTxList);
+//        var newTxList = {
+//            address: curAddress,
+//            txs: txListItems,
+//            unconfirmed: []
+//        }
+
+        txDictForAddresses[curAddress] = newTxList;
     }
 
+    var appendUnconfirmedTxLists = [];
+
+    for (var addrIdx = 0; addrIdx < unconfirmedTXListData.data.length; addrIdx++) {
+        var curAddrData = unconfirmedTXListData.data[addrIdx];
+
+        var curAddress = curAddrData.address;
+
+        var txListItems = [];
+
+        for ( i = 0; i < curAddrData.unconfirmed.length; i++) {
+            var txItem = curAddrData.unconfirmed[i];
+
+            txListItems.push({
+                //                amount: txItem.amount.toString(),
+                //                confirmations: txItem.confirmations,
+                //                time_utc: parseInt(new Date(txItem.time_utc).getTime()) / 1e3,
+                txHash: txItem.tx
+            });
+        }
+
+        var regTxList = null;
+
+        if (txDictForAddresses[curAddress] !== 'undefined' &&
+            txDictForAddresses[curAddress] !== null) {
+            regTxList = txDictForAddresses[curAddress];
+        } else {
+            regTxList = {
+                address: curAddress,
+                txs: [],
+                unconfirmed: []
+            }
+
+            txDictForAddresses[curAddress] = regTxList;
+        }
+
+        for (var i = 0; i < txListItems.length; i++) {
+            regTxList.txs.push(txListItems[i]);
+            regTxList.unconfirmed.push(txListItems[i]);
+        }
+    }
+
+    var txListForAddresses = [];
+
+    var allKeys = Object.keys(txDictForAddresses);
+
+    for (var i = 0; i < allKeys.length; i++) {
+        txListForAddresses.push(txDictForAddresses[allKeys[i]]);
+    }
 //    console.log(txList);
     return {data: txListForAddresses};
 }
 
-BTCBlockrRelay.prototype.getTxCount = function(addresses, callback) {
+BTCBlockrRelay.prototype.getTxCount = function(addresses, callback, passthroughParams) {
+    if (this._forceThisRelayToFail) {
+        this._relayManager.relayLog("Chain Relay :: " + this._name + " :: getTxCount :: Forcing Fail");
+
+        setTimeout(function() {
+            callback("error: forced error state", 0, passthroughParams);
+        }, 100);
+
+        return;
+    }
+
     var self = this;
 
     this._relayManager.relayLog("Chain Relay :: " + this._name + " :: Requested txCount for :: " + addresses);
@@ -141,50 +235,27 @@ BTCBlockrRelay.prototype.getTxCount = function(addresses, callback) {
             }
         }
 
-        callback(status, txCount);
-
-            //@note: @here: unconfirmed transactions doesn't have a multi-address check.
-
-//            var passthroughParams = {txCount: txCount};
-//
-//            self._relayManager.relayLog("Chain Relay :: " + self._name + " :: (confirmed) txCount :: " + txCount);
-//
-//            var requestString = this._baseUrl + 'api/v1/address/unconfirmed/' + addresses;
-//
-//            this._relayManager.relayLog("relay :: " + this._name + " :: requesting :: " + requestString);
-//
-//            RequestSerializer.getJSON(requestString, function (response, status, passthroughParams) {
-//                if (status==='error'){
-//                    self._relayManager.relayLog("Chain Relay :: Cannot get txCount : No connection with "+self._name);
-//                } else {
-//                    console.log("found response :: " + JSON.stringify(response));
-//                }
-//
-////                else if(response.data.unconfirmed){
-////                    passthroughParams.txCount += response.data.unconfirmed.length;
-////                    self._relayManager.relayLog("Chain Relay :: " + this._name+" (unconfirmed) Tx Count :"+txCount);
-////                }
-////                else{
-////                    self._relayManager.relayLog("Chain Relay :: " + self._name + "Cannot get tx count (unconfirmed)");
-////                }
-//
-//                callback(status, passthroughParams.txCount);
-//            }, true, passthroughParams);
-//        } else {
-//            self._relayManager.relayLog("Chain Relay :: " + self._name + "Cannot get tx count (confirmed)");
-//
-//            callback(status, txCount);
-//        }
+        callback(status, txCount, passthroughParams);
     }, true);
 }
 
-BTCBlockrRelay.prototype.getTxDetails = function(txHash, callback) {
+BTCBlockrRelay.prototype.getTxDetails = function(txHash, callback, passthroughParams) {
+    if (this._forceThisRelayToFail) {
+        this._relayManager.relayLog("Chain Relay :: " + this._name + " :: getTxDetails :: Forcing Fail");
+
+        setTimeout(function() {
+            callback("error: forced error state", [], passthroughParams);
+        }, 100);
+
+        return;
+    }
+
     var self = this;
 
     this._relayManager.relayLog("Chain Relay :: " + this._name+" - Requested tx details for "+txHash);
     // RequestSerializer.getJSON('https://btc.blockr.io/api/v1/tx/info/5a4cae32b6cd0b8146cbdf32dd746ddc42bdec89c574fa07b204ddea36549e65?amount_format=string', function(){console.log(arugments)})
 
-    RequestSerializer.getJSON(this._baseUrl+'api/v1/tx/info/'+txHash+'?amount_format=string', function (response,status) {
+    RequestSerializer.getJSON(this._baseUrl+'api/v1/tx/info/'+txHash+'?amount_format=string', function (response,status, passthroughParams) {
         var txDetails = null;
 
         if(status==='error'){
@@ -195,10 +266,10 @@ BTCBlockrRelay.prototype.getTxDetails = function(txHash, callback) {
             self._relayManager.relayLog("Chain Relay :: " + self._name+" Tx Details Raw response:" + JSON.stringify(response));
 
             txDetails = self.getTxDetailsParse(response);
-//            console.log(passthrough.response.data);
+            //            console.log(passthrough.response.data);
         }
 
-        callback(status, txDetails);
+        callback(status, txDetails, passthroughParams);
     },true);
 }
 
@@ -261,7 +332,17 @@ BTCBlockrRelay.prototype.getTxDetailsParse = function(primaryTxDetailData) {
     return txArray;
 }
 
-BTCBlockrRelay.prototype.getAddressBalance = function(address, callback) {
+BTCBlockrRelay.prototype.getAddressBalance = function(address, callback, passthroughParams) {
+    if (this._forceThisRelayToFail) {
+        this._relayManager.relayLog("Chain Relay :: " + this._name + " :: getAddressBalance :: Forcing Fail");
+
+        setTimeout(function() {
+            callback("error: forced error state", 0, passthroughParams);
+        }, 100);
+
+        return;
+    }
+
     var self = this;
 
     RequestSerializer.getJSON(this._baseUrl + 'api/v1/address/info/' + address , function (response,status) {
@@ -276,38 +357,62 @@ BTCBlockrRelay.prototype.getAddressBalance = function(address, callback) {
             balance = response.data.balance
         }
 
-        callback(status, balance);
+        callback(status, balance, passthroughParams);
     });
 }
 
-BTCBlockrRelay.prototype.getFixedBlockHeight = function( address, callback ) {
-    var self = this
+BTCBlockrRelay.prototype.getFixedBlockHeight = function(address, callback, passthroughParams) {
+    if (this._forceThisRelayToFail) {
+        this._relayManager.relayLog("Chain Relay :: " + this._name + " :: getFixedBlockHeight :: Forcing Fail");
 
-    RequestSerializer.getJSON(this._baseUrl + 'api/v1/address/info/' + address , function (response,status) {
+        setTimeout(function() {
+            callback("error: forced error state", -1, passthroughParams);
+        }, 100);
+
+        return;
+    }
+
+    var self = this;
+
+    RequestSerializer.getJSON(this._baseUrl + 'api/v1/address/info/' + address , function(response,status) {
 
         if(status==='error'){
             self._relayManager.relayLog("Chain Relay :: Cannot get Tx Block Height : No connection with "+ self._name);
+            callback(-1, passthroughParams);
         }
         else {
             self._relayManager.relayLog("Chain Relay :: " + self._name + " Tx Block Height Raw response:"+JSON.stringify(response));
 
             var setBlockHeight = response.data.first_tx.block_nb;
-            callback(parseInt(setBlockHeight));
-//            console.log( self._name + " :: " + setBlockHeight);
-
+            callback(parseInt(setBlockHeight), passthroughParams);
         }
     });
 }
 
-BTCBlockrRelay.prototype.getUTXO = function(address, callback) {
-    if (!callback) { throw new Error('missing callback'); }
+BTCBlockrRelay.prototype.getUTXO = function(address, callback, passthroughParams) {
+    if (this._forceThisRelayToFail) {
+        this._relayManager.relayLog("Chain Relay :: " + this._name + " :: getUTXO :: Forcing Fail");
+
+        setTimeout(function() {
+            callback("error: forced error state", {}, passthroughParams);
+        }, 100);
+
+        return;
+    }
+
+    if (!callback) {
+        throw new Error('missing callback');
+    }
+
     var url=this._baseUrl+'api/v1/address/unspent/'+address+'?unconfirmed=1';
     this._relayManager.relayLog("Chain Relay :: " + this._name+" - Requested UTXO for "+address + " :: url :: " + url);
+
 	var self = this;
+
     RequestSerializer.getJSON(url, function (response,status) {
         if(status==='error'){
             self._relayManager.relayLog("Chain Relay :: Cannot get UTXO: No connection with "+ self._name);
-            callback(new Error("Chain Relay :: Cannot get txCount: No connection with "+ self._name));
+            callback(status, {}, passthroughParams);
         }
         else if (response.data){
             //self._relayManager.relayLog("Chain Relay :: " + btcRelays.blockr.name+" UTXO Raw :"+JSON.stringify(response.data.unspent));
@@ -323,29 +428,41 @@ BTCBlockrRelay.prototype.getUTXO = function(address, callback) {
 
             self._relayManager.relayLog("Chain Relay :: " + self._name+" UTXO minified :"+JSON.stringify(dataToReturn));
 
-            callback("success", dataToReturn);
+            callback("success", dataToReturn, passthroughParams);
         }
         else {
             self._relayManager.relayLog("Chain Relay :: " + self._name+" : Cannot get UTXO. ");
-            callback(new Error("Chain Relay :: " + self._name + " : Cannot get UTXO. "));
+            callback("error: cannot get utxo", {}, passthroughParams);
         }
     },true);
 }
 
-BTCBlockrRelay.prototype.pushRawTx = function(hex, callback) {
-//    this._relayManager.relayLog("Chain Relay :: " + this._name+ " pushing raw tx : " + hex);
+BTCBlockrRelay.prototype.pushRawTx = function(hex, callback, passthroughParams) {
+    if (this._forceThisRelayToFail) {
+        this._relayManager.relayLog("Chain Relay :: " + this._name + " :: pushRawTx :: Forcing Fail");
+
+        setTimeout(function() {
+            callback("error: forced error state", {}, passthroughParams);
+        }, 100);
+
+        return;
+    }
+
+    this._relayManager.relayLog("Chain Relay :: " + this._name+ " pushing raw tx : " + hex);
+
     $.ajax(this._baseUrl+'api/v1/tx/push', {
         complete: function(ajaxRequest, status) {
-			var response;
-			var responseText;
+            var response;
+            var responseText;
             if (status === 'success') {
                 response = '{"status": "success"}';
             }
             else {
                 responseText = JSON.stringify(ajaxRequest.responseText);
-				response = '{"status": "fail" , "message": ' + responseText + '}';
+                response = '{"status": "fail" , "message": ' + responseText + '}';
             }
-            callback(status, JSON.parse(response));
+
+            callback(status, JSON.parse(response), passthroughParams);
         },
         contentType: 'application/x-www-form-urlencoded',
         data: '{"hex": "' + hex + '"}',

@@ -1,7 +1,7 @@
 //importScripts("../jaxx_wallet_storage_impl_bitcoin.js");
 
 var HDWalletWorkerBitcoin = function() {
-    this._doDebug = true;
+    this._doDebug = false;
     //@note: @todo: @here: get the batch size from the relay directly.
     this._batchSize = 10;
     this._coinName = "Bitcoin";
@@ -66,21 +66,21 @@ HDWalletWorkerBitcoin.prototype.batchScanBlockchain = function(addresses) {
                     // console.log("callback successful");
                     return true;
                 } else {
-                    console.log("callback unsuccessful");
+                    self.log("callback unsuccessful");
                     return false;
                 }
             }
 
             var isCallbackPermanentFailureFunction = function(status) {
-                console.log("failure with node...");
+                self.log("failure with node...");
 
                 //@note: @here: @todo: @next: @relays:
-                return true;
+                return false;
                 //                return false;
             }
 
             var actionTakenWhenTaskIsNotExecuted = function(returnArgs) {
-                console.log("failure with relay system...");
+                self.log("failure with relay system...");
             };
 
             //            this._workerManager._relayManager.startRelayTaskWithBestRelay(delegateFunction,
@@ -88,8 +88,11 @@ HDWalletWorkerBitcoin.prototype.batchScanBlockchain = function(addresses) {
 
             //@note: @here: @todo: @next: @relays:
 
+            //relayArguments[1] = function(){console.log("HDWalletWorkerBitcoin :: batchScanBlockChain :: " + JSON.stringify(arguments));}; // Test for the round robin in the relay manager.
+            // console log test: g_JaxxApp.getBitcoinRelays().startRelayTaskWithArbitraryRelay(1, "getTxList",  ["1NNmK5dtsqN2FE4biBi4PU3vno5VgUG9U9,1GqSjacKrwfy9MRhPASCCp7tkHz1s3R5Qw",null], 1);
+            this._workerManager._relayManager.startRelayTaskWithBestRelay(delegateFunction, relayArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted);
 
-            this._workerManager._relayManager.startRelayTaskWithArbitraryRelay(0, delegateFunction, relayArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted);
+//            this._workerManager._relayManager.startRelayTaskWithDefaultRelay(delegateFunction, relayArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted);
 
             // Clear the batch
             batch = [];
@@ -176,7 +179,7 @@ HDWalletWorkerBitcoin.prototype._lookupBitcoinTransactions = function(txids, cal
         if (batch.length === this._batchSize || txids.length === 0) {
 
             // Request the transactions and utxo for this batch
-            var txidParam = batch.join(',');
+            var txidParam = batch;//.join(',');
 
             var delegateFunction = "getTxDetails";
 
@@ -193,19 +196,19 @@ HDWalletWorkerBitcoin.prototype._lookupBitcoinTransactions = function(txids, cal
                     // console.log("callback successful");
                     return true;
                 } else {
-                    console.log("callback unsuccessful");
+                    self.log("callback unsuccessful");
                     return false;
                 }
             }
 
             var isCallbackPermanentFailureFunction = function(status) {
-                console.log("failure with node...");
-                return true;
+                self.log("failure with node...");
+                return false;
 //                return false;
             }
 
             var actionTakenWhenTaskIsNotExecuted = function(returnArgs) {
-                console.log("failure with relay system...");
+                self.log("failure with relay system...");
 
 //                var passthroughParams = returnArgs[2];
 //
@@ -221,7 +224,9 @@ HDWalletWorkerBitcoin.prototype._lookupBitcoinTransactions = function(txids, cal
 
             //@note: @here: @todo: @next: @relays:
 
-            this._workerManager._relayManager.startRelayTaskWithArbitraryRelay(0, delegateFunction, relayArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted);
+            this._workerManager._relayManager.startRelayTaskWithBestRelay(delegateFunction, relayArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted);
+
+//            this._workerManager._relayManager.startRelayTaskWithDefaultRelay(delegateFunction, relayArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted);
 
 //            RequestSerializer.getJSON(this._workerManager._STATIC_RELAY_URL + '/api/v1/tx/info/' + txidParam + "?amount_format=string", function(data) {
 //                self._populateTransactionsBitcoin(data, callback);
@@ -235,7 +240,6 @@ HDWalletWorkerBitcoin.prototype._lookupBitcoinTransactions = function(txids, cal
         }
     }
 }
-
 
 HDWalletWorkerBitcoin.prototype._populateTransactionsBitcoin = function(transactions, callback) {
     if (!transactions) {
@@ -278,7 +282,7 @@ HDWalletWorkerBitcoin.prototype._updateTransactionsBitcoin = function(transactio
             for (var i = 0; i < transaction.outputs.length; i++) {
 //                console.log("curTX :: " + JSON.stringify(transaction.outputs[i]));
                 if (typeof oldTransaction.outputs[i] === 'undefined') {
-                    console.log("warning :: wack tx");
+                    this.log("warning :: wack tx");
                 }
 //                console.log("prevTX :: " + JSON.stringify(oldTransaction.outputs[i]));
                 if ((transaction.outputs[i].spent) !== oldTransaction.outputs[i].spent) {
@@ -314,7 +318,7 @@ HDWalletWorkerBitcoin.prototype._updateTransactionsBitcoin = function(transactio
             }
 
             if (typeof(input.amount) === 'undefined') {
-                console.log("input balance is wack");
+                this.log("input balance is wack");
             }
 
             inputs.push({
@@ -345,9 +349,9 @@ HDWalletWorkerBitcoin.prototype._updateTransactionsBitcoin = function(transactio
             }
 
             if (typeof(output.amount) === 'undefined') {
-                console.log("output balance is wack");
+                this.log("output balance is wack");
             }
-            console.log()
+
             outputs.push({
                 addressIndex: addressInfo.index,
                 addressInternal: addressInfo.internal,

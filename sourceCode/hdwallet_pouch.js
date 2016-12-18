@@ -54,6 +54,8 @@ var HDWalletPouch = function() {
     this._currentChangeIndex = 0;
     this._transactions = {};
 
+    this._numShiftsNecessary = 1;
+
     this._defaultTXFee = -1;
     this._listeners = [];
 
@@ -1076,12 +1078,17 @@ HDWalletPouch.prototype.clearSpendableBalanceCache = function() {
     this._spendableBalance = null;
 }
 
-HDWalletPouch.prototype.getSpendableBalance = function() {
-    if (this._spendableBalance !== null) {
+HDWalletPouch.prototype.getSpendableBalance = function(minimumValue) {
+    if (this._spendableBalance !== null && (typeof(minimumValue) === 'undefined' || minimumValue === null)) {
         return this._spendableBalance;
     }
 
+    if (typeof(minimumValue) === 'undefined' || minimumValue === null) {
+        minimumValue = 0;
+    }
+
     var spendableBalance = 0;
+    var numPotentialTX = 0;
 
     if (this._coinType === COIN_BITCOIN) {
         spendableBalance = this.getPouchFoldBalance();
@@ -1094,6 +1101,8 @@ HDWalletPouch.prototype.getSpendableBalance = function() {
 
             spendableBalance -= this._defaultTXFee;
         }
+
+        numPotentialTX = 1;
     } else if (this._coinType === COIN_ETHEREUM) {
 //        console.log("types :: " + typeof(this._helper.getCustomEthereumGasLimit()) + " :: " + typeof(HDWalletHelper.getDefaultEthereumGasPrice()));
 //        console.log("spendable :: custom gas limit :: " + this._helper.getCustomEthereumGasLimit() + " :: default gas price :: " + HDWalletHelper.getDefaultEthereumGasPrice());
@@ -1102,8 +1111,6 @@ HDWalletPouch.prototype.getSpendableBalance = function() {
 
         var totalTXCost = 0;
 
-        var numPotentialTX = 0;
-
         //@note: returns {index: x, balance: y} format.
         var highestAccountDict = this.getHighestAccountBalanceAndIndex();
         if (highestAccountDict !== null) {
@@ -1111,7 +1118,7 @@ HDWalletPouch.prototype.getSpendableBalance = function() {
                 var accountBalance = this._sortedHighestAccountArray[i].balance;
 
                 //@note: check for account balance lower than the dust limit
-                if (accountBalance <= baseTXCost) {
+                if (accountBalance <= minimumValue + baseTXCost) {
 
                 } else {
                     spendableBalance += accountBalance - baseTXCost;
@@ -1121,18 +1128,32 @@ HDWalletPouch.prototype.getSpendableBalance = function() {
             }
         }
 
-//        console.log("ethereum spendable :: " + spendableBalance + " :: totalTXCost :: " + totalTXCost + " :: " + numPotentialTX);
+//        console.log("ethereum spendable :: " + spendableBalance + " :: totalTXCost :: " + totalTXCost + " :: " + numPotentialTX + " :: minimumValue :: " + minimumValue);
     }
 
     if (spendableBalance < 0) {
         spendableBalance = 0;
     }
 
-    this._spendableBalance = spendableBalance;
+    if (spendableBalance === 0) {
+        this._numShiftsNecessary = 1;
+    } else {
+        this._numShiftsNecessary = numPotentialTX;
+    }
 
-    return this._spendableBalance;
+    //@note: don't cache if a custom minimum value.
+    if (typeof(minimumValue) === 'undefined' || minimumValue === null) {
+        this._spendableBalance = spendableBalance;
+    }
+
+    return spendableBalance;
 }
 
+//@note: @here: this needs to be populated by getSpendableBalance.
+HDWalletPouch.prototype.getShiftsNecessary = function(minimumValue) {
+    var spendableBalance = this.getSpendableBalance(minimumValue)
+    return this._numShiftsNecessary;
+}
 
 HDWalletPouch.prototype.getAccountBalance = function(internal, index, ignoreCached) {
     if (internal === false) {
@@ -1597,6 +1618,7 @@ HDWalletPouch.prototype.buildBitcoinTransaction = function(toAddress, amount_sma
     var tx = null;
     var transactionFee = this._defaultTXFee;
 
+//    console.log("buildBitcoinTransaction :: address :: " + toAddress);
     while (true) {
         tx = this._buildBitcoinTransaction(toAddress, amount_smallUnit, transactionFee, true);
 
@@ -1699,7 +1721,7 @@ HDWalletPouch.prototype._buildEthereumTransaction = function(fromNodeInternal, f
     return transaction;
 }
 
-HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddress, amount_smallUnit, gasPrice, gasLimit, ethData, doNotSign) {
+HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddressArray, amount_smallUnit, gasPrice, gasLimit, ethData, doNotSign) {
     var amountWei = parseInt(amount_smallUnit);
 
     var txArray = [];
@@ -1718,7 +1740,7 @@ HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddress, amoun
             totalTXCost = baseTXCost;
 
             console.log("ethereum transaction :: account :: " + highestAccountDict.index + " :: " + highestAccountDict.balance + " :: can cover the entire balance + tx cost :: " + (amountWei + baseTXCost));
-            var newTX = this._buildEthereumTransaction(false, highestAccountDict.index, toAddress, amountWei, gasPrice, gasLimit, ethData, doNotSign);
+            var newTX = this._buildEthereumTransaction(false, highestAccountDict.index, toAddressArray[0], amountWei, gasPrice, gasLimit, ethData, doNotSign);
 
             if (!newTX) {
                 console.log("error :: ethereum transaction :: account failed to build :: " + highestAccountDict.index);
@@ -1764,11 +1786,20 @@ HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddress, amoun
                         //@note: don't do things like bitcoin's change address system for now.
                     }
 
-                    console.log("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " :: will send  :: " + amountToSendFromAccount);
-
-
                     //@note: build this particular transaction, make sure it's constructed correctly.
-                    var newTX = this._buildEthereumTransaction(false, this._sortedHighestAccountArray[i].index, toAddress, amountToSendFromAccount, gasPrice, gasLimit, ethData, doNotSign);
+
+                    var targetEthereumAddress = toAddressArray[0];
+
+                    if (i >= toAddressArray.length) {
+
+                    } else {
+                        targetEthereumAddress = toAddressArray[i];
+                    }
+
+                    console.log("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " :: will send  :: " + amountToSendFromAccount + " :: to :: " + targetEthereumAddress);
+
+
+                    var newTX = this._buildEthereumTransaction(false, this._sortedHighestAccountArray[i].index, targetEthereumAddress, amountToSendFromAccount, gasPrice, gasLimit, ethData, doNotSign);
 
                     if (!newTX) {
                         console.log("error :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " cannot build");

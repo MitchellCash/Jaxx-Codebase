@@ -59,6 +59,8 @@ var CoinToken = function() {
 
     this._hasInsufficientGasForSpendable = [];
     this._hasBlockedForSpendable = [];
+
+    this._numShiftsNecessary = 0;
 }
 
 CoinToken.TheDAO = 0;
@@ -515,8 +517,13 @@ CoinToken.prototype.refreshIfNecessary = function() {
     }
 }
 
-CoinToken.prototype.getSpendableBalance = function() {
+CoinToken.prototype.getSpendableBalance = function(minimumValue) {
+    if (typeof(minimumValue) === 'undefined' || minimumValue === null) {
+        minimumValue = 0;
+    }
+
     var spendableBalance = 0;
+    var numPotentialTX = 0;
 
     var highestAccountDict = this.getHighestAccountBalanceAndIndex(this._coinHolderWallet, this._gasPrice, this._gasLimit);
 
@@ -526,11 +533,38 @@ CoinToken.prototype.getSpendableBalance = function() {
 
         //@note: this array is implicitly regenerated and sorted when the getHighestAccountBalanceAndIndex function is called.
         for (var i = 0; i < this._sortedHighestAccountArray.length; i++) {
-            spendableBalance += this._sortedHighestAccountArray[i].balance;
+            var accountBalance = this._sortedHighestAccountArray[i].balance;
+//            console.log("DAO account :: " + this._sortedHighestAccountArray[i].address + " :: value :: " + accountBalance);
+
+            if (accountBalance <= minimumValue) {
+
+            } else {
+                spendableBalance += accountBalance;
+                numPotentialTX++;
+            }
         }
+
+//        console.log("DAO spendable :: " + spendableBalance + " :: " + numPotentialTX + " :: minimumValue :: " + minimumValue);
+    }
+
+    if (spendableBalance === 0) {
+        this._numShiftsNecessary = 1;
+    } else {
+        this._numShiftsNecessary = numPotentialTX;
+    }
+
+    //@note: don't cache if a custom minimum value.
+    if (typeof(minimumValue) === 'undefined' || minimumValue === null) {
+        this._spendableBalance = spendableBalance;
     }
 
     return spendableBalance;
+}
+
+//@note: @here: this needs to be populated by getSpendableBalance.
+CoinToken.prototype.getShiftsNecessary = function(minimumValue) {
+    var spendableBalance = this.getSpendableBalance(minimumValue)
+    return this._numShiftsNecessary;
 }
 
 CoinToken.prototype.hasInsufficientGasForSpendable = function() {
@@ -686,7 +720,7 @@ CoinToken.prototype.sortHighestAccounts = function(ethereumPouch, ethGasPrice, e
                 console.log("getTransferableBalance :: addressInfo not transferable :: " + curAddress);
             }
 
-//            console.log("checking transferable address :: " + curAddress + " :: balance :: " + addressInfo.balance);
+//            console.log("checking transferable address :: " + curAddress + " :: balance :: " + addressInfo.balance + " :: baseTXCost :: " + baseTXCost);
 
             var internalIndexAddressDict = ethereumPouch.getInternalIndexAddressDict(curAddress);
 
@@ -694,6 +728,8 @@ CoinToken.prototype.sortHighestAccounts = function(ethereumPouch, ethGasPrice, e
 
             if (ethBalanceForAddress >= baseTXCost) {
                 addressAvailableDict[curAddress] = {ethereumNodeIndex: internalIndexAddressDict.index};
+
+                //                    console.log("token :: " + this._tokenName + " :: address :: " + ethBalanceForAddress + " :: isBlocked :: " + addressInfo.isBlocked);
 
                 if (addressInfo.isBlocked === false) {
                     totalBalance += addressInfo.balance;
@@ -745,7 +781,7 @@ CoinToken.prototype.getHighestAccountBalanceAndIndex = function(ethereumPouch, e
     return (this._sortedHighestAccountArray.length > 0) ? this._sortedHighestAccountArray[0] : null;
 }
 
-CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch, toAddress, amount_smallUnit, gasPrice, gasLimit, ethereumTXDataPrePend, doNotSign) {
+CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch, toAddress, amount_smallUnit, gasPrice, gasLimit, ethereumTXDataPrePendArray, doNotSign) {
     var amountDao = parseInt(amount_smallUnit);
 
     var txArray = [];
@@ -769,7 +805,7 @@ CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch,
 
             var ABIValueToTransfer = HDWalletHelper.zeroPadLeft(parseInt(amountDao).toString(16), 64);
 
-            var ethData = ethereumTXDataPrePend + ABIValueToTransfer;
+            var ethData = ethereumTXDataPrePendArray[0] + ABIValueToTransfer;
 
             var newTX = ethereumPouch._buildEthereumTransaction(false, highestAccountDict.ethereumNodeIndex, toAddress, 0, gasPrice, gasLimit, ethData, doNotSign);
 
@@ -811,6 +847,14 @@ CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch,
 
 
                 var ABIValueToTransfer = HDWalletHelper.zeroPadLeft(parseInt(amountToSendFromAccount).toString(16), 64);
+
+                var ethereumTXDataPrePend = ethereumTXDataPrePendArray[0];
+
+                if (i >= ethereumTXDataPrePendArray.length) {
+
+                } else {
+                    ethereumTXDataPrePend = ethereumTXDataPrePendArray[i];
+                }
 
                 var ethData = ethereumTXDataPrePend + ABIValueToTransfer;
 

@@ -1881,7 +1881,7 @@ HDWalletPouch.prototype.sendBitcoinTransaction = function(transaction, callback)
         }
         self.log(response);
         if (callback) {
-            callback(response, transaction);
+            callback(response.status, transaction);
         }
     });
 
@@ -2284,25 +2284,25 @@ HDWalletPouch.prototype.manuallyDeriveUnhardened = function(fromNode, index) {
         }
 
         // data = 0x00 || ser256(kpar) || ser32(index)
-        data[0] = 0x00
-        fromNode.keyPair.d.toBuffer(32).copy(data, 1)
-        data.writeUInt32BE(index, 33)
+        data[0] = 0x00;
+        fromNode.keyPair.d.toBuffer(32).copy(data, 1);
+        data.writeUInt32BE(index, 33);
 
         // Normal child
     } else {
         // data = serP(point(kpar)) || ser32(index)
         //      = serP(Kpar) || ser32(index)
         console.log("pubkeybuff :: " + fromNode.keyPair.getPublicKeyBuffer().toString('hex'));
-        fromNode.keyPair.getPublicKeyBuffer().copy(data, 0)
-        data.writeUInt32BE(index, 33)
+        fromNode.keyPair.getPublicKeyBuffer().copy(data, 0);
+        data.writeUInt32BE(index, 33);
     }
 
-    var I = thirdparty.createHmac('sha512', fromNode.chainCode).update(data).digest()
+    var I = thirdparty.createHmac('sha512', fromNode.chainCode).update(data).digest();
     console.log("createHmac :: I :: " + I);
-    var IL = I.slice(0, 32)
-    var IR = I.slice(32)
+    var IL = I.slice(0, 32);
+    var IR = I.slice(32);
 
-    var pIL = thirdparty.bigi.fromBuffer(IL)
+    var pIL = thirdparty.bigi.fromBuffer(IL);
 
     // In case parse256(IL) >= n, proceed with the next value for i
     if (pIL.compareTo(curve.n) >= 0) {
@@ -2312,10 +2312,10 @@ HDWalletPouch.prototype.manuallyDeriveUnhardened = function(fromNode, index) {
     }
 
     // Private parent key -> private child key
-    var derivedKeyPair
+    var derivedKeyPair;
     if (fromNode.keyPair.d) {
         // ki = parse256(IL) + kpar (mod n)
-        var ki = pIL.add(fromNode.keyPair.d).mod(curve.n)
+        var ki = pIL.add(fromNode.keyPair.d).mod(curve.n);
         console.log("ki :: " + ki);
 
         // In case ki == 0, proceed with the next value for i
@@ -2333,7 +2333,7 @@ HDWalletPouch.prototype.manuallyDeriveUnhardened = function(fromNode, index) {
     } else {
         // Ki = point(parse256(IL)) + Kpar
         //    = G*IL + Kpar
-        var Ki = curve.G.multiply(pIL).add(fromNode.keyPair.Q)
+        var Ki = curve.G.multiply(pIL).add(fromNode.keyPair.Q);
 
         // In case Ki is the point at infinity, proceed with the next value for i
         if (curve.isInfinity(Ki)) {
@@ -2347,10 +2347,10 @@ HDWalletPouch.prototype.manuallyDeriveUnhardened = function(fromNode, index) {
         })
     }
 
-    var hd = new thirdparty.bitcoin.HDNode(derivedKeyPair, IR)
-    hd.depth = fromNode.depth + 1
-    hd.index = index
-    hd.parentFingerprint = fromNode.getFingerprint().readUInt32BE(0)
+    var hd = new thirdparty.bitcoin.HDNode(derivedKeyPair, IR);
+    hd.depth = fromNode.depth + 1;
+    hd.index = index;
+    hd.parentFingerprint = fromNode.getFingerprint().readUInt32BE(0);
 
     return hd;
 }
@@ -2375,6 +2375,7 @@ HDWalletPouch.prototype.updateTokenAddresses = function(addressMap) {
 
 //    console.log("[" + this._coinFullName + "] :: updating token addresses");
 
+    //@note: this tokenTransferableList is null right now, most likely to be extended with DGX tokens and so on.
     for (var publicAddress in addressMap) {
         var addressInfo = addressMap[publicAddress];
 
@@ -2385,6 +2386,16 @@ HDWalletPouch.prototype.updateTokenAddresses = function(addressMap) {
             transferableMap[publicAddress] = addressInfo.tokenTransferableList;
             votableMap[publicAddress] = addressInfo.tokenVotableList;
         }
+    }
+
+    //@note: update for getting the first dao address correctly updating.
+
+
+    var firstPublicAddress = this.getPublicAddress(false, 0).toLowerCase();
+//    console.log("[The DAO] :: transfer list :: firstPublicAddress :: " + firstPublicAddress);
+
+    if (typeof(transferableMap[firstPublicAddress]) === 'undefined' || transferableMap[firstPublicAddress] === null) {
+        transferableMap[firstPublicAddress] = true;
     }
 
     for (var i = 0; i < CoinToken.numCoinTokens; i++) {

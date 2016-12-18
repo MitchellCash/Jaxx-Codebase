@@ -518,6 +518,7 @@ CoinToken.prototype.refreshIfNecessary = function() {
 }
 
 CoinToken.prototype.getSpendableBalance = function(minimumValue) {
+//    return 123456789123456789123456;
     if (typeof(minimumValue) === 'undefined' || minimumValue === null) {
         minimumValue = 0;
     }
@@ -588,6 +589,7 @@ CoinToken.prototype.hasBlockedForSpendable = function() {
 }
 
 CoinToken.prototype.getPouchFoldBalance = function() {
+//    return 123456789123456789123456;
     return this.getTransferableBalance();
 }
 

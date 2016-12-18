@@ -55,39 +55,51 @@ HDWalletHelper.prototype.getHDCoinType = function(coinType, testNet) {
 HDWalletHelper.getFiatUnitPrefix = function (fiatUnit) {
     switch (fiatUnit) {
         case "AUD":
+            return "AU$"; // Australian Dollar
         case "CAD":
+            return "CA$"; // Canadian Dollar
         case "CLP":
+            return "CL$"; // Chilean Peso
         case "HKD":
+            return "HK$"; // Hong Kong Dollar
         case "NZD":
+            return "NZ$"; // New Zealand Dollar
         case "SGD":
+            return "SG$"; // Singapore Dollar
+        case "MXN":
+            return "MX$"; // Mexican Dollar
+        case "NOK":
+            return "kr"; // Norwegian Krona
         case "USD":
-            return "$";
+            return "$"; // United States Dollar
         case "BRL":
-            return "R$";
+            return "R$"; // Brazilian Real
         case "CNY":
-            return "\u5143";
+            return "\u5143"; // Chinese Yuan
         case "DKK":
-            return "kr";
+            return "kr"; // Danish Krona
         case "EUR":
-            return "\u20AC";
+            return "\u20AC"; // Euro
         case "GBP":
-            return "\u00A3"
-            case "INR":
-            return "";
+            return "\u00A3" // Great British Pound
+        case "INR":
+            return "\u20B9"; // Indian Rupee
         case "ISK":
-            return "kr";
+            return "kr"; // Icelandik Krona
         case "JPY":
-            return "\u00A5"
-            case "KRW":
-            return "\u20A9";
+            return "\u00A5"; // Japanese Yen
+        case "KRW":
+            return "\u20A9"; // South Korean Won
         case "PLN":
-            return "z\u0142";
+            return "z\u0142"; // Polish Zloty
         case "RUB":
-            return "\u20BD";
+            return "\u20BD"; // Russian Ruble
         case "SEK":
-            return "kr";
+            return "kr"; // Swedish Krona
         case "TWD":
-            return "NT$";
+            return "NT$"; // New Taiwan Dollar
+        case "FRA":
+            return "\u20A3" // French Franc
     }
 
     return "XX$";

@@ -210,7 +210,7 @@ HDWalletPouch.prototype.setup = function(coinType, testNet, helper) {
     } else if (this._coinType === COIN_ETHEREUM) {
         this._STATIC_RELAY_URL = "https://api.etherscan.io";
         this._GATHER_TX = "api?module=account&action=txlist&address=";
-        this._GATHER_TX_APPEND = "&sort=asc&apikey=" + HDWalletHelper.jaxxEtherscanAPIKEY;
+        this._GATHER_TX_APPEND = "&sort=asc&apikey=" + HDWalletHelper.apiKeyEtherScan;
 
         this._GATHER_UNCONFIRMED_TX = "";
     }
@@ -1126,25 +1126,34 @@ HDWalletPouch.prototype.getInternalIndexAddressDict = function(publicAddress) {
 
     } else if (this._coinType === COIN_ETHEREUM) {
         publicAddressKey = publicAddressKey.toLowerCase();
-        //            console.log("caching public address :: " + publicAddress)
+//        console.log("caching public address :: " + publicAddressKey)
     }
 
     if (this._coinType === COIN_ETHEREUM) {
         var internalIndexAddress = this._internalIndexAddressCache[publicAddressKey];
 
-        if (typeof(internalIndexAddress) === 'undefined' || internalIndexAddress === null || typeof(ignoreCached) !== 'undefined') {
+        var addToCache = false;
 
-            if (typeof(ignoreCached) === 'undefined') {
-                internalIndexAddress = "" + this.getInternalIndexForPublicAddress(publicAddressKey) + "-0";
+        if (typeof(internalIndexAddress) === 'undefined' || internalIndexAddress === null) {
+            addToCache = true;
+        } else {
+            var arraySplit = internalIndexAddress.split("-");
+            internalIndexAddress = {index: arraySplit[0], internal: arraySplit[1]};
 
-                this._internalIndexAddressCache[publicAddressKey] = internalIndexAddress;
-
-//                console.log("caching internalIndexAddress :: " + internalIndexAddress + " :: public address :: " + publicAddress)
-
-                storeData('wInternalIndexAddrCache_' + this._coinFullName + "_" + this._storageKey, JSON.stringify(this._internalIndexAddressCache), true);
-            } else {
-                console.log("uncached fetch of internal index address");
+            if (arraySplit[0] === '' || arraySplit[1] === '') {
+                console.log("bad array found :: " + JSON.stringify(internalIndexAddress) + " :: publicAddressKey :: " + publicAddressKey);
+                addToCache = true;
             }
+        }
+
+        if (addToCache) {
+            internalIndexAddress = "" + this.getInternalIndexForPublicAddress(publicAddressKey) + "-0";
+
+            this._internalIndexAddressCache[publicAddressKey] = internalIndexAddress;
+
+            console.log("caching internalIndexAddress :: " + internalIndexAddress + " :: public address :: " + publicAddress)
+
+            storeData('wInternalIndexAddrCache_' + this._coinFullName + "_" + this._storageKey, JSON.stringify(this._internalIndexAddressCache), true);
         } else {
             //        if (this._coinType === COIN_ETHEREUM) {
             //            publicAddress = HDWalletHelper.toEthereumChecksumAddress(publicAddress);
@@ -1256,6 +1265,10 @@ HDWalletPouch.prototype.getSpendableBalance = function(minimumValue) {
     return spendableBalance;
 }
 
+HDWalletPouch.prototype.getSpendableAddresses = function(minimumValue) {
+    //@note: @here: @todo: implement this for general addresses.
+}
+
 //@note: @here: this needs to be populated by getSpendableBalance.
 HDWalletPouch.prototype.getShiftsNecessary = function(minimumValue) {
     var spendableBalance = this.getSpendableBalance(minimumValue)
@@ -1353,6 +1366,11 @@ HDWalletPouch.prototype.getIsTheDAOAssociated = function(internal, index) {
 }
 
 HDWalletPouch.prototype.getEthereumNonce = function(internal, index) {
+    if (typeof(index) === 'undefined' || index === null) {
+        console.log("error :: getEthereumNonce :: index undefined or null");
+        return -1;
+    }
+
     var fromAddress = HDWalletPouch.getCoinAddress(this._coinType, this.getNode(internal, index));
 
     var transactions = this.getTransactions(); //Get all transactions
@@ -1374,6 +1392,8 @@ HDWalletPouch.prototype.getEthereumNonce = function(internal, index) {
     }
 
     highestNonce = Object.keys(txDict).length;
+
+    console.log("getEthereumNonce :: index :: " + index + " :: fromAddress :: " + fromAddress + " :: highestNonce :: " + highestNonce);
 
 //    if (internal === false) {
 //        internal = 0;
@@ -1510,6 +1530,10 @@ HDWalletPouch.prototype.getInternalIndexForPublicAddress = function(publicAddres
 
     for (var i = 0; i < highestIndexToCheck; i++) {
         var addressToCheck = this.getPublicAddress(false, i);
+        if (publicAddress === '0x8739d833292415d6302c2f242cc2bf69d9624b6e') {
+            console.log("checking :: 0x8739d833292415d6302c2f242cc2bf69d9624b6e :: " + addressToCheck);
+        }
+
         //@note: for ethereum checksum addresses.
         if (this._coinType === COIN_ETHEREUM) {
             addressToCheck = addressToCheck.toLowerCase();
@@ -1519,6 +1543,10 @@ HDWalletPouch.prototype.getInternalIndexForPublicAddress = function(publicAddres
             foundIdx = i;
             break;
         }
+    }
+
+    if (foundIdx === -1) {
+        console.log("getInternalIndexForPublicAddress :: could not find index of :: " + publicAddress);
     }
 
     return foundIdx;
@@ -2033,50 +2061,47 @@ HDWalletPouch.prototype.sendEthereumTransaction = function(transaction, callback
 //
     var self = this;
 
-    $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_sendRawTransaction&hex=' + hex + "&apikey=" + HDWalletHelper.jaxxEtherscanAPIKEY, function (data) {
+    $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_sendRawTransaction&hex=' + hex + "&apikey=" + HDWalletHelper.apiKeyEtherScan, function (data) {
         self.invalidateTransactionCache();
         self.invalidateWorkerCache();
 
         if (!data || !data.result || data.result.length !== 66) {
             console.log('Error sending', data, " :: " + debugIdx + " :: " + JSON.stringify(transaction) + " :: hex :: " + hex);
 
+            var message = 'An error occurred';
+            if (data && data.error && data.error.message) {
+                message = data.error.message;
+            }
+
+            delete self._transactions[transaction._mockTx.hash + "_" + transaction._mockTx.from];
+
+            //@note: reverse the mock transaction update.
+            var addressInfo = self._w_addressMap[transaction._mockTx.from];
+            if (typeof(addressInfo) !== 'undefined') {
+                var txCostPlusGas = transaction._mockTx.valueDelta - (transaction._mockTx.gasUsed * transaction._mockTx.gasPrice);
+
+                addressInfo.accountBalance -= txCostPlusGas;
+                addressInfo.nonce--;
+                addressInfo.newSendTx = null;
+                delete addressInfo.accountTXProcessed[transaction._mockTx.hash];
+            } else {
+                console.log("sendEthereumTransaction error :: addressInfo undefined")
+            }
+
+            if (self._worker) {
+                self._worker.postMessage({
+                    action: 'updateAddressMap',
+                    content: {
+                        addressMap: self._w_addressMap
+                    }
+                });
+            }
+
             if (callback) {
-                var message = 'An error occurred';
-                if (data && data.error && data.error.message) {
-                    message = data.error.message;
-                }
-
                 callback(new Error(message), null, params);
-                delete self._transactions[transaction._mockTx.hash + "_" + transaction._mockTx.from];
-
-                //@note: reverse the mock transaction update.
-                var addressInfo = self._w_addressMap[transaction._mockTx.from];
-                if (typeof(addressInfo) !== 'undefined') {
-                    var txCostPlusGas = transaction._mockTx.valueDelta - (transaction._mockTx.gasUsed * transaction._mockTx.gasPrice);
-
-                    addressInfo.accountBalance -= txCostPlusGas;
-                    addressInfo.nonce--;
-                    addressInfo.newSendTx = null;
-                    delete addressInfo.accountTXProcessed[transaction._mockTx.hash];
-                } else {
-                    console.log("sendEthereumTransaction error :: addressInfo undefined")
-                }
-
-                if (self._worker) {
-                    self._worker.postMessage({
-                        action: 'updateAddressMap',
-                        content: {
-                            addressMap: self._w_addressMap
-                        }
-                    });
-                }
             }
         } else {
             console.log('Success sending', data, " :: " + debugIdx + " :: " + JSON.stringify(transaction) + " :: hex :: " + hex);
-
-            if (callback) {
-                callback('success', data.result, params);
-            }
 
             self._transactions[transaction._mockTx.hash + "_" + transaction._mockTx.from] = transaction._mockTx;
 
@@ -2108,6 +2133,12 @@ HDWalletPouch.prototype.sendEthereumTransaction = function(transaction, callback
             }
 
             self._notify();
+
+            if (callback) {
+                setTimeout(function() {
+                    callback('success', data.result, params);
+                }, 100);
+            }
         }
     });
 }
@@ -2143,7 +2174,7 @@ HDWalletPouch.prototype._requestBlockNumber = function(callback) {
     } else if (this._coinType === COIN_ETHEREUM) {
         var self = this;
 
-        $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=' + HDWalletHelper.jaxxEtherscanAPIKEY, function (data) {
+        $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=' + HDWalletHelper.apiKeyEtherScan, function (data) {
             if (!data || !data.result) {
                 if (self._currentBlock === -1) {
                     self._currentBlock = 0;
@@ -2513,12 +2544,15 @@ HDWalletPouch.prototype.updateTokenAddresses = function(addressMap) {
     for (var publicAddress in addressMap) {
         var addressInfo = addressMap[publicAddress];
 
-        //    console.log("internal :: " + internal + " :: index :: " + index + " :: publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo) + " :: _w_addressMap :: " + JSON.stringify(this._w_addressMap));
+//            console.log("internal :: " + internal + " :: index :: " + index + " :: publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo) + " :: _w_addressMap :: " + JSON.stringify(this._w_addressMap));
 
         if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
-//            console.log("adding :: " + publicAddress + " :: to :: " + addressInfo.tokenTransferableList + " :: " + addressInfo.tokenVotableList);
-            transferableMap[publicAddress] = addressInfo.tokenTransferableList;
-            votableMap[publicAddress] = addressInfo.tokenVotableList;
+//            console.log("adding :: " + publicAddress + " :: to :: " + addressInfo.tokenTransferableList + " :: " + addressInfo.tokenVotableList + " :: addressInfo :: " + JSON.stringify(addressInfo) + " :: num accountTXProcessed :: " + Object.keys(addressInfo.accountTXProcessed).length);
+
+            if (Object.keys(addressInfo.accountTXProcessed).length > 0) {
+                transferableMap[publicAddress] = addressInfo.tokenTransferableList;
+                votableMap[publicAddress] = addressInfo.tokenVotableList;
+            }
         }
     }
 

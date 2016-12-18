@@ -3,7 +3,7 @@ importScripts('../../request.js');
 
 //importScripts('../network.js');
 importScripts('../../jaxx_main/jaxx_constants.js');
-//importScripts('../wallet/hdwallet_helper.js');
+importScripts('../../wallet/hdwallet_helper.js');
 importScripts('../../wallet/token/coin_token.js');
 
 var doDebug = false;
@@ -71,17 +71,26 @@ CoinTokenWorker.prototype.initialize = function(tokenName, tokenSymbol, tokenCoi
 
     var socketUri = "";
 
+    //https://api.etherscan.io/api?module=account&action=tokenbalance&tokenname=TheDAO&address=0x051Da87c3679Be285DC22E2fbA5E833052375ced&tag=latest&apikey=YourApiKeyToken
+
+
     if (this._tokenCoinType === CoinToken.TheDAO) {
         socketUri = "";// "wss://api.ether.fund";
 
-        this._STATIC_RELAY_URL = "http://api.jaxx.io:80/api/thedao";
-//        this._GATHER_TX = "/balance";
-//        this._GATHER_TX_APPEND = "&sort=asc&apikey=" + HDWalletHelper.jaxxEtherscanAPIKEY;
+//        this._STATIC_RELAY_URL = "http://api.jaxx.io:80/api/thedao";
+
+        //@note: for etherscan.io
+        this._STATIC_RELAY_URL = "https://api.etherscan.io/api?module=account&tokenname=TheDAO";
+
+        this._GATHER_TX = "&action=tokenbalance";
+
+        this._GATHER_TX_APPEND = "&tag=latest&apikey=" + HDWalletHelper.apiKeyEtherScan;
+
 
         this._GATHER_UNCONFIRMED_TX = "";
 
         this._MULTI_BALANCE = "/balance"//?addresses%5B%5D=";
-//        this._MULTI_BALANCE_APPEND = "&tag=latest&apikey=" + HDWalletHelper.jaxxEtherscanAPIKEY;
+        //        this._MULTI_BALANCE_APPEND = "&tag=latest&apikey=" + HDWalletHelper.apiKeyEtherScan;
     }
 //
 //    var self = this;
@@ -253,44 +262,79 @@ CoinTokenWorker.prototype.updateBalancesTheDAO = function() {
         }
     }
 
-//    log("addressesToCheck :: " + JSON.stringify(addressesToCheck) + " :: " + addressesToCheck.length);
+    var requestCounter = {numRequests: addressesToCheck.length, processedRequestCount: 0, batchUpdateSize: 20, curBatchCount: 0};
+
+//    console.log("addressesToCheck :: " + JSON.stringify(addressesToCheck) + " :: " + addressesToCheck.length);
 
     var self = this;
 
-    var BATCH_SIZE = 20;
+    //https://api.etherscan.io/api?module=account&action=tokenbalance&tokenname=TheDAO&address=0x051Da87c3679Be285DC22E2fbA5E833052375ced&tag=latest&apikey=YourApiKeyToken
+
+    requestCounter.batchSize = 1; //@note: for etherscan.io
+//    var BATCH_SIZE = 20;
 
     var batch = [];
     while (addressesToCheck.length) {
         batch.push(addressesToCheck.shift());
-        if (batch.length === BATCH_SIZE || addressesToCheck.length === 0) {
+        if (batch.length === requestCounter.batchSize || addressesToCheck.length === 0) {
 
-            var addressParam = batch.join('&addresses%5B%5D=');
-//            log("get dao balances :: " + this._STATIC_RELAY_URL + this._MULTI_BALANCE + "?addresses%5B%5D=" + addressParam);
+//            var addressParam = batch.join('&addresses%5B%5D=');
+            //            log("get dao balances :: " + this._STATIC_RELAY_URL + this._MULTI_BALANCE + "?addresses%5B%5D=" + addressParam);
 
             //            log("checking :: " + batch + " :: " + batch.length + " :: " + this._STATIC_RELAY_URL + this._MULTI_BALANCE + addressParam + this._MULTI_BALANCE_APPEND);
 
+            var addressParam = batch;
+
+            var requestString = this._STATIC_RELAY_URL + this._GATHER_TX + '&address=' + addressParam + this._GATHER_TX_APPEND;
+//            var requestString = this._STATIC_RELAY_URL + this._MULTI_BALANCE + "?addresses%5B%5D=" + addressParam;
+
+//            log("requestString :: " + requestString);
 //            @note: @here: request the account balances for this batch
-            RequestSerializer.getJSON(this._STATIC_RELAY_URL + this._MULTI_BALANCE + "?addresses%5B%5D=" + addressParam, function(data, success, passthroughParam) {
-//                log(JSON.stringify(success));
-//                log(JSON.stringify(data););
+            RequestSerializer.getJSON(requestString, function(data, success, passthroughParam) {
+                passthroughParam.requestCounter.processedRequestCount += 1;
+                passthroughParam.requestCounter.curBatchCount += 1;
+
+//                log("updateBalancesTheDAO :: success :: " + JSON.stringify(success));
+//                log("updateBalancesTheDAO :: data :: " + JSON.stringify(data));
                 if (success === 'success') {
-                    var balanceString = "";
-                    for (var i = 0; i < passthroughParam.length; i++) {
-                        if (typeof(self._addressMap[passthroughParam[i]]) !== 'undefined' && self._addressMap[passthroughParam[i]] !== null) {
-                            self._addressMap[passthroughParam[i]].balance = parseInt(data[i]);
-                        }
-
-
-                        balanceString += passthroughParam[i] + " :: " + data[i] + "\n";
-                    }
-
+                    //@note: api.jaxx.io
+//                    var balanceString = "";
+//                    for (var i = 0; i < passthroughParam.length; i++) {
+//                        if (typeof(self._addressMap[passthroughParam[i]]) !== 'undefined' && self._addressMap[passthroughParam[i]] !== null) {
+//                            self._addressMap[passthroughParam[i]].balance = parseInt(data[i]);
+//                        }
+//
+//
+//                        balanceString += passthroughParam[i] + " :: " + data[i] + "\n";
+//                    }
 //                    log("balances received :: \n" + balanceString);
 
-                    self.update();
+                    //@note: returned data from etherscan.io:
+                    //{"status":"1","message":"OK","result":"20000000000000000"}
+
+                    if (data && data.status && data.status === '1') {
+                        var foundBalance = parseInt(data.result);
+
+//                        console.log("passthroughParam :: " + passthroughParam);
+                        self._addressMap[passthroughParam.batch].balance = foundBalance;
+                    } else {
+                        log("updateBalancesTheDAO :: error :: " + data.status);
+                    }
+
+                    if (passthroughParam.requestCounter.curBatchCount >= passthroughParam.requestCounter.batchUpdateSize) {
+                        passthroughParam.requestCounter.curBatchCount = 0;
+                        self.update();
+                    } else if (passthroughParam.requestCounter.processedRequestCount === passthroughParam.requestCounter.numRequests) {
+                        self.update();
+                    }
                 } else {
-                    log("error :: " + success);
+                    log("updateBalancesTheDAO :: error :: " + success);
                 }
-            }, null, batch);
+
+                if (passthroughParam.requestCounter.processedRequestCount === passthroughParam.requestCounter.numRequests) {
+                    self.update();
+                }
+            }, null, {batch: batch, requestCounter: requestCounter});
 
             batch = [];
         }
@@ -369,7 +413,7 @@ onmessage = function(message) {
 //            }, 10000);
         }
     }else if (message.data.action === 'refresh') {
-        log("watcher :: " + coinTokenWorker._tokenName + " :: refreshing");
+        console.log("watcher :: " + coinTokenWorker._tokenName + " :: refreshing");
 
         //        var crashy = this.will.crash;
 
@@ -386,7 +430,7 @@ onmessage = function(message) {
 setInterval(function() {
     setTimeout(function() {
         coinTokenWorker.updateBalances();
-    }, 10000);
+    }, 20000);
 
 //    hdWalletWorker.checkTransactions(HDWalletWorker.getDefaultTransactionRefreshTime());
 

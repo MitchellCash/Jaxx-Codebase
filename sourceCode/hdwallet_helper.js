@@ -22,6 +22,9 @@ var HDWalletHelper = function() {
 }
 
 HDWalletHelper.theDAOAddress = "0xbb9bc244d798123fde783fcc1c72d3bb8c189413";
+HDWalletHelper.theDAOWithdrawalContractAddress = "0xbf4ed7b27f1d666546e30d74d50d173d20bca754";
+
+HDWalletHelper.apiKeyEtherScan = "WGWHHAU4F2Y58UW5FQWTUJWSXBNHU7WBSX";
 
 HDWalletHelper.dictCryptoCurrency = {
     "BTC" : "\u0E3F"

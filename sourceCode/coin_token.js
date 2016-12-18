@@ -571,14 +571,50 @@ CoinToken.prototype.getSpendableBalance = function(minimumValue) {
     return spendableBalance;
 }
 
+CoinToken.prototype.getSpendableAddresses = function(minimumValue, totalCoinHolderGasRequired) {
+    if (typeof(minimumValue) === 'undefined' || minimumValue === null) {
+        minimumValue = 0;
+    }
+
+    var spendableAccounts = [];
+    var numPotentialTX = 0;
+
+    var highestAccountDict = this.getHighestAccountBalanceAndIndex(this._coinHolderWallet, this._gasPrice, totalCoinHolderGasRequired);
+
+//    console.log("the dao :: ethereum transaction :: highestAccountDict :: " + highestAccountDict);
+
+    if (highestAccountDict !== null) {
+
+        //@note: this array is implicitly regenerated and sorted when the getHighestAccountBalanceAndIndex function is called.
+        for (var i = 0; i < this._sortedHighestAccountArray.length; i++) {
+            var accountBalance = this._sortedHighestAccountArray[i].balance;
+
+//            console.log("DAO account :: " + this._sortedHighestAccountArray[i].address + " :: value :: " + accountBalance);
+
+            if (accountBalance > minimumValue) {
+                spendableAccounts.push(this._sortedHighestAccountArray[i]);
+            } else {
+            }
+        }
+
+        //        console.log("DAO spendable :: " + spendableBalance + " :: " + numPotentialTX + " :: minimumValue :: " + minimumValue);
+    }
+
+    return spendableAccounts;
+}
+
 //@note: @here: this needs to be populated by getSpendableBalance.
 CoinToken.prototype.getShiftsNecessary = function(minimumValue) {
     var spendableBalance = this.getSpendableBalance(minimumValue)
     return this._numShiftsNecessary;
 }
 
-CoinToken.prototype.hasInsufficientGasForSpendable = function() {
-    var highestAccountDict = this.getHighestAccountBalanceAndIndex(this._coinHolderWallet, this._gasPrice, this._gasLimit);
+CoinToken.prototype.hasInsufficientGasForSpendable = function(gasLimit) {
+    if (typeof(gasLimit) === 'undefined' || gasLimit === null) {
+        gasLimit = this._gasLimit;
+    }
+
+    var highestAccountDict = this.getHighestAccountBalanceAndIndex(this._coinHolderWallet, this._gasPrice, gasLimit);
 
     return this._hasInsufficientGasForSpendable;
 }
@@ -682,6 +718,26 @@ CoinToken.prototype.getTransferOpCode = function() {
     return transferOpCode;
 }
 
+CoinToken.prototype.getRefundOpCode = function() {
+    var transferOpCode = "";
+
+    if (this._tokenCoinType === CoinToken.TheDAO) {
+        transferOpCode = "0x3ccfd60b";
+    }
+
+    return transferOpCode;
+}
+
+CoinToken.prototype.getApproveOpCode = function() {
+    var transferOpCode = "";
+
+    if (this._tokenCoinType === CoinToken.TheDAO) {
+        transferOpCode = "0x095ea7b3";
+    }
+
+    return transferOpCode;
+}
+
 CoinToken.prototype.getAccountBalance = function(address) {
     var balance = 0;
 
@@ -737,7 +793,7 @@ CoinToken.prototype.sortHighestAccounts = function(ethereumPouch, ethGasPrice, e
             var ethBalanceForAddress = ethereumPouch.getAccountBalance(internalIndexAddressDict.internal, internalIndexAddressDict.index);
 
 //            if (addressInfo.balance > 0) {
-//                console.log("checking transferable address :: " + curAddress + " :: balance :: " + addressInfo.balance + " :: ethBalanceForAddress :: " + ethBalanceForAddress + " :: baseTXCost :: " + baseTXCost);
+//                console.log("checking transferable address :: " + curAddress + " :: balance :: " + addressInfo.balance + " :: ethBalanceForAddress :: " + ethBalanceForAddress + " :: baseTXCost :: " + baseTXCost + " :: internalIndexAddressDict :: " + JSON.stringify(internalIndexAddressDict));
 //            }
 
             if (ethBalanceForAddress >= baseTXCost) {
@@ -773,7 +829,7 @@ CoinToken.prototype.sortHighestAccounts = function(ethereumPouch, ethGasPrice, e
                 curBalance = addressInfo.balance;
             }
 
-                this._sortedHighestAccountArray.push({ethereumNodeIndex: addressAvailableDict[address].ethereumNodeIndex, addressInfo: addressInfo, address: address, balance: curBalance});
+            this._sortedHighestAccountArray.push({ethereumNodeIndex: addressAvailableDict[address].ethereumNodeIndex, addressInfo: addressInfo, address: address, balance: curBalance});
         }
 
         this._sortedHighestAccountArray.sort(function(a, b) {

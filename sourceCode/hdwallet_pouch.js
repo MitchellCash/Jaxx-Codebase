@@ -798,6 +798,10 @@ HDWalletPouch.prototype.getTransactions = function() {
 HDWalletPouch.prototype.getHistory = function() {
     var transactions = this.getTransactions();
 
+//    if (this._coinType === COIN_BITCOIN) {
+//        console.log("getHistory :: num transactions :: " + transactions.length + " :: this._cachedHistory.length :: " + this._cachedHistory.length);
+//    }
+
     var history = [];
 
     if (transactions.length === this._cachedHistory.length) {
@@ -813,6 +817,11 @@ HDWalletPouch.prototype.getHistory = function() {
             return this._cachedHistory;
         }
     }
+
+//        if (this._coinType === COIN_BITCOIN) {
+//            console.log("not fully cached history");
+//        }
+
 
     for (var ti = 0; ti < transactions.length; ti++) {
         var transaction = transactions[ti];
@@ -865,16 +874,19 @@ HDWalletPouch.prototype.getHistory = function() {
 				toAddressFull = otherOutputAddress[0];
             }
 
-            history.push({
+            var newHistoryItem = {
                 toAddress: toAddress,
-				toAddressFull: toAddressFull,
+                toAddressFull: toAddressFull,
                 blockHeight: transaction.block,
                 confirmations: transaction.confirmations,
                 deltaBalance: deltaBalance,
                 miningFee: miningFee,
                 timestamp: transaction.timestamp,
                 txid: transaction.txid
-            });
+            };
+
+//            console.log("adding new history item :: " + newHistoryItem);
+            history.push(newHistoryItem);
         } else if (this._coinType === COIN_ETHEREUM) {
 //            console.log("A :: ethereum transaction :: " + JSON.stringify(transaction));
             if (typeof(transaction.addressIndex) !== 'undefined' && transaction.addressIndex !== null) {

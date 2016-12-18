@@ -23,6 +23,40 @@ var HDWalletHelper = function() {
 
 HDWalletHelper.theDAOAddress = "0xbb9bc244d798123fde783fcc1c72d3bb8c189413";
 
+HDWalletHelper.dictCryptoCurrency = {
+    "BTC" : "\u0E3F"
+    ,"ETH" : "\u039E"
+    ,"DAO" : "\u0110"
+};
+
+HDWalletHelper.dictFiatCurrency = {
+    "AUD" : "AU$"
+    ,"CAD" : "CA$"
+    ,"CLP" : "CL$"
+    ,"HKD" : "HK$"
+    ,"NZD" : "NZ$"
+    ,"SGD" : "SG$"
+    ,"MXN" : "MX$"
+    ,"NOK" : "kr"
+    ,"USD" : "US$"
+    ,"BRL" : "R$"
+    ,"CNY" : "\u00A5"
+    ,"DKK" : "kr"
+    ,"EUR" : "\u20AC"
+    ,"GBP" : "\u00A3"
+    ,"INR" : "\u20B9"
+    ,"ISK" : "kr"
+    ,"JPY" : "\u00A5"
+    ,"KRW" : "\u20A9"
+    ,"PLN" : "z\u0142"
+    ,"RUB" : "\u20BD"
+    ,"SEK" : "kr"
+    ,"TWD" : "NT$"
+    ,"FRA" : "\u20A3"
+    ,"ZAR" : "\u0052"
+    ,"MYR" : 'RM'
+};
+
 HDWalletHelper.checkMnemonic = function() {
     //@note: @here: @todo: check for 12 word mnemonics.
     if (thirdparty.bip39.validateMnemonic(mnemonic)) {
@@ -51,60 +85,37 @@ HDWalletHelper.prototype.getHDCoinType = function(coinType, testNet) {
     }
 }
 
+HDWalletHelper.getCurrencyUnitPrefix = function(currencyUnit) {
+    var cryptoRef = HDWalletHelper._dictCryptoCurrency[currencyUnit];
 
-HDWalletHelper.getFiatUnitPrefix = function (fiatUnit) {
-    switch (fiatUnit) {
-        case "AUD":
-            return "AU$"; // Australian Dollar
-        case "CAD":
-            return "CA$"; // Canadian Dollar
-        case "CLP":
-            return "CL$"; // Chilean Peso
-        case "HKD":
-            return "HK$"; // Hong Kong Dollar
-        case "NZD":
-            return "NZ$"; // New Zealand Dollar
-        case "SGD":
-            return "SG$"; // Singapore Dollar
-        case "MXN":
-            return "MX$"; // Mexican Dollar
-        case "NOK":
-            return "kr"; // Norwegian Krona
-        case "USD":
-            return "$"; // United States Dollar
-        case "BRL":
-            return "R$"; // Brazilian Real
-        case "CNY":
-            return "\u5143"; // Chinese Yuan
-        case "DKK":
-            return "kr"; // Danish Krona
-        case "EUR":
-            return "\u20AC"; // Euro
-        case "GBP":
-            return "\u00A3" // Great British Pound
-        case "INR":
-            return "\u20B9"; // Indian Rupee
-        case "ISK":
-            return "kr"; // Icelandik Krona
-        case "JPY":
-            return "\u00A5"; // Japanese Yen
-        case "KRW":
-            return "\u20A9"; // South Korean Won
-        case "PLN":
-            return "z\u0142"; // Polish Zloty
-        case "RUB":
-            return "\u20BD"; // Russian Ruble
-        case "SEK":
-            return "kr"; // Swedish Krona
-        case "TWD":
-            return "NT$"; // New Taiwan Dollar
-        case "FRA":
-            return "\u20A3" // French Franc
+    if (typeof(cryptoRef) === 'undefined' || crypto === null) {
+        var fiatRef = HDWalletHelper._dictFiatCurrency[currencyUnit];
+
+        if (typeof(cryptoRef) === 'undefined' || crypto === null) {
+        } else {
+            return HDWalletHelper.getFiatUnitPrefix(currencyUnit);
+        }
+    } else {
+        return HDWalletHelper.getCryptoUnitPrefix(currencyUnit);
     }
 
-    return "XX$";
+    return "XX$"; // Returns this when the currency symbol is not in the dictionary.
 }
 
+HDWalletHelper.getCryptoUnitPrefix = function (cryptoUnit) {
+    if (cryptoUnit in HDWalletHelper.dictCryptoCurrency){
+        return HDWalletHelper.dictCryptoCurrency[cryptoUnit];
+    }
+}
+
+HDWalletHelper.getFiatUnitPrefix = function (fiatUnit) {
+
+	if (fiatUnit in HDWalletHelper.dictFiatCurrency){
+        return HDWalletHelper.dictFiatCurrency[fiatUnit];
+	}
+
+	return "XX$"; // Returns this when the currency symbol is not in the dictionary.
+}
 
 HDWalletHelper.getDefaultRegulatedTXFee = function(coinType) {
     //@note: @todo: get api service for recommended bitcoin fee.
@@ -455,10 +466,10 @@ HDWalletHelper.prototype.convertSatoshisToFiat = function(satoshis, fiatUnit, no
 	}
 
     // Assertion: The user is running the program with an Apple device.
-	if (['AUD', 'CAD', 'CLP', 'HKD', 'NZD', 'SGD', 'MXN', 'NOK', 'USD', 'BRL', 'CNY', 'DKK', 'EUR', 'GBP', 'INR', 'PLN', 'RUB', 'SEK', 'TWD', 'FRA'].indexOf(fiatUnit) >= 0) {
-        value = value.toFixed(2); // Show currency to 2 decimal places.
-	} else if (['ISK', 'JPY', 'KRW'].indexOf(fiatUnit) >= 0) {
+	if (['ISK', 'JPY', 'KRW'].indexOf(fiatUnit) >= 0) {
 		value = value.toFixed(0); // No sub-currency so show currency as whole number.
+	} else {
+		value = value.toFixed(2); // No sub-currency so show currency as whole number.
 	}
 
     var commified = value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -513,10 +524,10 @@ HDWalletHelper.prototype.convertWeiToFiat = function(wei, fiatUnit, noPrefix) {
     }
 
 	// Assertion: The user is running the program with an Apple device.
-	if (['AUD', 'CAD', 'CLP', 'HKD', 'NZD', 'SGD', 'MXN', 'NOK', 'USD', 'BRL', 'CNY', 'DKK', 'EUR', 'GBP', 'INR', 'PLN', 'RUB', 'SEK', 'TWD', 'FRA'].indexOf(fiatUnit) >= 0) {
-		value = value.toFixed(2); // Show currency to 2 decimal places.
-	} else if (['ISK', 'JPY', 'KRW'].indexOf(fiatUnit) >= 0) {
+	if (['ISK', 'JPY', 'KRW'].indexOf(fiatUnit) >= 0) {
 		value = value.toFixed(0); // No sub-currency so show currency as whole number.
+	} else {
+		value = value.toFixed(2); // Show currency to 2 decimal places.
 	}
 
     var commified = value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -555,7 +566,7 @@ HDWalletHelper.parseURI = function(uri) {
     var comps = uriRemaining.split(':');
     switch (comps.length) {
         // secheme:[//]address[?query]
-        case 2:
+        default:
             result.coin = comps[0];
             uriRemaining = comps[1];
             if (uriRemaining.substring(0, 2) === '//') {
@@ -573,13 +584,14 @@ HDWalletHelper.parseURI = function(uri) {
             uriRemaining = comps[0];
             break;
 
-        default:
+        case 0:
             return null;
     }
 
     // address[?query]
     comps = uriRemaining.split('?');
     result.address = comps[0];
+
     switch (comps.length) {
         case 2:
             uriRemaining = comps[1];
@@ -587,9 +599,13 @@ HDWalletHelper.parseURI = function(uri) {
         case 1:
             uriRemaining = '';
             break;
-        default:
+        case 0:
             return null;
+        default:
+            comps = comps.slice(0, 2);
     }
+
+    //@note: @bug: this isn't coded correctly to detect duplicates of any type, and 'amount' could be the 2nd and 3rd parameters for example.
 
     // Parse out the amount (add other tags in the future); duplicate values is a FATAL error
     comps = uriRemaining.split('&');
@@ -597,6 +613,7 @@ HDWalletHelper.parseURI = function(uri) {
         var kv = comps[i].split('=');
         if (kv.length === 2 && kv[0] === 'amount') {
             if (result.amount) {
+                console.log("error :: > 1 amount field detected"); //@note: adding this for debugging.
                 return null;
             } else {
                 result.amount = kv[1];
@@ -606,7 +623,7 @@ HDWalletHelper.parseURI = function(uri) {
 
     // IBAN is the format for ethereum
     if (result.coin === 'iban') { result.coin = 'ether'; }
-    //console.log(JSON.stringify(result));
+//    console.log(JSON.stringify(result));
     switch (result.coin) {
         case 'bitcoin':
             try {
@@ -950,7 +967,9 @@ HDWalletHelper.prototype.checkIsSmartContractQuery = function(address, callback)
 }
 
 HDWalletHelper.convertCoinToUnitType = function(coinType, coinAmount, coinUnitType) {
-    var coinOtherUnitAmount = 0;
+
+
+	var coinOtherUnitAmount = 0;
 
     if (coinType === COIN_BITCOIN) {
         coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertSatoshisToBitcoins(coinAmount) : HDWalletHelper.convertBitcoinsToSatoshis(coinAmount);
@@ -965,6 +984,10 @@ HDWalletHelper.convertCoinToUnitType = function(coinType, coinAmount, coinUnitTy
     return coinOtherUnitAmount;
 }
 
+
+
+
+
 HDWalletHelper.getCoinDisplayScalar = function(coinType, coinAmount, isFiat) {
     var scaledAmount = coinAmount;
 
@@ -975,7 +998,7 @@ HDWalletHelper.getCoinDisplayScalar = function(coinType, coinAmount, isFiat) {
         }
     }
 
-//    console.log("scaledAmount :: " + scaledAmount);
+	//    console.log("scaledAmount :: " + scaledAmount);
 
     return scaledAmount;
 }
@@ -983,3 +1006,82 @@ HDWalletHelper.getCoinDisplayScalar = function(coinType, coinAmount, isFiat) {
 HDWalletHelper.toEthereumNakedAddress = function(address) {
     return address.toLowerCase().replace('0x', '');
 }
+
+HDWalletHelper.prototype.convertCoinToFiatWithFiatType = function(coinType, coinAmount, coinUnitType, fiatUnit, noPrefix) {
+    var fiatAmount = 0;
+
+    if (coinType === COIN_BITCOIN) {
+        var satoshis = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertBitcoinsToSatoshis(coinAmount) : coinAmount;
+
+        fiatAmount = wallet.getHelper().convertSatoshisToFiat(satoshis, fiatUnit, noPrefix);
+    } else if (coinType === COIN_ETHEREUM) {
+        var wei = (coinUnitType === COIN_UNITLARGE) ?  HDWalletHelper.convertEtherToWei(coinAmount) : coinAmount;
+
+        fiatAmount = wallet.getHelper().convertWeiToFiat(wei, fiatUnit, noPrefix);
+    } else if (coinType === COIN_THEDAO_ETHEREUM) {
+        var wei = (coinUnitType === COIN_UNITLARGE) ?  HDWalletHelper.convertEtherToWei(coinAmount) : coinAmount;
+
+        fiatAmount = wallet.getHelper().convertWeiToFiat(wei, fiatUnit, noPrefix);
+    }
+
+    //    console.log("convertCoinToFiat :: coinAmount :: " + coinAmount + " :: fiatAmount :: " + fiatAmount + " :: " + noPrefix);
+
+    return fiatAmount;
+//
+//    // Returns the coinType coin value of coinAmount fiat units in the given pFiatType.
+//    var rate = 0;
+//    var divisor = useLargeUnit ? 1 : HDWalletHelper.convertCoinToUnitType(coinType, 1, COIN_UNITLARGE);
+//    if (this._exchangeRates[coinType][fiatUnit]) {
+//        rate = this._exchangeRates[coinType][fiatUnit].last;
+//    }
+//	//console.log(rate);
+//	return rate * coinAmount / divisor;
+}
+
+
+/*HDWalletHelper.prototype.convertSatoshisToFiat = function(satoshis, fiatUnit, noPrefix) {
+
+    if (typeof(fiatUnit) === 'undefined' || fiatUnit === null) {
+        fiatUnit = this.getFiatUnit();
+    }
+
+    var prefix = HDWalletHelper.getFiatUnitPrefix(fiatUnit);
+
+    var rate = 0;
+    if (this._exchangeRates[COIN_BITCOIN][fiatUnit]) {
+        rate = this._exchangeRates[COIN_BITCOIN][fiatUnit].last;
+    }
+
+//    console.log("rate :: " + this._exchangeRates[COIN_BITCOIN][fiatUnit].last);
+
+    var value = parseFloat(HDWalletHelper.convertSatoshisToBitcoins(satoshis)) * rate;
+
+//    console.log("fiatUnit :: " + fiatUnit + " :: prefix :: " + prefix + " :: satoshis :: " + satoshis + " :: value :: " + value);
+
+    if (noPrefix) {
+        //        value = value.toFixed(2);
+        //        console.log("returning :: " + value)
+        return value;
+    }
+
+	if (window.Intl) {
+		var formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: fiatUnit});
+		// Cut front end until first digit and then append prefix.
+		value = formatter.format(value);
+		value = value.substring(value.indexOf(value.match(/\d/)), value.length); // This will cut the prefix off of 'value'.
+		value = prefix + value; // This appends the prefix to the currency value.
+		return value;
+	}
+
+    // Assertion: The user is running the program with an Apple device.
+	if (['ISK', 'JPY', 'KRW'].indexOf(fiatUnit) >= 0) {
+		value = value.toFixed(0); // No sub-currency so show currency as whole number.
+	} else {
+		value = value.toFixed(2); // No sub-currency so show currency as whole number.
+	}
+
+    var commified = value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+    //    console.log("commified :: " + commified + " :: noPrefix :: " + noPrefix);
+    return (noPrefix ? '': prefix) + commified;
+}*/

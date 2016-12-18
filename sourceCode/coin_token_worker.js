@@ -74,7 +74,7 @@ CoinTokenWorker.prototype.initialize = function(tokenName, tokenSymbol, tokenCoi
     if (this._tokenCoinType === CoinToken.TheDAO) {
         socketUri = "";// "wss://api.ether.fund";
 
-        this._STATIC_RELAY_URL = "http://52.38.226.208:8080/api/thedao";
+        this._STATIC_RELAY_URL = "http://api.jaxx.io:80/api/thedao";
 //        this._GATHER_TX = "/balance";
 //        this._GATHER_TX_APPEND = "&sort=asc&apikey=" + HDWalletHelper.jaxxEtherscanAPIKEY;
 

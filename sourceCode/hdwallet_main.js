@@ -131,7 +131,7 @@ HDWalletMain.prototype.setup = function() {
 }
 
 HDWalletMain.prototype.confirmBackup = function() {
-    storeData('lastBackupTimestamp' + this.getPouch(COIN_BITCOIN)._storageKey, (new Date()).getTime());
+    storeData('lastBackupTimestamp', (new Date()).getTime());
 }
 
 HDWalletMain.prototype.shutDown = function(updateListener) {

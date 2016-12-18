@@ -796,7 +796,7 @@ EthereumWallet.prototype.getBalance = function () {
 };
 
 EthereumWallet.prototype.getDefaultGasPrice = function() {
-    return thirdparty.web3.toWei(thirdparty.web3.toBigNumber('50'), 'shannon');
+    return thirdparty.web3.toWei(thirdparty.web3.toBigNumber('21'), 'shannon');
 };
 
 

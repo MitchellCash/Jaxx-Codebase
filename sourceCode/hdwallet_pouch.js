@@ -43,6 +43,8 @@ var HDWalletPouch = function() {
     this._publicAddressCache = {};
     this._checkAddressCache = {};
 
+    this._internalIndexAddressCache = {};
+
     this._manualAddressCache = {};
 
     this._spendableBalance = null;
@@ -352,6 +354,15 @@ HDWalletPouch.prototype.loadAndCache = function() {
 
     this._publicAddressCache = publicAddressCache;
 
+    var internalIndexAddressCache = getStoredData('wInternalIndexAddrCache_' + this._coinFullName + "_" + this._storageKey, true);
+
+    if (!internalIndexAddressCache) {
+        internalIndexAddressCache = {};
+    } else {
+        internalIndexAddressCache = JSON.parse(internalIndexAddressCache);
+    }
+
+    this._internalIndexAddressCache = internalIndexAddressCache;
 
     var qrCodeBase64Cache = getStoredData('wQRCodeCache_' + this._coinFullName + "_" + this._storageKey, true);
 
@@ -507,6 +518,7 @@ HDWalletPouch.prototype.setupWorkers = function() {
                 }
 
                 if (message.data.content.workerCacheAddressMap) {
+//                    console.log("[" + self._coinFullName + "] :: updating worker cache address map");
                     var workerCacheAddressMap = message.data.content.workerCacheAddressMap;
 
                     var numPrevWorkerCacheKeys = Object.keys(self._w_addressMap).length;
@@ -529,10 +541,14 @@ HDWalletPouch.prototype.setupWorkers = function() {
                         }
                     }
 
+//                    if (self._coinType === COIN_ETHEREUM) {
+//                        self.updateTokenAddresses(workerCacheAddressMap);
+//                    }
+
                     if (self._wkrCacheValid === false || numPrevWorkerCacheKeys < numUpdatedWorkerCacheKeys || cacheBalancesUpdated === true) {
 
-                        if (this._coinType === COIN_ETHEREUM) {
-                            this.updateTokenAddresses(workerCacheAddressMap);
+                        if (self._coinType === COIN_ETHEREUM) {
+                            self.updateTokenAddresses(workerCacheAddressMap);
                         }
 
                         self._wkrCacheValid = true;
@@ -886,7 +902,7 @@ HDWalletPouch.prototype._getUnspentOutputs = function() {
     return result;
 }
 
-HDWalletPouch.prototype.getPouchBalance = function() {
+HDWalletPouch.prototype.getPouchFoldBalance = function() {
     if (this._coinType === COIN_BITCOIN) {
         var unspent = this._getUnspentOutputs();
 
@@ -995,6 +1011,47 @@ HDWalletPouch.prototype.getPublicAddress = function(internal, index, ignoreCache
     return publicAddress;
 }
 
+HDWalletPouch.prototype.getInternalIndexAddressDict = function(publicAddress) {
+    var publicAddressKey = publicAddress;
+    if (this._coinType === COIN_BITCOIN) {
+
+    } else if (this._coinType === COIN_ETHEREUM) {
+        publicAddressKey = publicAddressKey.toLowerCase();
+        //            console.log("caching public address :: " + publicAddress)
+    }
+
+    if (this._coinType === COIN_ETHEREUM) {
+        var internalIndexAddress = this._internalIndexAddressCache[publicAddressKey];
+
+        if (typeof(internalIndexAddress) === 'undefined' || internalIndexAddress === null || typeof(ignoreCached) !== 'undefined') {
+
+            if (typeof(ignoreCached) === 'undefined') {
+                internalIndexAddress = "" + this.getInternalIndexForPublicAddress(publicAddressKey) + "-0";
+
+                this._internalIndexAddressCache[publicAddressKey] = internalIndexAddress;
+
+//                console.log("caching internalIndexAddress :: " + internalIndexAddress + " :: public address :: " + publicAddress)
+
+                storeData('wInternalIndexAddrCache_' + this._coinFullName + "_" + this._storageKey, JSON.stringify(this._internalIndexAddressCache), true);
+            } else {
+                console.log("uncached fetch of internal index address");
+            }
+        } else {
+            //        if (this._coinType === COIN_ETHEREUM) {
+            //            publicAddress = HDWalletHelper.toEthereumChecksumAddress(publicAddress);
+            ////            console.log("cached fetch of public address :: " + publicAddress)
+            //        }
+        }
+    }
+
+    var internalIndexAddress = this._internalIndexAddressCache[publicAddressKey];
+
+    var arraySplit = internalIndexAddress.split("-");
+    internalIndexAddress = {index: arraySplit[0], internal: arraySplit[1]};
+
+    return internalIndexAddress;
+}
+
 HDWalletPouch.prototype.getCurrentReceiveAddress = function() {
     var address = this._currentReceiveAddress;
 
@@ -1027,7 +1084,7 @@ HDWalletPouch.prototype.getSpendableBalance = function() {
     var spendableBalance = 0;
 
     if (this._coinType === COIN_BITCOIN) {
-        spendableBalance = this.getPouchBalance();
+        spendableBalance = this.getPouchFoldBalance();
         var address = this.getCurrentReceiveAddress();
 
         while (spendableBalance > 0) {
@@ -2273,15 +2330,19 @@ HDWalletPouch.prototype.setupTokens = function() {
             this._token[i] = new CoinToken();
         }
 
-        this._token[CoinToken.TheDAO].initialize("TheDAO", "DAO", CoinToken.TheDAO);
+        var baseReceiveAddress = HDWalletPouch.getCoinAddress(this._coinType, HDWalletPouch._derive(this._receiveNode, 0, false)).toString();
+
+        this._token[CoinToken.TheDAO].initialize("TheDAO", "DAO", CoinToken.TheDAO, baseReceiveAddress, this, HDWalletHelper.getDefaultEthereumGasPrice(), HDWalletHelper.getDefaultTheDAOGasLimit(), this._storageKey);
 
         this.updateTokenAddresses(this._w_addressMap);
     }
 }
 
 HDWalletPouch.prototype.updateTokenAddresses = function(addressMap) {
-    var transferrableMap = {};
+    var transferableMap = {};
     var votableMap = {};
+
+//    console.log("[" + this._coinFullName + "] :: updating token addresses");
 
     for (var publicAddress in addressMap) {
         var addressInfo = addressMap[publicAddress];
@@ -2289,20 +2350,22 @@ HDWalletPouch.prototype.updateTokenAddresses = function(addressMap) {
         //    console.log("internal :: " + internal + " :: index :: " + index + " :: publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo) + " :: _w_addressMap :: " + JSON.stringify(this._w_addressMap));
 
         if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
-            transferrableMap[publicAddress] = addressInfo.tokenTransferrableList;
+//            console.log("adding :: " + publicAddress + " :: to :: " + addressInfo.tokenTransferableList + " :: " + addressInfo.tokenVotableList);
+            transferableMap[publicAddress] = addressInfo.tokenTransferableList;
             votableMap[publicAddress] = addressInfo.tokenVotableList;
         }
     }
 
     for (var i = 0; i < CoinToken.numCoinTokens; i++) {
-        var tokenTransferrableMap = [];
-        var tokenVotableMap = [];
+        var tokenTransferableArray = [];
+        var tokenVotableArray = [];
 
-        //@note: tokens are transferrable by default. however, if they are explicitly marked as not transferrable, respect that.
-        for (publicAddress in transferrableMap) {
-            var curTransferrableToken = transferrableMap[publicAddress];
-            if ((typeof(curTransferrableToken) !== undefined && curTransferrableToken !== null && curTransferrableToken !== false) || (typeof(curTransferrableToken) === undefined || curTransferrableToken === null))  {
-                tokenTransferrableMap.push(publicAddress);
+        //@note: tokens are transferable by default. however, if they are explicitly marked as not transferable, respect that.
+        for (publicAddress in transferableMap) {
+            var curTransferableToken = transferableMap[publicAddress];
+            if ((typeof(curTransferableToken) !== undefined && curTransferableToken !== null && curTransferableToken !== false) || (typeof(curTransferableToken) === undefined || curTransferableToken === null))  {
+//                console.log("adding :: " + publicAddress + " :: to transferableMap");
+                tokenTransferableArray.push(publicAddress);
             }
         }
 
@@ -2310,11 +2373,22 @@ HDWalletPouch.prototype.updateTokenAddresses = function(addressMap) {
         for (publicAddress in votableMap) {
             var curVotableToken = votableMap[publicAddress];
             if (typeof(curVotableToken) !== undefined && curVotableToken !== null && curVotableToken === true) {
-                tokenVotableMap.push(publicAddress);
+                tokenVotableArray.push(publicAddress);
             }
         }
 
-        this._token[i].setIsTransferable(tokenTransferrableMap);
-        this._token[i].setIsVotable(tokenVotableMap);
+//        console.log("transferable :: " + JSON.stringify(tokenTransferableArray) + " :: " + JSON.stringify(tokenVotableArray));
+
+        this._token[i].setIsTransferable(tokenTransferableArray);
+        this._token[i].setIsVotable(tokenVotableArray);
     }
+}
+
+HDWalletPouch.prototype.getToken = function(tokenType) {
+//    console.log("tokenType :: " + tokenType);
+    return this._token[tokenType];
+}
+
+HDWalletPouch.prototype.isTokenType = function() {
+    return false;
 }

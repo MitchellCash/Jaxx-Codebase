@@ -5,8 +5,8 @@
 //@note: @context:
 //the allegory is a "wallet"
 //there are a number of "pouches" in this "wallet", which relate to different currency types.
-//there are a number of "account" types that are the equivalent of a savings/chequing account for the
-//same currency type.
+//there are a number of "folds" inside this "pouch" which relate to subcurrencies (tokens). the primary "fold" is always the main currency that all the tokens are derived from.
+//there are a number of "account" types that are the equivalent of a savings/chequing account for the same currency type.
 
 
 var ACCOUNT_HD = 0;
@@ -40,8 +40,10 @@ HDWalletMain.prototype.initialize = function() {
 
     for (var i = 0; i < COIN_NUMCOINTYPES; i++) {
 //    for (var i = 0; i < 1; i++) {
-        this._pouches[i] = new HDWalletPouch();
-        this._pouches[i].setup(i, false, this._helper);
+        if (coinIsTokenSubtype[i] !== true) {
+            this._pouches[i] = new HDWalletPouch();
+            this._pouches[i].setup(i, false, this._helper);
+        }
     }
 
 //    console.log("this._pouches.length :: " + this._pouches.length);
@@ -87,7 +89,7 @@ HDWalletMain.prototype.switchToCoinType = function(targetCoinType) {
 }
 
 HDWalletMain.prototype.completeSwitchToCoinType = function(targetCoinType) {
-    this.getPouch(targetCoinType).refreshIfNecessary();
+    this.getPouchFold(targetCoinType).refreshIfNecessary();
 }
 
 HDWalletMain.prototype.getHasSetupLegacyEthereumSweep = function() {
@@ -132,18 +134,22 @@ HDWalletMain.prototype.shutDown = function(updateListener) {
     for (var i = 0; i < COIN_NUMCOINTYPES; i++) {
         this.getHelper().removeExchangeRateListener(i, updateListener);
 
-        this.getPouch(i).shutDown();
+        this.getPouchFold(i).shutDown();
 
-        this.getPouch(i).removeListener(updateListener);
-        this.getPouch(i).setLogger(null);
+        this.getPouchFold(i).removeListener(updateListener);
+        this.getPouchFold(i).setLogger(null);
     }
 }
 
-HDWalletMain.prototype.getPouch = function(coinType) {
+HDWalletMain.prototype.getPouchFold = function(coinType) {
 //    console.log("this._pouches[coinType] :: " + this._pouches[coinType] + " :: coinType :: " + coinType);
 
     if (coinType >= 0 && coinType < COIN_NUMCOINTYPES) {
-        return this._pouches[coinType];
+        if (coinIsTokenSubtype[coinType] !== true) {
+            return this._pouches[coinType];
+        } else {
+            return this._pouches[CoinToken.getMainTypeToTokenCoinHolderTypeMap(coinType)].getToken(CoinToken.getMainTypeToTokenMap(coinType));
+        }
     }
 
     return null;
@@ -216,7 +222,7 @@ HDWalletMain.prototype.hasGlitchedLegacyEthereumWallet = function() {
 HDWalletMain.prototype.transferLegacyEthereumAccountToHDNode = function() {
     if (this._legacyEthereumWallet) {
         if (this._legacyEthereumWallet._address && this._legacyEthereumWallet._private) {
-            var tx = this._legacyEthereumWallet.buildTransaction(this.getPouch(COIN_ETHEREUM).getCurrentReceiveAddress().toLowerCase(), this._legacyEthereumWallet.getSpendableBalance());
+            var tx = this._legacyEthereumWallet.buildTransaction(this.getPouchFold(COIN_ETHEREUM).getCurrentReceiveAddress().toLowerCase(), this._legacyEthereumWallet.getSpendableBalance());
 
             if (tx) {
                 this._legacyEthereumWallet.sendTransaction(tx, function(err, res) {
@@ -238,9 +244,9 @@ HDWalletMain.prototype.transferLegacyEthereumAccountToHDNode = function() {
 HDWalletMain.prototype.getAddressesAndKeysCSVForCoinType = function(coinType) {
     var returnStr = "";
 
-    console.log(this.getPouch(coinType)._coinFullName + " :: export private keys");
+    console.log(this.getPouchFold(coinType)._coinFullName + " :: export private keys");
 
-    var accounts = this.getPouch(coinType).getAccountList();
+    var accounts = this.getPouchFold(coinType).getAccountList();
 
     console.log("number of accounts :: " + accounts.length);
 
@@ -274,7 +280,7 @@ HDWalletMain.prototype.getEthereumLegacyLightwalletAccount = function(coinType) 
 }
 
 HDWalletMain.prototype.getEthereumLegacyStableKeypair = function(coinType) {
-    return this.getPouch(COIN_ETHEREUM).getEthereumLegacyStableKeypair();
+    return this.getPouchFold(COIN_ETHEREUM).getEthereumLegacyStableKeypair();
 }
 
 

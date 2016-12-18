@@ -4,7 +4,7 @@ var HDWalletHelper = function() {
 
     this._ethAddressTypeMap = {};
 
-    this._defaultEthereumGasPrice = thirdparty.web3.toWei(thirdparty.web3.toBigNumber('50'), 'shannon');
+    this._defaultEthereumGasPrice = thirdparty.web3.toWei(thirdparty.web3.toBigNumber('21'), 'shannon');
     this._defaultEthereumGasLimit = thirdparty.web3.toBigNumber(21000);
     this._recommendedEthereumCustomGasLimit = this._defaultEthereumGasLimit;
     this._currentEthereumCustomGasLimit = this._recommendedEthereumCustomGasLimit;
@@ -22,8 +22,6 @@ var HDWalletHelper = function() {
 }
 
 HDWalletHelper.theDAOAddress = "0xbb9bc244d798123fde783fcc1c72d3bb8c189413";
-
-HDWalletHelper.jaxxEtherscanAPIKEY = "WGWHHAU4F2Y58UW5FQWTUJWSXBNHU7WBSX";
 
 HDWalletHelper.checkMnemonic = function() {
     //@note: @here: @todo: check for 12 word mnemonics.
@@ -109,7 +107,7 @@ HDWalletHelper.getDefaultRegulatedTXFee = function(coinType) {
 //@note: these functions return BigNumber instances.
 
 HDWalletHelper.getDefaultEthereumGasPrice = function() {
-    return thirdparty.web3.toWei(thirdparty.web3.toBigNumber('50'), 'shannon');
+    return thirdparty.web3.toWei(thirdparty.web3.toBigNumber('21'), 'shannon');
 };
 
 HDWalletHelper.getDefaultEthereumGasLimit = function() {
@@ -132,6 +130,11 @@ HDWalletHelper.prototype.setCustomEthereumGasLimit = function(customEthereumGasL
 //    console.log("ethereum :: update custom gas limit :: " + customEthereumGasLimit);
     this._currentEthereumCustomGasLimit = thirdparty.web3.toBigNumber(customEthereumGasLimit);
 }
+
+HDWalletHelper.getDefaultTheDAOGasLimit = function() {
+    return thirdparty.web3.toBigNumber(150000);
+}
+
 
 HDWalletHelper.prototype.compareToDustLimit = function(amount, unitType, compareToCustomGasLimit) {
     var compareAmount = amount;
@@ -168,6 +171,8 @@ HDWalletHelper.prototype.initialize = function() {
         this._exchangeRates[i] = {};
         this._exchangeRateListenerCallbacks[i] = [];
 
+        this._loadExchangeRates();
+
 //        console.log("_updateExchangeRateTime :: " + this._updateExchangeRateTime);
         setInterval(function(curCoinType) {
 //            console.log("check :: " + curCoinType);
@@ -194,11 +199,13 @@ HDWalletHelper.prototype._updateExchangeRates = function(coinType) {
                 self._exchangeRates[COIN_BITCOIN] = dataBTC;
 //                console.log('New Exchange Rate (BTC): ' + usdRate);
             }
+
+            self._saveExchangeRates();
             self._notifyExchangeRateListeners(COIN_BITCOIN);
         });
     } else if (coinType == COIN_ETHEREUM && Object.keys(this._exchangeRates[COIN_BITCOIN]).length > 0) {
         RequestSerializer.getJSON("https://poloniex.com/public?command=returnTicker", function (dataETH) {
-            if (!dataETH || !dataETH['BTC_ETH'] || !dataETH['BTC_ETH'].last) {
+            if (!dataETH || !dataETH['BTC_ETH'] || !dataETH['BTC_ETH'].last || !dataETH['BTC_DAO'] || !dataETH['BTC_DAO'].last) {
                 console.log('Failed to get exchange rates for ETH', dataETH);
                 return;
             }
@@ -207,9 +214,14 @@ HDWalletHelper.prototype._updateExchangeRates = function(coinType) {
 
             var usdRate = self._exchangeRates[COIN_BITCOIN]['USD'];
             var btceth = dataETH['BTC_ETH'].last;
+            var btcdao = dataETH['BTC_DAO'].last;
             var ethusd = (usdRate * btceth).toFixed(2);
+            var daousd = (usdRate * btcdao).toFixed(2);
+
+            var didUpdateRates = false;
 
             if (Object.keys(self._exchangeRates[COIN_ETHEREUM]).length === 0 || self._exchangeRates[COIN_ETHEREUM]['USD'] != ethusd) {
+                didUpdateRates = true;
 //                console.log('New Exchange Rate (ETH): ' + ethusd);
 
                 for (var currency in self._exchangeRates[COIN_BITCOIN]) {
@@ -226,11 +238,48 @@ HDWalletHelper.prototype._updateExchangeRates = function(coinType) {
 
                     self._exchangeRates[COIN_ETHEREUM][currency] = tempRate;
                 }
+            }
 
+            if (Object.keys(self._exchangeRates[COIN_THEDAO_ETHEREUM]).length === 0 || self._exchangeRates[COIN_THEDAO_ETHEREUM]['USD'] != daousd) {
+                didUpdateRates = true;
+                //                console.log('New Exchange Rate (ETH): ' + ethusd);
+
+                for (var currency in self._exchangeRates[COIN_BITCOIN]) {
+                    // skip loop if the property is from prototype
+                    if (!self._exchangeRates[COIN_BITCOIN].hasOwnProperty(currency)) {
+                        continue;
+                    }
+
+                    var tempRate = [];
+
+                    tempRate['ask'] = (self._exchangeRates[COIN_BITCOIN][currency]['ask'] * btcdao).toFixed(2);
+                    tempRate['bid'] = (self._exchangeRates[COIN_BITCOIN][currency]['bid'] * btcdao).toFixed(2);
+                    tempRate['last'] = (self._exchangeRates[COIN_BITCOIN][currency]['last'] * btcdao).toFixed(2);
+
+                    self._exchangeRates[COIN_THEDAO_ETHEREUM][currency] = tempRate;
+                }
+            }
+
+            if (didUpdateRates === true) {
                 self._notifyExchangeRateListeners(COIN_ETHEREUM);
+                self._notifyExchangeRateListeners(COIN_THEDAO_ETHEREUM);
+
+                self._saveExchangeRates();
             }
         });
     }
+}
+
+HDWalletHelper.prototype._loadExchangeRates = function() {
+    var exchangeRates = getStoredData("exchangeRates", false);
+
+    if (typeof(exchangeRates) !== 'undefined' && exchangeRates !== null) {
+        this._exchangeRates = JSON.parse(exchangeRates);
+    }
+}
+
+HDWalletHelper.prototype._saveExchangeRates = function() {
+    storeData("exchangeRates", JSON.stringify(this._exchangeRates), false);
 }
 
 HDWalletHelper.prototype._notifyExchangeRateListeners = function(coinType) {
@@ -271,7 +320,7 @@ HDWalletHelper.prototype.getFiatUnitPrefix = function() {
 HDWalletHelper.prototype.hasFiatExchangeRates = function(coinType, fiatUnit) {
 //        console.log("< checking for fiat exchange rates >");
     if (this._exchangeRates[coinType][fiatUnit]) {
-        //    console.log("< has fiat exchange rates >");
+//            console.log("< has fiat exchange rates >");
         return true;
     }
     //    console.log("< no fiat exchange rates >");
@@ -472,50 +521,172 @@ HDWalletHelper.prototype.convertFiatToWei = function(fiatAmount, fiatUnit) {
     return wei;
 }
 
+// Given an address or URI; identify coin type, address and optional amount.
+HDWalletHelper.parseURI = function(uri) {
+    if (!uri) { return null; }
 
-HDWalletHelper.parseBitcoinAddress = function(address) {
-    if (address.substring(0, 10) === 'bitcoin://') {
-        address = address.substring(10);
-    } else if (address.substring(0, 8) === 'bitcoin:') {
-        address = address.substring(8);
+    var result = {};
+
+    var uriRemaining = uri;
+
+    var comps = uriRemaining.split(':');
+    switch (comps.length) {
+        // secheme:[//]address[?query]
+        case 2:
+            result.coin = comps[0];
+            uriRemaining = comps[1];
+            if (uriRemaining.substring(0, 2) === '//') {
+                urlRemaining = urlRemaining.substring(2);
+            }
+            break;
+
+        // address[?query]
+        case 1:
+            if (uriRemaining.match(/^((0x)?[0-9a-fA-F]{40}|XE)/)) {
+                result.coin = 'ether';
+            } else if (uriRemaining.match(/^[13]/)) {
+                result.coin = 'bitcoin';
+            }
+            uriRemaining = comps[0];
+            break;
+
+        default:
+            return null;
     }
 
-    return address;
-}
-
-HDWalletHelper.parseBitcoinURI = function(uri) {
-    var parsedUri = HDWalletHelper.parseBitcoinAddress(uri);
-
-    //    console.log("< parsing :: " + uri + " >");
-
-    var comps = parsedUri.split('?');
-
-    var result = {address: comps[0]};
-    //@note:@here:@todo:
-    if (getAddressCoinType(result.address) != COIN_BITCOIN) {
-        //        console.log("<address invalid :: " + result.address + ">")
-        return null;
-    } else {
-        //        console.log("<address valid :: " + result.address + ">")
+    // address[?query]
+    comps = uriRemaining.split('?');
+    result.address = comps[0];
+    switch (comps.length) {
+        case 2:
+            uriRemaining = comps[1];
+            break;
+        case 1:
+            uriRemaining = '';
+            break;
+        default:
+            return null;
     }
 
-    if (comps.length > 1) {
-        var query = comps.slice(1).join('?');
-        comps = query.split('&');
-        for (var i = 0; i < comps.length; i++) {
-            var kv = comps[i].split('=');
-            if (kv.length === 2 && kv[0] === 'amount') {
-                if (result.amount) {
-                    return null;
-                } else {
-                    result.amount = kv[1];
-                }
+    // Parse out the amount (add other tags in the future); duplicate values is a FATAL error
+    comps = uriRemaining.split('&');
+    for (var i = 0; i < comps.length; i++) {
+        var kv = comps[i].split('=');
+        if (kv.length === 2 && kv[0] === 'amount') {
+            if (result.amount) {
+                return null;
+            } else {
+                result.amount = kv[1];
             }
         }
     }
 
+    // IBAN is the format for ethereum
+    if (result.coin === 'iban') { result.coin = 'ether'; }
+    //console.log(JSON.stringify(result));
+    switch (result.coin) {
+        case 'bitcoin':
+            try {
+                if (!thirdparty.bitcoin.address.fromBase58Check(result.address)) {
+                    return null;
+                }
+            } catch (error) {
+                return null;
+            }
+            break;
+        case 'ether':
+            if (result.address.match(/^0x[0-9a-fA-F]{40}$/)) {
+                // Address is already prefxed hex
+
+            } else if (result.address.match(/^[0-9a-fA-F]{40}$/)) {
+                // Prefix the hex
+                result.address = '0x' + result.address;
+
+            } else if (result.address.substring(0, 2) === 'XE') {
+                // ICAP address
+
+                // Check the checksum
+                var validICAP = false;
+                thirdparty.iban.countries.XE = thirdparty.iban.countries.XE31;
+                if (thirdparty.iban.isValid(result.address)) {
+                    validICAP = true;
+                } else {
+                    thirdparty.iban.countries.XE = thirdparty.iban.countries.XE30;
+                    if (thirdparty.iban.isValid(result.address)) {
+                        validICAP = true;
+                    }
+                }
+
+                if (!validICAP) { return null; }
+
+                // Indirect encoded... Not supported yet (no namereg)
+                if (result.address.substring(0, 7) === 'ETHXREG') {
+                    return null;
+
+                // Direct or Basic encoded (should be true because it is valid iban)
+                } else if (result.address.match(/^[A-Za-z0-9]+$/)) {
+
+                    // Decode the base36 encoded address (removing the XE and checksum)
+                    var hexAddress = (new thirdparty.bigi(result.address.substring(4), 36)).toString(16);
+
+                    // Something terrible happened...
+                    if (hexAddress.length > 40) { return null; }
+
+                    // zero-pad
+                    while (hexAddress.length < 40) { hexAddress = '0' + hexAddress; }
+
+                    // Prefix the address
+                    result.address = '0x' + hexAddress;
+
+                } else {
+                    return null;
+                }
+
+            } else {
+                return null;
+            }
+            break;
+        default:
+            return null;
+    }
+
     return result;
 }
+
+/*
+
+ // Run some simple tsts to make sure parsing the URI works.
+var tests = [
+             '1RicMooMWxqKczuRCa5D2dnJaUEn9ZJyn',
+             'bitcoin:1RicMooMWxqKczuRCa5D2dnJaUEn9ZJyn',
+             'bitcoin:1RicMooMWxqKczuRCa5D2dnJaUEn9ZJyn?amount=4.5',
+             '1RicMooMWxqKczuRCa5D2dnJaUEn9ZJyn?amount=3.2',
+             'XE235A6EOUWJWGG1NBXXJW2SXEB36T8J4W0',
+             'iban:XE235A6EOUWJWGG1NBXXJW2SXEB36T8J4W0',
+             'iban:XE235A6EOUWJWGG1NBXXJW2SXEB36T8J4W0?amount=7.8',
+             'XE235A6EOUWJWGG1NBXXJW2SXEB36T8J4W0?amount=6.5',
+             'iban:0x2d3976b32c17bd893f3c183e5dee872074475b80',
+             '0x2d3976b32c17bd893f3c183e5dee872074475b80',
+
+             '1RicMooMWxqKczuRCa5D2dnJaUEn9ZJy',
+             'XE235A6EOUWJWGG1NBXXJW2SXEB36T8J4W',
+             '0x2d3976b32c17bd893f3c183e5dee872074475b8',
+             '1RicMooMWxqKczuRCa5D2dnJaUEn9ZJyn1',
+             'XE235A6EOUWJWGG1NBXXJW2SXEB36T8J4W01',
+             '0x2d3976b32c17bd893f3c183e5dee872074475b801',
+];
+
+setTimeout(function() {
+    for (var i = 0; i < tests.length; i++) {
+       try {
+           console.log('BAR', tests[i], JSON.stringify(HDWalletHelper.parseURI(tests[i])));
+        } catch(error) {
+           console.log(error.message);
+        }
+    }
+}, 1000);
+*/
+
 
 HDWalletHelper.hexify = function (value) {
     if (typeof(value) === 'number' || typeof(value) === 'string') {
@@ -735,7 +906,7 @@ HDWalletHelper.prototype.checkIsSmartContractQuery = function(address, callback)
 
     var self = this;
 
-    var url = "http://api.etherscan.io/api?module=proxy&action=eth_getCode&address=" + address + "&tag=latest";
+    var url = "https://api.etherscan.io/api?module=proxy&action=eth_getCode&address=" + address + "&tag=latest";
 
     RequestSerializer.getJSON(url, function (data) {
         if (!data) {
@@ -765,4 +936,23 @@ HDWalletHelper.convertCoinToUnitType = function(coinType, coinAmount, coinUnitTy
     }
 
     return coinOtherUnitAmount;
+}
+
+HDWalletHelper.getCoinDisplayScalar = function(coinType, coinAmount, isFiat) {
+    var scaledAmount = coinAmount;
+
+    if (typeof(isFiat) === 'undefined' || isFiat === null || isFiat !== true) {
+        if (coinType === COIN_THEDAO_ETHEREUM) {
+            var scalar = thirdparty.web3.toBigNumber(100);
+            scaledAmount = thirdparty.web3.toBigNumber(coinAmount).mul(scalar).toNumber();
+        }
+    }
+
+//    console.log("scaledAmount :: " + scaledAmount);
+
+    return scaledAmount;
+}
+
+HDWalletHelper.toEthereumNakedAddress = function(address) {
+    return address.toLowerCase().replace('0x', '');
 }

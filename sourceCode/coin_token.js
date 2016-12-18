@@ -790,6 +790,10 @@ CoinToken.prototype.sortHighestAccounts = function(ethereumPouch, ethGasPrice, e
 
             var internalIndexAddressDict = ethereumPouch.getInternalIndexAddressDict(curAddress);
 
+            if (internalIndexAddressDict.index === -1) {
+                continue;
+            }
+
             var ethBalanceForAddress = ethereumPouch.getAccountBalance(internalIndexAddressDict.internal, internalIndexAddressDict.index);
 
 //            if (addressInfo.balance > 0) {
@@ -878,7 +882,7 @@ CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch,
 
             var ethData = ethereumTXDataPrePendArray[0] + ABIValueToTransfer;
 
-            var newTX = ethereumPouch._buildEthereumTransaction(false, highestAccountDict.ethereumNodeIndex, toAddress, 0, gasPrice, gasLimit, ethData, doNotSign);
+            var newTX = ethereumPouch.getPouchFoldImplementation()._buildEthereumTransaction(false, highestAccountDict.ethereumNodeIndex, toAddress, 0, gasPrice, gasLimit, ethData, doNotSign);
 
             if (!newTX) {
                 this.daoTXLog("error :: ethereum transaction :: account failed to build :: " + highestAccountDict.index);
@@ -930,7 +934,7 @@ CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch,
                 var ethData = ethereumTXDataPrePend + ABIValueToTransfer;
 
                 //@note: build this particular transaction, make sure it's constructed correctly.
-                var newTX = ethereumPouch._buildEthereumTransaction(false, this._sortedHighestAccountArray[i].ethereumNodeIndex, toAddress, 0, gasPrice, gasLimit, ethData, doNotSign);
+                var newTX = ethereumPouch.getPouchFoldImplementation()._buildEthereumTransaction(false, this._sortedHighestAccountArray[i].ethereumNodeIndex, toAddress, 0, gasPrice, gasLimit, ethData, doNotSign);
 
                 if (!newTX) {
                     this.daoTXLog("error :: the dao :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].ethereumNodeIndex + " cannot build");

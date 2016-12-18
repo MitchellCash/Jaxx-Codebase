@@ -103,7 +103,7 @@ CoinTokenWorker.prototype.initialize = function(tokenName, tokenSymbol, tokenCoi
 //        this._watcherWebSocket.onopen = function() {
 //
 //            setInterval(function(){
-//                hdWalletWorker._sendPing();
+//                hdWalletWorkerManager_sendPing();
 //                //Will reply with pong
 //            }, 18000); //send a ping every 20 seconds more or less to avoid getting disconnected
 //
@@ -127,7 +127,7 @@ CoinTokenWorker.prototype.initialize = function(tokenName, tokenSymbol, tokenCoi
 //
 //            if(data.block_height == -1){ //tx not included in any block. schedule a refresh of tx in 10 seconds
 //                setTimeout(function () {
-//                    hdWalletWorker.checkTransactions(0);
+//                    hdWalletWorkerManagercheckTransactions(0);
 //                }, 12000);
 //            }
 //

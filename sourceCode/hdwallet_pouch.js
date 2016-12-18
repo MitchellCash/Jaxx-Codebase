@@ -15,6 +15,7 @@ The second, which is being implemented here, is that the highest valued index th
 
 var HDWalletPouch = function() {
     this._coinType = -1;
+    this._coinPouchImpl = null;
 
     this._cachedHistory = [];
 
@@ -90,8 +91,6 @@ var HDWalletPouch = function() {
     this._miningFeeDict = {"fastestFee": 40, "halfHourFee": 20, "hourFee": 10};
 
     this._miningFeeLevel = -1;
-
-    this._doEthTXDebug = false;
 }
 
 HDWalletPouch.MiningFeeLevelSlow = 0;
@@ -100,84 +99,53 @@ HDWalletPouch.MiningFeeLevelFast = 2;
 
 HDWalletPouch._derive = function(node, index, hardened) {
     if (hardened) {
-        return node.deriveHardened(index)
+        return node.deriveHardened(index);
     } else {
         return node.derive(index);
     }
 }
 
 HDWalletPouch.getCoinAddress = function(coinType, node) {
+    var address = "";
+
     if (coinType === COIN_BITCOIN) {
-        var pubKey = node.keyPair.getPublicKeyBuffer();
-
-        var pubKeyHash = thirdparty.bitcoin.crypto.hash160(pubKey);
-
-        var payload = new Buffer(21);
-        payload.writeUInt8(node.keyPair.network.pubKeyHash, 0);
-        pubKeyHash.copy(payload, 1);
-
-        var address = thirdparty.bs58check.encode(payload);
-
-//        console.log("[bitcoin] address :: " + address);
-        return address;
+        address = HDWalletPouchBitcoin.getCoinAddress(node);
     } else if (coinType === COIN_ETHEREUM) {
-//        console.log("[ethereum] node :: " + node);
-        var ethKeyPair = node.keyPair;
-//        console.log("[ethereum] keyPair :: " + ethKeyPair.d + " :: " + ethKeyPair.__Q);
-
-        var prevCompressed = ethKeyPair.compressed;
-        ethKeyPair.compressed = false;
-
-        var ethKeyPairPublicKey = ethKeyPair.getPublicKeyBuffer();
-
-        var pubKeyHexEth = ethKeyPairPublicKey.toString('hex').slice(2);
-
-        var pubKeyWordArrayEth = thirdparty.CryptoJS.enc.Hex.parse(pubKeyHexEth);
-
-        var hashEth = thirdparty.CryptoJS.SHA3(pubKeyWordArrayEth, { outputLength: 256 });
-
-        var addressEth = hashEth.toString(thirdparty.CryptoJS.enc.Hex).slice(24);
-
-        ethKeyPair.compressed = prevCompressed;
-
-//        console.log("[ethereum] address :: " + addressEth);
-        return "0x" + addressEth;
+        address = HDWalletPouchEthereum.getCoinAddress(node);
+    } else if (coinType === COIN_DASH) {
+        address = HDWalletPouchDash.getCoinAddress(node);
     }
+
+    return address;
 }
 
-HDWalletPouch.getLightwalletEthereumAddress = function(node) {
-    //        console.log("[ethereum] node :: " + node);
-    var ethKeyPair = node.keyPair;
-    //        console.log("[ethereum] keyPair :: " + ethKeyPair.d + " :: " + ethKeyPair.__Q);
-
-    //@note: @here: hack to get the Q to regenerate on the next 'get', triggered by getPublicKeyBuffer.
-    //        ethKeyPair.__Q = null;
-
-    var prevCompressed = ethKeyPair.compressed;
-
-    ethKeyPair.compressed = false;
-
-    var ethKeyPairPublicKey = ethKeyPair.getPublicKeyBuffer();
-
-    var pubKeyHexEth = ethKeyPairPublicKey.toString('hex').slice(2);
-
-    var pubKeyWordArrayEth = thirdparty.CryptoJS.enc.Hex.parse(pubKeyHexEth);
-
-    var hashEth = thirdparty.CryptoJS.SHA3(pubKeyWordArrayEth, { outputLength: 256 });
-
-    var addressEth = hashEth.toString(thirdparty.CryptoJS.enc.Hex).slice(24);
-
-    ethKeyPair.compressed = prevCompressed;
-
-    //        console.log("[ethereum] address :: " + addressEth);
-    return "0x" + addressEth;
-}
-
-HDWalletPouch.prototype.ethTXLog = function(logString) {
-    if (this._doEthTXDebug) {
-        console.log(logString);
-    }
-}
+//HDWalletPouch.getLightwalletEthereumAddress = function(node) {
+//    //        console.log("[ethereum] node :: " + node);
+//    var ethKeyPair = node.keyPair;
+//    //        console.log("[ethereum] keyPair :: " + ethKeyPair.d + " :: " + ethKeyPair.__Q);
+//
+//    //@note: @here: hack to get the Q to regenerate on the next 'get', triggered by getPublicKeyBuffer.
+//    //        ethKeyPair.__Q = null;
+//
+//    var prevCompressed = ethKeyPair.compressed;
+//
+//    ethKeyPair.compressed = false;
+//
+//    var ethKeyPairPublicKey = ethKeyPair.getPublicKeyBuffer();
+//
+//    var pubKeyHexEth = ethKeyPairPublicKey.toString('hex').slice(2);
+//
+//    var pubKeyWordArrayEth = thirdparty.CryptoJS.enc.Hex.parse(pubKeyHexEth);
+//
+//    var hashEth = thirdparty.CryptoJS.SHA3(pubKeyWordArrayEth, { outputLength: 256 });
+//
+//    var addressEth = hashEth.toString(thirdparty.CryptoJS.enc.Hex).slice(24);
+//
+//    ethKeyPair.compressed = prevCompressed;
+//
+//    //        console.log("[ethereum] address :: " + addressEth);
+//    return "0x" + addressEth;
+//}
 
 HDWalletPouch.prototype.setup = function(coinType, testNet, helper) {
     this._coinType = coinType;
@@ -202,23 +170,31 @@ HDWalletPouch.prototype.setup = function(coinType, testNet, helper) {
     if (this._coinType === COIN_BITCOIN) {
         if (this._TESTNET) {
             this._NETWORK = thirdparty.bitcoin.networks.testnet;
-            this._STATIC_RELAY_URL = 'https://tbtc.blockr.io';
         } else {
-            this._STATIC_RELAY_URL = 'https://btc.blockr.io';
         }
-
     } else if (this._coinType === COIN_ETHEREUM) {
-        this._STATIC_RELAY_URL = "https://api.etherscan.io";
-        this._GATHER_TX = "api?module=account&action=txlist&address=";
-        this._GATHER_TX_APPEND = "&sort=asc&apikey=" + HDWalletHelper.apiKeyEtherScan;
-
-        this._GATHER_UNCONFIRMED_TX = "";
+    } else if (this._coinType === COIN_DASH) {
+//        if (this._TESTNET) {
+//            this._NETWORK = HDWalletPouchDash.networkDefinitionTestNet;
+//        } else {
+        this._NETWORK = HDWalletPouchDash.networkDefinitionMainNet;
+//        }
     }
-
 }
 
 HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic) {
     //@note: @security: this should not need to use the decrypted mnemonic as it's only an identifier, but it's needed for backwards compatibility.
+
+    if (this._coinType === COIN_BITCOIN) {
+        this._coinPouchImpl = new HDWalletPouchBitcoin();
+    } else if (this._coinType === COIN_ETHEREUM) {
+        this._coinPouchImpl = new HDWalletPouchEthereum();
+    } else if (this._coinType === COIN_DASH) {
+        this._coinPouchImpl = new HDWalletPouchDash();
+    }
+
+    this._coinPouchImpl.initialize(this);
+
 
     this._storageKey = thirdparty.bitcoin.crypto.sha256(mnemonic + this._networkTypeString).toString('hex');
 
@@ -263,7 +239,7 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
         });
     }, this._blockRequestTimeout);
 
-    this.setupTokens();
+    this._coinPouchImpl.setup();
 }
 
 HDWalletPouch.prototype.setupMiningFeeUpdater = function() {
@@ -288,22 +264,10 @@ HDWalletPouch.prototype.getDefaultMiningFees = function() {
 //@note: @here: @todo: maybe put this in wallet helper class.
 
 HDWalletPouch.prototype.updateMiningFees = function() {
-    //@note: in bitcoin, this is the mining fee,
-    //in ethereum this is the gas price. (not the gas limit).
+//@note: in bitcoin, this is the mining fee,
+//in ethereum this is the gas price. (not the gas limit).
 
-    var self = this;
-
-    if (this._coinType === COIN_BITCOIN) {
-        $.getJSON('https://bitcoinfees.21.co/api/v1/fees/recommended', function (data) {
-            if (!data || !data.halfHourFee) {
-                console.log("cannot access default fee");
-            } else  {
-                self._miningFeeDict = data;
-                //@note: @here: default to "average"
-                self._defaultTXFee = parseInt(data.hourFee) * 1000;
-            }
-        });
-    }
+    this._coinPouchImpl.updateMiningFees();
 
     this._defaultTXFee = HDWalletHelper.getDefaultRegulatedTXFee(this._coinType);
 }
@@ -364,11 +328,11 @@ HDWalletPouch.prototype.loadAndCache = function() {
     this._seedHex = seedHex;
 
     var rootNodeBase58 = CacheUtils.getCachedOrRun("wRTn_" + this._coinFullName + "_" + self._storageKey, function() {
-        var rootNodeBase58 = thirdparty.bitcoin.HDNode.fromSeedHex(self._seedHex, NETWORK).toBase58();
+        var rootNodeBase58 = thirdparty.bitcoin.HDNode.fromSeedHex(self._seedHex, self._NETWORK).toBase58();
         return rootNodeBase58;
     });
 
-    var rootNode = thirdparty.bitcoin.HDNode.fromBase58(rootNodeBase58, NETWORK);
+    var rootNode = thirdparty.bitcoin.HDNode.fromBase58(rootNodeBase58, this._NETWORK);
     this._rootNode = rootNode;
 
     var accountNodeBase58 = CacheUtils.getCachedOrRun("wAn_" + this._coinFullName + "_" + self._storageKey, function() {
@@ -376,7 +340,7 @@ HDWalletPouch.prototype.loadAndCache = function() {
         return accountNodeBase58;
     });
 
-    var accountNode = thirdparty.bitcoin.HDNode.fromBase58(accountNodeBase58, NETWORK);
+    var accountNode = thirdparty.bitcoin.HDNode.fromBase58(accountNodeBase58, this._NETWORK);
     this._accountNode = accountNode;
 
     var receiveNodeBase58 = CacheUtils.getCachedOrRun("wRn_" + this._coinFullName + "_" + self._storageKey, function() {
@@ -384,7 +348,7 @@ HDWalletPouch.prototype.loadAndCache = function() {
         return receiveNodeBase58;
     });
 
-    var receiveNode = thirdparty.bitcoin.HDNode.fromBase58(receiveNodeBase58, NETWORK);
+    var receiveNode = thirdparty.bitcoin.HDNode.fromBase58(receiveNodeBase58, this._NETWORK);
     this._receiveNode = receiveNode;
 
 //    if (this._coinType === COIN_ETHEREUM) {
@@ -399,7 +363,7 @@ HDWalletPouch.prototype.loadAndCache = function() {
         return changeNodeBase58;
     });
 
-    var changeNode = thirdparty.bitcoin.HDNode.fromBase58(changeNodeBase58, NETWORK);
+    var changeNode = thirdparty.bitcoin.HDNode.fromBase58(changeNodeBase58, this._NETWORK);
     this._changeNode = changeNode;
 
 
@@ -465,18 +429,20 @@ HDWalletPouch.prototype.loadAndCache = function() {
 HDWalletPouch.prototype.setupWorkers = function() {
     // Background thread to run heavy HD algorithms and keep the state up to date
     try {
-        this._worker = new Worker('./js/wallet/hdwallet_worker.js');
-        //        this._worker = new Worker('./js/wallet/wallet-worker.js');
+        this._worker = new Worker('./js/wallet/hdwallet_worker_manager.js');
 
         var self = this;
+
         this._worker.onmessage = function(message) {
             var action = message.data.action;
 
             // Log to our logger
             if (action === 'log') {
                 self.log.apply(self, message.data.content);
-
                 // Set transaction, utxo, etc.
+            } else if (action == 'didInitialize') {
+                console.log("[ HDWalletPouch :: " + self._coinFullName + " ] :: finished initialization");
+                self.completeWorkerInitialization();
             } else if (action === 'update') {
 
                 var numPrevTXKeys = Object.keys(self._transactions).length;
@@ -495,63 +461,17 @@ HDWalletPouch.prototype.setupWorkers = function() {
                     for (var txid in transactions) {
                         var transaction = transactions[txid];
 
-                        if (self._coinType === COIN_BITCOIN) {
-                            var existingTransaction = self._transactions[txid];
-                            if (typeof(existingTransaction) === 'undefined') {
-                                existingTransaction = null;
-                            }
-                            //@note: @here: @next:
-//                            if (typeof(existingTransaction) !== 'undefined' && existingTransaction !== null && existingTransaction.inputs && existingTransaction.outputs) {
-//                                if (transaction.inputs.length !== existingTransaction.inputs.length) {
-//                                    console.log("tx inputs different length");
-//                                    didModifyTX = true;
-//                                }
-//
-//                                if (transaction.outputs.length !== existingTransaction.outputs.length) {
-//                                    console.log("tx outputs different length");
-//                                    didModifyTX = true;
-//                                }
-//                            }
+                        var isTXUpdated = self._coinPouchImpl.updateTransactionsFromWorker(txid, transactions);
 
-                            // We need to convert all the amounts from BTC to satoshis (cannot do this inside the worker easily)
-                            for (var i = 0; i < transaction.inputs.length; i++) {
-                                var input = transaction.inputs[i];
-                                input.amount = HDWalletHelper.convertBitcoinsToSatoshis(input.amountBtc);
-
-                                if (existingTransaction && (existingTransaction.inputs[i].addressIndex !== input.addressIndex || existingTransaction.inputs[i].addressInternal !== input.addressInternal)) {
-//                                    console.log("[inputs] :: " + i + " :: [existingTransaction] :: addressIndex :: " + existingTransaction.inputs[i].addressIndex + " :: addressInternal :: " + existingTransaction.inputs[i].addressInternal + " :: [incomingTransaction] : addressIndex :: " + input.addressIndex + " :: addressInternal :: " + input.addressInternal);
-                                    didModifyTX = true;
-                                }
-//                                console.log("input.amountBtc :: " + input.amountBtc + " :: input.amount :: " + input.amount)
-                            }
-                            for (var i = 0; i < transaction.outputs.length; i++) {
-                                var output = transaction.outputs[i];
-                                output.amount = HDWalletHelper.convertBitcoinsToSatoshis(output.amountBtc);
-
-                                if (existingTransaction && (existingTransaction.outputs[i].addressIndex !== output.addressIndex || existingTransaction.outputs[i].addressInternal !== output.addressInternal)) {
-//                                    console.log("[outputs] :: " + i + " :: [existingTransaction] :: addressIndex :: " + existingTransaction.outputs[i].addressIndex + " :: addressInternal :: " + existingTransaction.outputs[i].addressInternal + " :: [incomingTransaction] : addressIndex :: " + output.addressIndex + " :: addressInternal :: " + output.addressInternal);
-
-                                    didModifyTX = true;
-                                }
-
-//                                console.log("output.amountBtc :: " + output.amountBtc + " :: output.amount :: " + output.amount)
-                            }
-
-                            self._transactions[txid] = transaction;
-                            self._spendableBalance = null;
-                        } else if (self._coinType === COIN_ETHEREUM) {
-//                                                        console.log("wallet worker update :: eth tx :: " + Object.keys(transactions).length);
-//                            console.log("incoming eth tx :: " + JSON.stringify(transaction) + " :: " + txid);
-                            self._transactions[txid] = transaction;
-
-                            self._spendableBalance = null;
-
-                            self._largeQrCode = null;
-                            self._smallQrCode = null;
+                        if (isTXUpdated === true) {
+                            didModifyTX = true;
                         }
+
+                        self._transactions[txid] = transaction;
+                        self._spendableBalance = null;
                     }
 
-                    if (self._txCacheValid === false ||                                     didModifyTX === true || self._coinType === COIN_BITCOIN) {
+                    if (self._txCacheValid === false || didModifyTX === true || self._coinType === COIN_BITCOIN || self._coinType === COIN_DASH) {
 //                        if (self._coinType === COIN_BITCOIN) {
 //                            console.log(self._coinFullName + " ::  updating transaction cache");
 //                        }
@@ -618,15 +538,8 @@ HDWalletPouch.prototype.setupWorkers = function() {
                         }
                     }
 
-//                    if (self._coinType === COIN_ETHEREUM) {
-//                        self.updateTokenAddresses(workerCacheAddressMap);
-//                    }
-
                     if (self._wkrCacheValid === false || numPrevWorkerCacheKeys < numUpdatedWorkerCacheKeys || cacheBalancesUpdated === true) {
-
-                        if (self._coinType === COIN_ETHEREUM) {
-                            self.updateTokenAddresses(workerCacheAddressMap);
-                        }
+                        self._coinPouchImpl.updateTokenAddresses(workerCacheAddressMap);
 
                         self._wkrCacheValid = true;
                         storeData('wWrkrCacheAddrMap_' + self._coinFullName + "_" + self._storageKey, JSON.stringify(workerCacheAddressMap), true);
@@ -635,13 +548,7 @@ HDWalletPouch.prototype.setupWorkers = function() {
                     }
 
                     self._w_addressMap = workerCacheAddressMap;
-
-                    if (self._coinFullName === "Bitcoin") {
-                    } else if (self._coinFullName === "Ethereum") {
-                        self.sortHighestAccounts();
-                    }
-
-//                    self._notify();
+                    self.getPouchFoldImplementation().afterWorkerCacheInvalidate();
                 }
 
                 self._notify();
@@ -652,6 +559,19 @@ HDWalletPouch.prototype.setupWorkers = function() {
     }
 
     if (this._worker) {
+        console.log("initialize worker");
+        this._worker.postMessage({
+            action: 'initialize',
+            coinType: this._coinType,
+            testNet: this._TESTNET
+        });
+    }
+}
+
+HDWalletPouch.prototype.completeWorkerInitialization = function() {
+    if (this._worker) {
+        var self = this;
+
         var shouldPostWorkerCache = false;
 
         var workerCacheAddressMap = getStoredData('wWrkrCacheAddrMap_' + this._coinFullName + "_" + this._storageKey, true);
@@ -672,15 +592,9 @@ HDWalletPouch.prototype.setupWorkers = function() {
             }
         }
 
-//        if (this._coinFullName === "Ethereum") {
-//        console.log("_w_addressMap :: " + this._coinFullName + "\n" + JSON.stringify(this._w_addressMap));
-//        }
-
-        this._worker.postMessage({
-            action: 'initialize',
-            coinType: this._coinType,
-            testNet: this._TESTNET
-        });
+        //        if (this._coinFullName === "Ethereum") {
+        //        console.log("_w_addressMap :: " + this._coinFullName + "\n" + JSON.stringify(this._w_addressMap));
+        //        }
 
         if (shouldPostWorkerCache === true) {
             this._worker.postMessage({
@@ -724,11 +638,7 @@ HDWalletPouch.prototype.shutDown = function() {
         });
     }
 
-    if (this._coinType === COIN_ETHEREUM) {
-        for (var i = 0; i < CoinToken.numCoinTokens; i++) {
-            this._token[i].shutDown();
-        }
-    }
+    this._coinPouchImpl.shutDown();
 
     if (this._miningFeeInterval !== null) {
         clearInterval(this._miningFeeInterval);
@@ -763,34 +673,7 @@ HDWalletPouch.prototype.getDefaultTransactionFee = function() {
 }
 
 HDWalletPouch.prototype.getTransactions = function() {
-    var res = [];
-
-    if (this._coinType === COIN_BITCOIN) {
-        /**
- *  Get all transactions for this wallet, sorted by date, earliest to latest.
- */
-        for (var key in this._transactions) {
-            res.push(this._transactions[key]);
-        }
-
-        res.sort(function (a, b) {
-            var deltaConf = (a.confirmations - b.confirmations);
-            if (deltaConf) { return deltaConf; }
-            return (b.timestamp - a.timestamp);
-        });
-    } else if (this._coinType === COIN_ETHEREUM) {
-//        console.log("this._transactions length :: " + Object.keys(this._transactions).length);
-        for (var txid in this._transactions) {
-//            console.log("adding tx :: " + txid)
-            res.push(this._transactions[txid]);
-        }
-
-        res.sort(function (a, b) {
-            var deltaTimeStamp = (b.timestamp - a.timestamp);
-            if (deltaTimeStamp) { return deltaTimeStamp; }
-            return (a.confirmations - b.confirmations);
-        });
-    }
+    var res = this._coinPouchImpl.getTransactions();
 
     return res;
 };
@@ -801,6 +684,10 @@ HDWalletPouch.prototype.getHistory = function() {
 //    if (this._coinType === COIN_BITCOIN) {
 //        console.log("getHistory :: num transactions :: " + transactions.length + " :: this._cachedHistory.length :: " + this._cachedHistory.length);
 //    }
+
+    if (this._coinType === COIN_DASH) {
+//        console.log("getHistory :: num transactions :: " + transactions.length + " :: transactions :: " + JSON.stringify(transactions) + " :: this._cachedHistory.length :: " + this._cachedHistory.length);
+    }
 
     var history = [];
 
@@ -831,101 +718,10 @@ HDWalletPouch.prototype.getHistory = function() {
             continue;
         }
 
-        if (this._coinType === COIN_BITCOIN) {
-            var deltaBalance = 0;
-			var deltaDAO = 0;
-            var miningFee = 0;
+        var newHistoryItem = this._coinPouchImpl.calculateHistoryforTransaction(transaction);
 
-            for (var i = 0; i < transaction.inputs.length; i++) {
-                var input = transaction.inputs[i];
-
-                miningFee += input.amount;
-
-                // Our address, money sent (input values are always negative)
-                if (input.addressIndex !== null) {
-                    deltaBalance += input.amount;
-                }
-            }
-
-            var myInputAddress = [];
-            var otherOutputAddress = [];
-            for (var i = 0; i < transaction.outputs.length; i++) {
-                var output = transaction.outputs[i];
-
-                miningFee += output.amount;
-
-                // Our address, money received
-                if (output.addressIndex !== null) {
-                    deltaBalance += output.amount;
-                    myInputAddress.push(input.address);
-                } else {
-                    otherOutputAddress.push(output.address);
-                }
-            }
-
-            var toAddress = null;
-			var toAddressFull = null;
-
-            if (deltaBalance > 0 && myInputAddress.length === 1) {
-                toAddress = myInputAddress[0];
-				toAddressFull = myInputAddress[0];
-            } else if (deltaBalance < 0 && otherOutputAddress.length === 1) {
-                toAddress = otherOutputAddress[0];
-				toAddressFull = otherOutputAddress[0];
-            }
-
-            var newHistoryItem = {
-                toAddress: toAddress,
-                toAddressFull: toAddressFull,
-                blockHeight: transaction.block,
-                confirmations: transaction.confirmations,
-                deltaBalance: deltaBalance,
-                miningFee: miningFee,
-                timestamp: transaction.timestamp,
-                txid: transaction.txid
-            };
-
-//            console.log("adding new history item :: " + newHistoryItem);
+        if (typeof(newHistoryItem) !== 'undefined' && newHistoryItem !== null) {
             history.push(newHistoryItem);
-        } else if (this._coinType === COIN_ETHEREUM) {
-//            console.log("A :: ethereum transaction :: " + JSON.stringify(transaction));
-            if (typeof(transaction.addressIndex) !== 'undefined' && transaction.addressIndex !== null) {
-//                console.log("B :: ethereum transaction :: " + JSON.stringify(transaction));
-
-                var toAddress = "";
-				var toAddressFull = "";
-
-                var valueDelta = thirdparty.web3.fromWei(transaction.valueDelta);
-				var valueDAO = 77777; // Need transaction.txid --> address from DAOhub
-
-                if (this.isAddressFromSelf(transaction.to)) {
-                    toAddress = "Self";
-					toAddressFull = "Self"
-                } else {
-                    toAddress = transaction.to.substring(0, 7) + '...' + transaction.to.substring(transaction.to.length - 5);
-					toAddressFull = transaction.to;
-                    if (transaction.from === 'GENESIS') {
-                        toAddress = transaction.from;
-                    }
-
-                }
-
-                var gasCost = thirdparty.web3.fromWei(transaction.gasUsed * transaction.gasPrice);
-
-                history.push({
-                    toAddress: toAddress,
-					toAddressFull: toAddressFull,
-                    blockNumber: transaction.blockNumber,
-                    confirmations: transaction.confirmations,
-                    deltaBalance: valueDelta,
-					deltaDAO: valueDAO,
-                    gasCost: gasCost,
-                    timestamp: transaction.timestamp,
-                    txid: transaction.txid
-                });
-            } else {
-                console.log("error :: undetermined transaction :: " + JSON.stringify(transaction));
-            }
         }
     }
 
@@ -933,109 +729,10 @@ HDWalletPouch.prototype.getHistory = function() {
     return history;
 }
 
-HDWalletPouch.prototype._getUnspentOutputs = function() {
-    var unspent = {};
-
-    // Sigh... We don't get the transaction index (within a block), so we can't strictly order them
-
-    var transactions = this.getTransactions();
-
-    if (this._coinType === COIN_BITCOIN) {
-        // Add the each UTXO
-        for (var ti = transactions.length - 1; ti >= 0; ti--) {
-            var transaction = transactions[ti];
-            for (var i = 0; i < transaction.outputs.length; i++) {
-                var output = transaction.outputs[i];
-                if (output.addressIndex !== null) {
-                    var utxoKey = output.txid + ':' + output.index;
-                    unspent[utxoKey] = output;
-                }
-            }
-        }
-
-        // Remove each spent UTXO
-        for (var ti = transactions.length - 1; ti >= 0; ti--) {
-            var transaction = transactions[ti];
-            for (var i = 0; i < transaction.inputs.length; i++) {
-                var input = transaction.inputs[i];
-                if (input.addressIndex !== null) {
-                    var utxoKey = input.previousTxid + ':' + input.previousIndex;
-                    if (unspent[utxoKey]) {
-                        delete unspent[utxoKey];
-                    }
-                }
-            }
-        }
-    } else if (this._coinType === COIN_ETHEREUM) {
-//        console.log("eth unspent check");
-        // Add the each UTXO
-        for (var ti = transactions.length - 1; ti >= 0; ti--) {
-            var transaction = transactions[ti];
-//            console.log("tx :: " + JSON.stringify(transaction));
-
-            //@note: for ether, we're using a similar
-            if (typeof(transaction.addressIndex) !== 'undefined' && transaction.addressIndex !== null) {
-                if (!unspent[transaction.addressIndex]) {
-                    unspent[transaction.addressIndex] = {index: transaction.addressIndex, to: transaction.to, from: transaction.from, amount: 0};
-                }
-
-//                console.log("tx value :: " + transaction.valueDelta);
-
-                unspent[transaction.addressIndex].amount += parseInt(transaction.valueDelta);
-//                console.log("cur amount :: " + unspent[transaction.addressIndex].amount);
-            }
-        }
-
-        for (tx in unspent) {
-            if (unspent[tx].amount < 0) {
-                console.log("error :: ethereum balance for account :: " + JSON.stringify(tx) + " :: " + unspent[tx].amount);
-
-                delete unspent[tx];
-            } else if (this._helper.compareToDustLimit(unspent[tx].amount, COIN_UNITLARGE, false) === -1) { //@note: check if this is lower than the dust limit.
-                console.log("error :: ethereum balance for account :: " + JSON.stringify(tx) + " :: is below the dust limit of 21000 * 50 gwei" + unspent[tx].amount);
-
-                delete unspent[tx];
-            }
-        }
-    }
-
-    // Convert to an array of outputs
-    var result = [];
-    for (var utxoKey in unspent) {
-        result.push(unspent[utxoKey]);
-    }
-
-    return result;
-}
-
 HDWalletPouch.prototype.getPouchFoldBalance = function() {
-    if (this._coinType === COIN_BITCOIN) {
-        var unspent = this._getUnspentOutputs();
+    var balance = this._coinPouchImpl.getPouchFoldBalance();
 
-        var balance = 0;
-
-        for (var i = 0; i < unspent.length; i++) {
-            balance += unspent[i].amount;
-        }
-
-        return balance;
-    } else if (this._coinType === COIN_ETHEREUM) {
-        var balance = 0;
-
-        var highestIndexToCheck = this.getHighestReceiveIndex();
-
-        highestIndexToCheck++; //@note: @here: check for internal transaction balances on current receive account.
-
-        if (highestIndexToCheck !== -1) {
-
-            for (var i = 0; i < highestIndexToCheck + 1; i++) {
-                var curBalance = this.getAccountBalance(false, i);
-                balance += curBalance;
-            }
-        }
-
-        return balance;
-    }
+    return balance;
 }
 
 //@note: this function when passed in an explicit null to ignoreCached, will use cache.
@@ -1126,7 +823,7 @@ HDWalletPouch.prototype.getInternalIndexAddressDict = function(publicAddress) {
 
     } else if (this._coinType === COIN_ETHEREUM) {
         publicAddressKey = publicAddressKey.toLowerCase();
-//        console.log("caching public address :: " + publicAddressKey)
+        //        console.log("caching public address :: " + publicAddressKey)
     }
 
     if (this._coinType === COIN_ETHEREUM) {
@@ -1147,13 +844,20 @@ HDWalletPouch.prototype.getInternalIndexAddressDict = function(publicAddress) {
         }
 
         if (addToCache) {
-            internalIndexAddress = "" + this.getInternalIndexForPublicAddress(publicAddressKey) + "-0";
+            var internalIndex = this.getInternalIndexForPublicAddress(publicAddressKey);
 
-            this._internalIndexAddressCache[publicAddressKey] = internalIndexAddress;
+            if (internalIndex === -1) {
+//                console.log("error in describing index for address :: " + publicAddressKey);
+                return {index:-1, internal:-1};
+            } else {
+                internalIndexAddress = "" + internalIndex + "-0";
 
-            console.log("caching internalIndexAddress :: " + internalIndexAddress + " :: public address :: " + publicAddress)
+                this._internalIndexAddressCache[publicAddressKey] = internalIndexAddress;
 
-            storeData('wInternalIndexAddrCache_' + this._coinFullName + "_" + this._storageKey, JSON.stringify(this._internalIndexAddressCache), true);
+                console.log("caching internalIndexAddress :: " + internalIndexAddress + " :: public address :: " + publicAddress)
+
+                storeData('wInternalIndexAddrCache_' + this._coinFullName + "_" + this._storageKey, JSON.stringify(this._internalIndexAddressCache), true);
+            }
         } else {
             //        if (this._coinType === COIN_ETHEREUM) {
             //            publicAddress = HDWalletHelper.toEthereumChecksumAddress(publicAddress);
@@ -1203,49 +907,10 @@ HDWalletPouch.prototype.getSpendableBalance = function(minimumValue) {
         minimumValue = 0;
     }
 
-    var spendableBalance = 0;
-    var numPotentialTX = 0;
+    var spendableDict = this._coinPouchImpl.getSpendableBalance(minimumValue);
 
-    if (this._coinType === COIN_BITCOIN) {
-        spendableBalance = this.getPouchFoldBalance();
-        var address = this.getCurrentReceiveAddress();
-
-        while (spendableBalance > 0) {
-            //@note: @todo: maybe migrate this (carefully!) to the ethereum side's mechanism.
-            var transaction = this.buildBitcoinTransaction(address, spendableBalance, true);
-            if (transaction) { break; }
-
-            spendableBalance -= this.getCurrentMiningFee();
-        }
-
-        numPotentialTX = 1;
-    } else if (this._coinType === COIN_ETHEREUM) {
-//        console.log("types :: " + typeof(this._helper.getCustomEthereumGasLimit()) + " :: " + typeof(HDWalletHelper.getDefaultEthereumGasPrice()));
-//        console.log("spendable :: custom gas limit :: " + this._helper.getCustomEthereumGasLimit() + " :: default gas price :: " + HDWalletHelper.getDefaultEthereumGasPrice());
-
-        var baseTXCost = this._helper.getCustomEthereumGasLimit().mul(HDWalletHelper.getDefaultEthereumGasPrice()).toNumber();
-
-        var totalTXCost = 0;
-
-        //@note: returns {index: x, balance: y} format.
-        var highestAccountDict = this.getHighestAccountBalanceAndIndex();
-        if (highestAccountDict !== null) {
-            for (var i = 0; i < this._sortedHighestAccountArray.length; i++) {
-                var accountBalance = this._sortedHighestAccountArray[i].balance;
-
-                //@note: check for account balance lower than the dust limit
-                if (accountBalance <= minimumValue + baseTXCost) {
-
-                } else {
-                    spendableBalance += accountBalance - baseTXCost;
-                    numPotentialTX++;
-                    totalTXCost += baseTXCost;
-                }
-            }
-        }
-
-//        console.log("ethereum spendable :: " + spendableBalance + " :: totalTXCost :: " + totalTXCost + " :: " + numPotentialTX + " :: minimumValue :: " + minimumValue);
-    }
+    var spendableBalance = spendableDict.spendableBalance;
+    var numPotentialTX = spendableDict.numPotentialTX;
 
     if (spendableBalance < 0) {
         spendableBalance = 0;
@@ -1282,190 +947,9 @@ HDWalletPouch.prototype.getAccountBalance = function(internal, index, ignoreCach
         internal = 1;
     }
 
-    var accountBalance = 0;
-
-    if (this._coinType === COIN_BITCOIN) {
-        //@note:@todo:@optimization: this should probably be cached in the worker..
-        // Add the each UTXO
-        var transactions = this.getTransactions();
-        var unspent = {};
-
-        for (var ti = transactions.length - 1; ti >= 0; ti--) {
-            var transaction = transactions[ti];
-            for (var i = 0; i < transaction.outputs.length; i++) {
-                var output = transaction.outputs[i];
-                if (output.addressIndex !== null) {
-                    //@note: @here: only a truthy check for internal.
-                    if (output.addressInternal == internal && output.addressIndex === index) {
-                        var utxoKey = output.txid + ':' + output.index;
-                        unspent[utxoKey] = output;
-                    }
-                }
-            }
-        }
-
-        // Remove each spent UTXO
-        for (var ti = transactions.length - 1; ti >= 0; ti--) {
-            var transaction = transactions[ti];
-            for (var i = 0; i < transaction.inputs.length; i++) {
-                var input = transaction.inputs[i];
-                if (input.addressIndex !== null) {
-                    //@note: @here: only a truthy check for internal.
-                    if (output.addressInternal == internal && output.addressIndex === index) {
-                        var utxoKey = input.previousTxid + ':' + input.previousIndex;
-                        if (unspent[utxoKey]) {
-                            delete unspent[utxoKey];
-                        }
-                    }
-                }
-            }
-        }
-
-        for (var i = 0; i < unspent.length; i++) {
-            accountBalance += unspent.balance;
-        }
-    } else if (this._coinType === COIN_ETHEREUM) {
-        var publicAddress = this.getPublicAddress(internal, index);
-
-        //@note: for ethereum checksum addresses.
-        publicAddress = publicAddress.toLowerCase();
-
-        var addressInfo = this._w_addressMap[publicAddress];
-
-//        console.log("publicAddress :: " + publicAddress);
-//        if (publicAddress == "0x8e63e85adebcdb448bb93a2f3bd00215c1cbaec4") {
-//            console.log("internal :: " + internal + " :: index :: " + index + " :: publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo) + " :: _w_addressMap :: " + JSON.stringify(this._w_addressMap));
-//
-//        }
-
-        if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
-//            console.log("publicAddress :: " + publicAddress + " :: balance :: " + addressInfo.accountBalance);
-            accountBalance = addressInfo.accountBalance;
-        }
-    }
+    var accountBalance = this._coinPouchImpl.getAccountBalance(internal, index);
 
     return accountBalance;
-}
-
-HDWalletPouch.prototype.getIsTheDAOAssociated = function(internal, index) {
-    var publicAddress = this.getPublicAddress(internal, index);
-
-    //@note: for ethereum checksum addresses.
-    publicAddress = publicAddress.toLowerCase();
-
-    var addressInfo = this._w_addressMap[publicAddress];
-
-    if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
-//        console.log("publicAddress :: " + publicAddress + " :: isTheDAOAssociated :: " + addressInfo.isTheDAOAssociated);
-        if (addressInfo.isTheDAOAssociated === true) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-HDWalletPouch.prototype.getEthereumNonce = function(internal, index) {
-    if (typeof(index) === 'undefined' || index === null) {
-        console.log("error :: getEthereumNonce :: index undefined or null");
-        return -1;
-    }
-
-    var fromAddress = HDWalletPouch.getCoinAddress(this._coinType, this.getNode(internal, index));
-
-    var transactions = this.getTransactions(); //Get all transactions
-
-    var lastIndexChange = 0;
-    var lastIndexReceive = 0;
-
-    var txDict = {};
-    var highestNonce = 0;
-    for (var ti = 0; ti < transactions.length; ti++) { //iterate through txs
-        var transaction = transactions[ti];
-        if (transaction.from === fromAddress) {
-            txDict[transaction.txid] = true;
-            //@note: @here: @bug: for address 0x5630a246f35996a1d605174d119ece78c8f5d94a,
-            //it appears that there are 8 tx when doing it the following way, which is wrong. getTransactions only has 6 identifiers.
-//            console.log("fromAddress :: " + fromAddress + " :: found tx :: " + JSON.stringify(transaction.txid));
-//            highestNonce++;
-        }
-    }
-
-    highestNonce = Object.keys(txDict).length;
-
-    console.log("getEthereumNonce :: index :: " + index + " :: fromAddress :: " + fromAddress + " :: highestNonce :: " + highestNonce);
-
-//    if (internal === false) {
-//        internal = 0;
-//    } else if (internal === true) {
-//        internal = 1;
-//    }
-//
-//    var publicAddress = this.getPublicAddress(internal, index);
-//
-//    //@note: for ethereum checksum addresses.
-//    publicAddress = publicAddress.toLowerCase();
-//
-//    var addressInfo = this._w_addressMap[publicAddress];
-//
-//    var nonce = 0;
-//
-//    if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
-//        nonce = addressInfo.nonce;
-//
-//        //        console.log("publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo));
-//    }
-//
-    return highestNonce;
-}
-
-//@note: this function when passed in an explicit null to ignoreCached, will use cache. cached only in session.
-HDWalletPouch.prototype.isAddressFromSelf = function(addressToCheck, ignoreCached) {
-    var isSelfAddress = false;
-
-    //@note: for ethereum checksum addresses.
-    if (this._coinType === COIN_ETHEREUM) {
-        addressToCheck = addressToCheck.toLowerCase();
-    }
-
-    var key = addressToCheck;
-    var isSelfAddress = this._checkAddressCache[key];
-
-    if (typeof(isSelfAddress) === 'undefined' || isSelfAddress === null || typeof(ignoreCached) !== 'undefined') {
-        var highestIndexToCheck = this.getHighestReceiveIndex();
-
-        if (highestIndexToCheck !== -1) {
-            for (var i = 0; i < highestIndexToCheck + 1; i++) {
-                var curAddress = this.getPublicAddress(false, i);
-
-                //@note: for ethereum checksum addresses.
-                if (this._coinType === COIN_ETHEREUM) {
-                    curAddress = curAddress.toLowerCase();
-                }
-
-                //            console.log("addressToCheck :: " + addressToCheck + " :: curAddress :: " + curAddress);
-                if (curAddress === addressToCheck) {
-//                    console.log("addressToCheck :: " + addressToCheck + " :: curAddress :: " + curAddress);
-                    isSelfAddress = true;
-                    break;
-                }
-            }
-        }
-
-//        console.log("addressToCheck :: " + addressToCheck + " :: curAddress :: " + curAddress + " :: " + isSelfAddress);
-
-        if (typeof(ignoreCached) === 'undefined') {
-//            console.log("caching isAddressFromSelf :: " + addressToCheck + " :: " + key + " :: " + isSelfAddress);
-            this._checkAddressCache[addressToCheck] = isSelfAddress;
-//            console.log("caching isAddressFromSelf :: " +  this._checkAddressCache[addressToCheck]);
-        } else {
-            console.log("uncached");
-        }
-    } else {
-//        console.log("fetching cached isAddressFromSelf :: " + addressToCheck + " :: key :: " + key + " :: " + isSelfAddress);
-    }
-
-    return isSelfAddress;
 }
 
 HDWalletPouch.prototype.getHighestReceiveIndex = function() {
@@ -1530,10 +1014,6 @@ HDWalletPouch.prototype.getInternalIndexForPublicAddress = function(publicAddres
 
     for (var i = 0; i < highestIndexToCheck; i++) {
         var addressToCheck = this.getPublicAddress(false, i);
-        if (publicAddress === '0x8739d833292415d6302c2f242cc2bf69d9624b6e') {
-            console.log("checking :: 0x8739d833292415d6302c2f242cc2bf69d9624b6e :: " + addressToCheck);
-        }
-
         //@note: for ethereum checksum addresses.
         if (this._coinType === COIN_ETHEREUM) {
             addressToCheck = addressToCheck.toLowerCase();
@@ -1546,7 +1026,7 @@ HDWalletPouch.prototype.getInternalIndexForPublicAddress = function(publicAddres
     }
 
     if (foundIdx === -1) {
-        console.log("getInternalIndexForPublicAddress :: could not find index of :: " + publicAddress);
+//        console.log("getInternalIndexForPublicAddress :: could not find index of :: " + publicAddress);
     }
 
     return foundIdx;
@@ -1580,183 +1060,7 @@ HDWalletPouch.prototype.generateQRCode = function(largeFormat, coinAmountSmallTy
 }
 
 HDWalletPouch.prototype._generateQRCode = function(largeFormat,  coinAmountSmallType) {
-    var curRecAddr = this.getCurrentReceiveAddress();
-
-    var uri = "";
-
-    if (this._coinType === COIN_BITCOIN) {
-        uri = "bitcoin:" + curRecAddr;
-    } else if (this._coinType === COIN_ETHEREUM) {
-        uri = "iban:" + HDWalletHelper.getICAPAddress(curRecAddr);
-    }
-
-    if (coinAmountSmallType) {
-        uri += "?amount=" + coinAmountSmallType;
-    }
-
-    if (largeFormat) {
-        if (coinAmountSmallType || !this._largeQrCode) {
-            //            this.log('Blocked to generate QR big Code');
-            this._largeQrCode =  "data:image/png;base64," + thirdparty.qrImage.imageSync(uri, {type: "png", ec_level: "H", size: 7, margin: 1}).toString('base64');
-        }
-
-        return this._largeQrCode;
-    } else {
-        if (coinAmountSmallType || !this._smallQrCode) {
-            //        this.log('Blocked to generate QR small Code');
-            this._smallQrCode =  "data:image/png;base64," + thirdparty.qrImage.imageSync(uri, {type: "png", ec_level: "H", size: 5, margin: 1}).toString('base64');
-        }
-
-        return this._smallQrCode;
-    }
-}
-
-HDWalletPouch.prototype._buildBitcoinTransaction = function(toAddress, amount_smallUnit, transactionFee, doNotSign) {
-    //    this._load();
-
-    // Get all UTXOs, biggest to smallest)
-    var unspent = this._getUnspentOutputs();
-    unspent.sort(function (a, b) {
-        return (a.amount - b.amount);
-    });
-
-    // @TODO: Build a better change picking algorithm; for now we select the largest first
-
-    // Find a set of UTXOs that can afford the output amount
-    var toSpend = [];
-    var toSpendTotal = 0;
-    while (toSpendTotal < amount_smallUnit + transactionFee) {
-        if (unspent.length === 0) {
-            return null;
-        }
-        var utxo = unspent.pop();
-        toSpend.push(utxo);
-        toSpendTotal += utxo.amount;
-
-        // Keys for bip69 to sort on
-        utxo.vout = utxo.index;
-        utxo.txId = utxo.txid;
-    }
-
-    // Create the transaction
-    var tx = new thirdparty.bitcoin.TransactionBuilder(NETWORK);
-
-    // This mimicks the data structure we keep our transactions in so we can
-    // simulate instantly fulfilling the transaction
-    var mockTx = {
-        block: -1,
-        confirmations: 0,
-        inputs: [],
-        outputs: [],
-        timestamp: (new Date()).getTime(),
-    }
-
-    var addressToScript = function(address) {
-        return thirdparty.bitcoin.address.toOutputScript(toAddress, NETWORK);
-    }
-
-
-    // Send the target their funds
-    var outputs = [
-        {
-            address: toAddress,
-            amount: amount_smallUnit,
-            addressIndex: null,
-            addressInternal: null,
-
-            // Keys for bip69 to sort on
-            value: amount_smallUnit,
-            script: addressToScript(toAddress),
-        }
-    ];
-
-    // Send the change back to us
-    var change = toSpendTotal - amount_smallUnit - transactionFee;
-    if (change) {
-        var changeAddress = this._currentChangeAddress;
-        outputs.push({
-            address: this._currentChangeAddress,
-            addressIndex: this._currentChangeIndex,
-            addressInternal: 1,
-            amount: change,
-
-            // Keys for bip69 to sort on
-            value: change,
-            script: addressToScript(this._currentChangeAddress),
-        });
-    }
-
-    // Sort the inputs and outputs according to bip 69
-    toSpend = thirdparty.bip69.sortInputs(toSpend);
-    outputs = thirdparty.bip69.sortOutputs(outputs);
-
-    // Add the outputs
-    for (var i = 0; i < outputs.length; i++) {
-        var output = outputs[i];
-        tx.addOutput(output.address, output.amount);
-        mockTx.outputs.push({
-            address: output.address,
-            addressIndex: output.addressIndex,
-            addressInternal: output.addressInternal,
-            amount: output.amount,
-            confirmations: 0,
-            index: i,
-            spent: false,
-            standard: true,
-            timestamp: mockTx.timestamp,
-        });
-    }
-
-    // Add the input UTXOs
-    for (var i = 0; i < toSpend.length; i++) {
-        var utxo = toSpend[i];
-        tx.addInput(utxo.txid, utxo.index);
-
-        mockTx.inputs.push({
-            address: utxo.address,
-            addressIndex: utxo.addressIndex,
-            addressInternal: utxo.addressInternal,
-            amount: -utxo.amount,
-            previousIndex: utxo.index,
-            previousTxid: utxo.txid,
-            standard: true,
-        });
-    }
-
-    if (typeof(doNotSign) !== 'undefined' && doNotSign !== null && doNotSign === true) {
-//        console.log("building incomplete :: " + JSON.stringify(tx));
-        return tx.buildIncomplete();
-    }
-
-    // Sign the transaction
-    for (var i = 0; i < toSpend.length; i++) {
-        var utxo = toSpend[i];
-//        console.log("signing with :: " + this.getPrivateKey(utxo.addressInternal, utxo.addressIndex).toWIF() + " :: " + utxo.addressInternal);
-        tx.sign(i, this.getPrivateKey(utxo.addressInternal, utxo.addressIndex));
-    }
-
-    var transaction = tx.build();
-
-    // We get the txid in big endian... *sigh*
-    var txidBig = transaction.getHash().toString('hex');
-    var txid = '';
-    for (var i = txidBig.length - 2; i >= 0; i-= 2) {
-        txid += txidBig.substring(i, i + 2)
-    }
-
-    // Fill in the txid for the mock transaction and its outputs
-    mockTx.txid = txid;
-    for (var i = 0; i < mockTx.outputs.length; i++) {
-        var output = mockTx.outputs[i];
-        output.txid = txid;
-    }
-
-    transaction._kkToSpend = toSpend;
-    transaction._kkMockTx = mockTx;
-
-//    console.log("building complete :: " + JSON.stringify(transaction));
-
-    return transaction;
+    return this._coinPouchImpl.generateQRCode(largeFormat, coinAmountSmallType);
 }
 
 HDWalletPouch.prototype.setMiningFeeOverride = function(newMiningFeeOverride) {
@@ -1773,374 +1077,6 @@ HDWalletPouch.prototype.getCurrentMiningFee = function() {
 //    console.log("getCurrentMiningFee :: txFeeOverride :: " + this._txFeeOverride + " :: transactionFee :: " + transactionFee);
 
     return transactionFee;
-}
-
-HDWalletPouch.prototype.buildBitcoinTransaction = function(toAddress, amount_smallUnit, doNotSign) {
-    var tx = null;
-    var currentBitcoinMiningFee = this.getCurrentMiningFee();
-    var totalTransactionFee = currentBitcoinMiningFee;
-
-//    console.log("buildBitcoinTransaction :: address :: " + toAddress + " :: currentBitcoinMiningFee :: " + currentBitcoinMiningFee);
-    while (true) {
-        tx = this._buildBitcoinTransaction(toAddress, amount_smallUnit, totalTransactionFee, true);
-
-        // Insufficient funds
-        if (tx == null) {
-            return null;
-        }
-
-        // How big is the transaction and what fee do we need? (we didn't sign so fill in 107 bytes for signatures)
-        var size = tx.toHex().length / 2 + tx.ins.length * 107;
-        var targetTransactionFee = Math.ceil(size / 1024) * currentBitcoinMiningFee;
-
-        //            console.log("targetTransactionFee :: " + targetTransactionFee)
-        //            break;//
-        // We have enough tx fee (sign it)
-        if (targetTransactionFee <= totalTransactionFee) {
-            if (typeof(doNotSign) === 'undefined' || doNotSign === null || doNotSign === false) {
-                tx = this._buildBitcoinTransaction(toAddress, amount_smallUnit, totalTransactionFee);
-            }
-            break;
-        }
-
-        // Add at least enough tx fee to cover our size thus far (adding tx may increase fee)
-        while (targetTransactionFee > totalTransactionFee) {
-            totalTransactionFee += currentBitcoinMiningFee;
-        }
-    }
-
-    tx._kkTransactionFee = totalTransactionFee;
-    tx.getTransactionFee = function() { return this._kkTransactionFee; }
-
-    return tx;
-}
-
-
-HDWalletPouch.prototype._buildEthereumTransaction = function(fromNodeInternal, fromNodeIndex, toAddress, amount_smallUnit, ethGasPrice, ethGasLimit, ethData, doNotSign) {
-    var gasPrice = HDWalletHelper.hexify(ethGasPrice);
-    var gasLimit = HDWalletHelper.hexify(ethGasLimit);
-
-    var fromAddress = HDWalletPouch.getCoinAddress(this._coinType, this.getNode(fromNodeInternal, fromNodeIndex));
-
-    this.ethTXLog("ethereum :: from address :: " + fromAddress);
-
-    var nonce = this.getEthereumNonce(fromNodeInternal, fromNodeIndex);
-
-    this.ethTXLog("ethereum :: build tx nonce :: " + nonce + " :: gasPrice :: " + ethGasPrice + " :: gasLimit :: " + ethGasLimit);
-
-    var rawTx = {
-        nonce: HDWalletHelper.hexify(nonce),
-        gasPrice: gasPrice,
-        gasLimit: gasLimit,
-        to: toAddress,
-        value: HDWalletHelper.hexify(amount_smallUnit),
-        //data: '',
-    };
-
-    if (ethData && typeof(ethData) !== 'undefined') {
-        rawTx.data = ethData;
-    }
-
-    var transaction = new thirdparty.ethereum.tx(rawTx);
-    //    console.log("ethereum buildTransaction :: " + JSON.stringify(transaction));
-
-    //    var privateKeyB = new Buffer('e331b6d69882b4cb4ea581d88e0b604039a3de5967688d3dcffdd2270c0fd109', 'hex')
-    //
-    //    console.log("private key :: " + this._private + " :: " +  + this._private.length + " :: privateKeyB :: " + privateKeyB + " :: " + privateKeyB.length);
-
-    if (typeof(doNotSign) !== 'undefined' || (doNotSign !== null && doNotSign !== false)) {
-        var pvtKeyBuffer = new Buffer(this.getPrivateKey(fromNodeInternal, fromNodeIndex).d.toBuffer(32), 'hex');
-//        console.log(pvtKeyBuffer.length);
-//        console.log(this.getPrivateKey(fromNodeInternal, fromNodeIndex));
-        transaction.sign(pvtKeyBuffer);
-    }
-
-
-    var txhash = ('0x' + transaction.hash().toString('hex'));
-
-    var publicAddress = this.getPublicAddress(fromNodeInternal, fromNodeIndex);
-
-    //@note: ethereum checksum addresses.
-    publicAddress = publicAddress.toLowerCase();
-
-    transaction._mockTx = {
-        txid: txhash,
-        addressInternal: fromNodeInternal,
-        addressIndex: fromNodeIndex,
-        blockNumber: null,
-        //@note:@here:@todo:
-        confirmations: 0,
-        from: publicAddress,
-        hash: txhash,
-        timestamp: (new Date()).getTime() / 1000,
-        to: toAddress,
-        gasPrice: ethGasPrice,
-        gasUsed: ethGasLimit,
-        nonce: nonce,
-        valueDelta: -amount_smallUnit,
-    };
-
-    return transaction;
-}
-
-HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddressArray, amount_smallUnit, gasPrice, gasLimit, ethData, doNotSign) {
-    var amountWei = parseInt(amount_smallUnit);
-
-    var txArray = [];
-
-    //@note: @here: @todo: add custom contract support when merging into the develop branch.
-    var baseTXCost = gasPrice * gasLimit;
-
-    var totalTXCost = 0;
-
-    //@note: returns {index: x, balance: y} format.
-    var highestAccountDict = this.getHighestAccountBalanceAndIndex();
-
-    if (highestAccountDict !== null) {
-        //@note: check to see whether this will result in the tx being able to be pushed through with this one account, or whether there will need to be more than one account involved in this transaction.
-        if (amountWei + baseTXCost <= highestAccountDict.balance) {
-            totalTXCost = baseTXCost;
-
-            this.ethTXLog("ethereum transaction :: account :: " + highestAccountDict.index + " :: " + highestAccountDict.balance + " :: can cover the entire balance + tx cost :: " + (amountWei + baseTXCost));
-            var newTX = this._buildEthereumTransaction(false, highestAccountDict.index, toAddressArray[0], amountWei, gasPrice, gasLimit, ethData, doNotSign);
-
-            if (!newTX) {
-                this.ethTXLog("error :: ethereum transaction :: account failed to build :: " + highestAccountDict.index);
-                return null;
-            } else {
-                txArray.push(newTX);
-            }
-        } else {
-            var txSuccess = true;
-
-            var balanceRemaining = amountWei;
-
-            //@note: this array is implicitly regenerated and sorted when the getHighestAccountBalanceAndIndex function is called.
-            for (var i = 0; i < this._sortedHighestAccountArray.length; i++) {
-                this.ethTXLog("ethereum transaction :: balanceRemaining (pre) :: " + balanceRemaining);
-//                console.log(typeof(this._sortedHighestAccountArray[i].balance));
-                var accountBalance = this._sortedHighestAccountArray[i].balance;
-
-                //@note: if the account cannot support the base tx cost + 1 wei (which might be significantly higher in the case of a contract address target), this process cannot continue as list is already sorted, and this transaction cannot be completed.
-                if (accountBalance <= baseTXCost) {
-                    this.ethTXLog("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " cannot cover current dust limit of :: " + baseTXCost);
-                    txSuccess = false;
-                    break;
-                } else {
-                    var amountToSendFromAccount = 0;
-
-                    //debug amounts: 0.0609500024691356
-                    //0.0518500024691356
-                    //0.052 total
-
-                    //@note: check if subtracting the balance of this account from the remaining target transaction balance will result in exactly zero or a positive balance for this account.
-                    if (accountBalance - balanceRemaining - baseTXCost < 0) {
-                        //@note: this account doesn't have enough of a balance to cover by itself.. keep combining.
-                        this.ethTXLog("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " :: does not have enough to cover balance + tx cost :: " + (balanceRemaining + baseTXCost) + " :: accountBalance - tx cost :: " + (accountBalance - baseTXCost));
-
-                        amountToSendFromAccount = (accountBalance - baseTXCost);
-                    } else {
-                        var accountChange = accountBalance - balanceRemaining - baseTXCost;
-                        //                        console.log("types :: " + typeof(balanceRemaining) + " :: " + typeof(baseTXCost));
-                        amountToSendFromAccount = balanceRemaining;
-                        this.ethTXLog("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " :: accountBalance :: " + accountBalance + " :: account balance after (balance + tx cost) :: " + accountChange);
-
-                        //@note: don't do things like bitcoin's change address system for now.
-                    }
-
-                    //@note: build this particular transaction, make sure it's constructed correctly.
-
-                    var targetEthereumAddress = toAddressArray[0];
-
-                    if (i >= toAddressArray.length) {
-
-                    } else {
-                        targetEthereumAddress = toAddressArray[i];
-                    }
-
-                    this.ethTXLog("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " :: will send  :: " + amountToSendFromAccount + " :: to :: " + targetEthereumAddress);
-
-
-                    var newTX = this._buildEthereumTransaction(false, this._sortedHighestAccountArray[i].index, targetEthereumAddress, amountToSendFromAccount, gasPrice, gasLimit, ethData, doNotSign);
-
-                    if (!newTX) {
-                        this.ethTXLog("error :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " cannot build");
-
-                        txSuccess = false;
-                        break;
-                    } else {
-                        txArray.push(newTX);
-                    }
-
-                    //@note: keep track of the total TX cost for user review on the UI side.
-                    totalTXCost += baseTXCost;
-
-                    this.ethTXLog("ethereum transaction :: current total tx cost :: " + totalTXCost);
-
-                    //note: subtract the amount sent from the balance remaining, and check whether there's zero remaining.
-                    balanceRemaining -= amountToSendFromAccount;
-
-                    this.ethTXLog("ethereum transaction :: balanceRemaining (post) :: " + balanceRemaining);
-
-                    if (balanceRemaining <= 0) {
-                        this.ethTXLog("ethereum transaction :: finished combining :: number of accounts involved :: " + txArray.length + " :: total tx cost :: " + totalTXCost);
-                        break;
-                    } else {
-                        //@note: otherwise, there's another transaction necessary so increase the balance remaining by the base tx cost.
-//                        balanceRemaining += baseTXCost;
-                    }
-                }
-            }
-
-            if (txSuccess === false) {
-                this.ethTXLog("ethereum transaction :: txSuccess is false");
-                return null;
-            }
-        }
-
-        //@note: ethereum will calculate it's own transaction fee inside of _buildTransaction.
-        if (txArray.length > 0) {
-            return {txArray: txArray, totalTXCost: totalTXCost};
-        } else {
-            this.ethTXLog("ethereum transaction :: txArray.length is zero");
-            return null;
-        }
-    } else {
-        this.ethTXLog("ethereum transaction :: no accounts found");
-        return null;
-    }
-}
-
-HDWalletPouch.prototype.sendBitcoinTransaction = function(transaction, callback) {
-    var mockTx = transaction._kkMockTx;
-    var txid = mockTx.txid;
-
-    console.log('Sending Transaction:', txid, transaction, transaction.toHex(), mockTx);
-
-    if (this._transactions[txid]) {
-        throw new Error('What?!'); //TODO ask richard what is this
-    }
-
-    this._transactions[txid] = mockTx;
-    this._spendable = null;
-
-    this.invalidateTransactionCache();
-
-    this._notify();
-
-    // Post the transaction
-    var self = this;
-
-
-    btcRelays.getCurrentRelay().pushRawTx(transaction.toHex(), function (response){
-        if(response.status === 'success'){
-            self._transactions[txid].status = 'success';
-            self._notify();
-        }
-        else if (self._transactions[txid].status !== 'success') {
-            delete self._transactions[txid];
-            self._notify();
-        }
-        self.log(response);
-        if (callback) {
-            callback(response.status, transaction);
-        }
-    });
-
-}
-
-HDWalletPouch.prototype.sendEthereumTransaction = function(transaction, callback, params, debugIdx) {
-    //@note:@todo:@next:
-    var hex = '0x' + transaction.serialize().toString('hex');
-
-//    console.log("send transaction :: " + JSON.stringify(transaction));
-//
-//    callback('success', null, params);
-//
-//    return;
-//
-    var self = this;
-
-    $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_sendRawTransaction&hex=' + hex + "&apikey=" + HDWalletHelper.apiKeyEtherScan, function (data) {
-        self.invalidateTransactionCache();
-        self.invalidateWorkerCache();
-
-        if (!data || !data.result || data.result.length !== 66) {
-            console.log('Error sending', data, " :: " + debugIdx + " :: " + JSON.stringify(transaction) + " :: hex :: " + hex);
-
-            var message = 'An error occurred';
-            if (data && data.error && data.error.message) {
-                message = data.error.message;
-            }
-
-            delete self._transactions[transaction._mockTx.hash + "_" + transaction._mockTx.from];
-
-            //@note: reverse the mock transaction update.
-            var addressInfo = self._w_addressMap[transaction._mockTx.from];
-            if (typeof(addressInfo) !== 'undefined') {
-                var txCostPlusGas = transaction._mockTx.valueDelta - (transaction._mockTx.gasUsed * transaction._mockTx.gasPrice);
-
-                addressInfo.accountBalance -= txCostPlusGas;
-                addressInfo.nonce--;
-                addressInfo.newSendTx = null;
-                delete addressInfo.accountTXProcessed[transaction._mockTx.hash];
-            } else {
-                console.log("sendEthereumTransaction error :: addressInfo undefined")
-            }
-
-            if (self._worker) {
-                self._worker.postMessage({
-                    action: 'updateAddressMap',
-                    content: {
-                        addressMap: self._w_addressMap
-                    }
-                });
-            }
-
-            if (callback) {
-                callback(new Error(message), null, params);
-            }
-        } else {
-            console.log('Success sending', data, " :: " + debugIdx + " :: " + JSON.stringify(transaction) + " :: hex :: " + hex);
-
-            self._transactions[transaction._mockTx.hash + "_" + transaction._mockTx.from] = transaction._mockTx;
-
-            var addressInfo = self._w_addressMap[transaction._mockTx.from];
-            if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
-                //@note: sending from and to self, total balance = 0
-                if (self.isAddressFromSelf(transaction._mockTx.to)) {
-                } else {
-                }
-
-                var txCostPlusGas = transaction._mockTx.valueDelta - (transaction._mockTx.gasUsed * transaction._mockTx.gasPrice);
-
-                addressInfo.accountBalance += txCostPlusGas;
-                addressInfo.nonce++;
-
-                addressInfo.accountTXProcessed[transaction._mockTx.hash] = true;
-                addressInfo.newSendTx = true;
-            } else {
-                console.log("sendEthereumTransaction success :: addressInfo undefined")
-            }
-
-            if (self._worker) {
-                self._worker.postMessage({
-                    action: 'updateAddressMap',
-                    content: {
-                        addressMap: self._w_addressMap
-                    }
-                });
-            }
-
-            self._notify();
-
-            if (callback) {
-                setTimeout(function() {
-                    callback('success', data.result, params);
-                }, 100);
-            }
-        }
-    });
 }
 
 HDWalletPouch.prototype.refresh = function () {
@@ -2169,27 +1105,7 @@ HDWalletPouch.prototype.setLogger = function(logger) {
 }
 
 HDWalletPouch.prototype._requestBlockNumber = function(callback) {
-    if (this._coinType === COIN_BITCOIN) {
-        callback(null);
-    } else if (this._coinType === COIN_ETHEREUM) {
-        var self = this;
-
-        $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_blockNumber&apikey=' + HDWalletHelper.apiKeyEtherScan, function (data) {
-            if (!data || !data.result) {
-                if (self._currentBlock === -1) {
-                    self._currentBlock = 0;
-                };
-
-                var errStr = "_requestBlockNumber :: no data from api server";
-                callback(errStr);
-                return;
-            }
-
-            self._currentBlock = parseInt(data.result, 16);
-
-            callback(null);
-        });
-    }
+    this._coinPouchImpl.requestBlockNumber(callback);
 }
 
 HDWalletPouch.prototype.getBlockNumber = function() {
@@ -2199,128 +1115,9 @@ HDWalletPouch.prototype.getBlockNumber = function() {
 //Returns a multidimensional array with public address, private key and balance.
 HDWalletPouch.prototype.getAccountList = function(){
     //@note: @todo: we might want to sort these..
-    var result = [];
-
     var transactions = this.getTransactions(); //Get all transactions
 
-    var lastIndexChange = 0;
-    var lastIndexReceive = 0;
-
-    for (var ti = 0; ti < transactions.length; ti++) { //iterate through txs
-        var transaction = transactions[ti];
-
-        if (this._coinType === COIN_BITCOIN) {
-            //First we need to determine if this is an incoming tx. let see balance
-//            console.log("bitcoin :: tx :: " + JSON.stringify(transaction));
-
-            //Iterate on Inputs
-            for (var i = 0; i < transaction.inputs.length; i++) {
-                var input = transaction.inputs[i];
-                // Our address, money sent (input values are always negative)
-                if (!input.addressInternal && input.addressIndex !== null) {
-                    if (input.addressIndex > lastIndexReceive) {
-                        lastIndexReceive = input.addressIndex;
-                    }
-
-//                    var tempPair = [];
-//                    tempPair[0] = this.getPrivateKey(input.addressInternal, input.addressIndex).toWIF();
-//                    tempPair[1] = input.address;
-//                    result.push(tempPair);
-//
-//                    console.log("bitcoin :: input index :: " + input.addressIndex + " :: public address :: " + tempPair[1] + " :: private key :: " + tempPair[0]);
-                }
-                if (input.addressInternal && input.addressIndex !== null) {
-                    if (input.addressIndex > lastIndexChange) {
-                        lastIndexChange = input.addressIndex;
-                    }
-                }
-            }
-
-            for (var i = 0; i < transaction.outputs.length; i++) {
-                var output = transaction.outputs[i];
-                if (!output.addressInternal && output.addressIndex !== null) {
-                    if (output.addressIndex > lastIndexReceive) {
-                        lastIndexReceive = output.addressIndex;
-                    }
-
-//                    var tempPair = [];
-//                    tempPair[0] = this.getPrivateKey(output.addressInternal, output.addressIndex).toWIF();
-//                    tempPair[1] = output.address;
-//                    result.push(tempPair);
-//
-//                    console.log("bitcoin :: output index :: " + output.addressIndex + " :: public address :: " + tempPair[1] + " :: private key :: " + tempPair[0]);
-                }
-                if (output.addressInternal && output.addressIndex !== null) {
-                    if (output.addressIndex > lastIndexChange) {
-                        lastIndexChange = output.addressIndex;
-                    }
-                }
-            }
-        } else if (this._coinType === COIN_ETHEREUM) {
-            //            console.log("tx :: " + JSON.stringify(transaction));
-
-            //@note: for ether, we're using a similar method, checking out the address map for a to: equivalence.
-            if (transaction.addressIndex !== null) {
-                if (!transaction.addressInternal) {
-                    if (transaction.addressIndex > lastIndexReceive) {
-                        lastIndexReceive = transaction.addressIndex;
-                    }
-                    var account = {};
-                    account.pvtKey = this.getPrivateKey(false, transaction.addressIndex).d.toBuffer(32).toString('hex');
-                    account.pubAddr = this.getPublicAddress(false, transaction.addressIndex);
-                    account.balance = this.getAccountBalance(false, transaction.addressIndex);
-                    account.isTheDAOAssociated = this.getIsTheDAOAssociated(false, transaction.addressIndex);
-
-                    result.push(account);
-                }
-            }
-        }
-    }
-
-    if (this._coinType === COIN_BITCOIN) {
-        for (var i = lastIndexReceive + 1; i >= 0; i--) {
-            var account = {};
-            account.pvtKey = this.getPrivateKey(false, i).toWIF();
-            account.pubAddr = this.getPublicAddress(false, i);
-            account.balance = this.getAccountBalance(false, i);
-
-            result.push(account);
-
-//            console.log("bitcoin :: receive node(i) :: " + i + " :: address :: " + tempPair[1] + " :: private :: " + tempPair[0]);
-        }
-
-        for (var i = lastIndexChange + 1; i >= 0; i--) {
-            var account = {};
-            account.pvtKey = this.getPrivateKey(true, i).toWIF();
-            account.pubAddr = this.getPublicAddress(true, i);
-            account.balance = this.getAccountBalance(true, i);
-            result.push(account);
-
-            //            console.log("bitcoin :: change node(i) :: " + i + " :: address :: " + tempPair[1] + " :: private :: " + tempPair[0]);
-        }
-
-        result.reverse();
-//        var tempPair = [];
-//        tempPair[0] = this.getPrivateKey(false, lastIndex + 1).toWIF();
-//        tempPair[1] = this.getPublicAddress(false, lastIndex + 1);
-//        result.push(tempPair);
-    } else if (this._coinType === COIN_ETHEREUM) {
-        var finalIndex = 0;
-
-        if (result.length === 0) {
-            finalIndex = 0;
-        } else {
-            finalIndex = lastIndexReceive + 1;
-        }
-        var account = {};
-        account.pvtKey = this.getPrivateKey(false, finalIndex).d.toBuffer(32).toString('hex');
-        account.pubAddr = this.getPublicAddress(false, finalIndex);
-        account.balance = this.getAccountBalance(false, finalIndex);
-        account.isTheDAOAssociated = this.getIsTheDAOAssociated(false, i);
-
-        result.push(account);
-    }
-
+    var result = this._coinPouchImpl.getAccountList(transactions);
 //    for (var i = 0; i < 20)
 //    result.reverse();
 
@@ -2401,12 +1198,11 @@ HDWalletPouch.prototype.getAccountList = function(){
     return uniqueResults;
 }
 
-HDWalletPouch.prototype.getEthereumLegacyStableKeypair = function() {
-    return HDWalletHelper.toEthereumChecksumAddress(this.getPrivateKey(this._coinType, this._receiveNode).toString()) + ", " + this._receiveNode.keyPair.d.toBuffer(32).toString('hex');
-}
+//HDWalletPouch.prototype.getEthereumLegacyStableKeypair = function() {
+//    return HDWalletHelper.toEthereumChecksumAddress(this.getPrivateKey(this._coinType, this._receiveNode).toString()) + ", " + this._receiveNode.keyPair.d.toBuffer(32).toString('hex');
+//}
 
 HDWalletPouch.prototype.log = function() {
-
     // Convert the argument list to an array
     var args = [].slice.call(arguments);
 
@@ -2520,80 +1316,6 @@ HDWalletPouch.prototype.manuallyDeriveUnhardened = function(fromNode, index) {
     return hd;
 }
 
-HDWalletPouch.prototype.setupTokens = function() {
-    if (this._coinType === COIN_ETHEREUM) {
-        for (var i = 0; i < CoinToken.numCoinTokens; i++) {
-            this._token[i] = new CoinToken();
-        }
-
-        var baseReceiveAddress = HDWalletPouch.getCoinAddress(this._coinType, HDWalletPouch._derive(this._receiveNode, 0, false)).toString();
-
-        this._token[CoinToken.TheDAO].initialize("TheDAO", "DAO", CoinToken.TheDAO, baseReceiveAddress, this, HDWalletHelper.getDefaultEthereumGasPrice(), HDWalletHelper.getDefaultTheDAOGasLimit(), this._storageKey);
-
-        this.updateTokenAddresses(this._w_addressMap);
-    }
-}
-
-HDWalletPouch.prototype.updateTokenAddresses = function(addressMap) {
-    var transferableMap = {};
-    var votableMap = {};
-
-//    console.log("[" + this._coinFullName + "] :: updating token addresses");
-
-    //@note: this tokenTransferableList is null right now, most likely to be extended with DGX tokens and so on.
-    for (var publicAddress in addressMap) {
-        var addressInfo = addressMap[publicAddress];
-
-//            console.log("internal :: " + internal + " :: index :: " + index + " :: publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo) + " :: _w_addressMap :: " + JSON.stringify(this._w_addressMap));
-
-        if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
-//            console.log("adding :: " + publicAddress + " :: to :: " + addressInfo.tokenTransferableList + " :: " + addressInfo.tokenVotableList + " :: addressInfo :: " + JSON.stringify(addressInfo) + " :: num accountTXProcessed :: " + Object.keys(addressInfo.accountTXProcessed).length);
-
-            if (Object.keys(addressInfo.accountTXProcessed).length > 0) {
-                transferableMap[publicAddress] = addressInfo.tokenTransferableList;
-                votableMap[publicAddress] = addressInfo.tokenVotableList;
-            }
-        }
-    }
-
-    //@note: update for getting the first dao address correctly updating.
-
-
-    var firstPublicAddress = this.getPublicAddress(false, 0).toLowerCase();
-//    console.log("[The DAO] :: transfer list :: firstPublicAddress :: " + firstPublicAddress);
-
-    if (typeof(transferableMap[firstPublicAddress]) === 'undefined' || transferableMap[firstPublicAddress] === null) {
-        transferableMap[firstPublicAddress] = true;
-    }
-
-    for (var i = 0; i < CoinToken.numCoinTokens; i++) {
-        var tokenTransferableArray = [];
-        var tokenVotableArray = [];
-
-        //@note: tokens are transferable by default. however, if they are explicitly marked as not transferable, respect that.
-        for (publicAddress in transferableMap) {
-            var curTransferableToken = transferableMap[publicAddress];
-            if ((typeof(curTransferableToken) !== undefined && curTransferableToken !== null && curTransferableToken !== false) || (typeof(curTransferableToken) === undefined || curTransferableToken === null))  {
-//                console.log("adding :: " + publicAddress + " :: to transferableMap");
-                tokenTransferableArray.push(publicAddress);
-            }
-        }
-
-        //@note: tokens are not votable by default.
-        for (publicAddress in votableMap) {
-            var curVotableToken = votableMap[publicAddress];
-            if (typeof(curVotableToken) !== undefined && curVotableToken !== null && curVotableToken === true) {
-                tokenVotableArray.push(publicAddress);
-            }
-        }
-
-//        console.log("transferable :: " + JSON.stringify(tokenTransferableArray) + " :: " + JSON.stringify(tokenVotableArray));
-
-        this._token[i].setIsTransferable(tokenTransferableArray);
-        this._token[i].setIsVotable(tokenVotableArray);
-    }
-}
-
 HDWalletPouch.prototype.getToken = function(tokenType) {
 //    console.log("tokenType :: " + tokenType);
     return this._token[tokenType];
@@ -2601,4 +1323,8 @@ HDWalletPouch.prototype.getToken = function(tokenType) {
 
 HDWalletPouch.prototype.isTokenType = function() {
     return false;
+}
+
+HDWalletPouch.prototype.getPouchFoldImplementation = function() {
+    return this._coinPouchImpl;
 }

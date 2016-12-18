@@ -59,7 +59,10 @@ HDWalletMain.prototype.setupWithEncryptedMnemonic = function(encMnemonic, callba
         if (!error) {
 //            console.log("decrypt success :: " + self._pouches.length);
             for (var i = 0; i < self._pouches.length; i++) {
-                self._pouches[i].initializeWithMnemonic(encMnemonic, res);
+                console.log("pouch :: " + coinAbbreviatedName[i] + " :: " + self._pouches[i]);
+                if (typeof(self._pouches[i]) !== 'undefined' && self._pouches[i] !== null) {
+                    self._pouches[i].initializeWithMnemonic(encMnemonic, res);
+                }
             }
 
             self._mnemonic = res;
@@ -283,9 +286,9 @@ HDWalletMain.prototype.getEthereumLegacyLightwalletAccount = function(coinType) 
     }
 }
 
-HDWalletMain.prototype.getEthereumLegacyStableKeypair = function(coinType) {
-    return this.getPouchFold(COIN_ETHEREUM).getEthereumLegacyStableKeypair();
-}
+//HDWalletMain.prototype.getEthereumLegacyStableKeypair = function(coinType) {
+//    return this.getPouchFold(COIN_ETHEREUM).getEthereumLegacyStableKeypair();
+//}
 
 
 //@note: this is an equivalence function I build for the lightwallet fiasco, it may be relevant

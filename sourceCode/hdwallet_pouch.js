@@ -57,6 +57,8 @@ var HDWalletPouch = function() {
     this._numShiftsNecessary = 1;
 
     this._defaultTXFee = -1;
+    this._txFeeOverride = -1;
+
     this._listeners = [];
 
     this._currentBlock = -1;
@@ -82,6 +84,11 @@ var HDWalletPouch = function() {
     this._wkrCacheValid = false;
 
     this._hasInitRefresh = false;
+
+    this._miningFeeInterval = null;
+    this._miningFeeUpdateTimer = 60 * 1000;
+
+    this._miningFeeDict = {"fastestFee": 40, "halfHourFee": 20, "hourFee": 10};
 }
 
 HDWalletPouch._derive = function(node, index, hardened) {
@@ -216,9 +223,7 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
 
     this.loadAndCache();
 
-    this._defaultTXFee = HDWalletHelper.getDefaultRegulatedTXFee(this._coinType);
-
-    this.update();
+    this.setupMiningFeeUpdater();
 
     var self = this;
 
@@ -246,10 +251,49 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
     this.setupTokens();
 }
 
-HDWalletPouch.prototype.update = function() {
+HDWalletPouch.prototype.setupMiningFeeUpdater = function() {
+    var self = this;
+
+    if (this._coinType === COIN_BITCOIN) {
+        this._miningFeeInterval = setInterval(function() {
+            self.updateMiningFees();
+        }, this._miningFeeUpdateTimer);
+    }
+
+    this.getDefaultMiningFees();
+    this.updateMiningFees();
+}
+
+HDWalletPouch.prototype.getDefaultMiningFees = function() {
     //@note: in bitcoin, this is the mining fee,
     //in ethereum this is the gas price. (not the gas limit).
     this._defaultTXFee = HDWalletHelper.getDefaultRegulatedTXFee(this._coinType);
+}
+
+//@note: @here: @todo: maybe put this in wallet helper class.
+
+HDWalletPouch.prototype.updateMiningFees = function() {
+    //@note: in bitcoin, this is the mining fee,
+    //in ethereum this is the gas price. (not the gas limit).
+
+    var self = this;
+
+    if (this._coinType === COIN_BITCOIN) {
+        $.getJSON('https://bitcoinfees.21.co/api/v1/fees/recommended', function (data) {
+            if (!data || !data.halfHourFee) {
+                console.log("cannot access default fee");
+            } else  {
+                self._miningFeeDict = data;
+                self._defaultTXFee = parseInt(data.halfHourFee) * 1000;
+            }
+        });
+    }
+
+    this._defaultTXFee = HDWalletHelper.getDefaultRegulatedTXFee(this._coinType);
+}
+
+HDWalletPouch.prototype.getMiningFeeDict = function() {
+    return this._miningFeeDict;
 }
 
 HDWalletPouch.prototype._notify = function(reason) {
@@ -653,6 +697,11 @@ HDWalletPouch.prototype.shutDown = function() {
         for (var i = 0; i < CoinToken.numCoinTokens; i++) {
             this._token[i].shutDown();
         }
+    }
+
+    if (this._miningFeeInterval !== null) {
+        clearInterval(this._miningFeeInterval);
+        this._miningFeeInterval = null;
     }
 }
 
@@ -1099,7 +1148,7 @@ HDWalletPouch.prototype.getSpendableBalance = function(minimumValue) {
             var transaction = this.buildBitcoinTransaction(address, spendableBalance, true);
             if (transaction) { break; }
 
-            spendableBalance -= this._defaultTXFee;
+            spendableBalance -= this.getCurrentMiningFee();
         }
 
         numPotentialTX = 1;
@@ -1614,13 +1663,28 @@ HDWalletPouch.prototype._buildBitcoinTransaction = function(toAddress, amount_sm
     return transaction;
 }
 
+HDWalletPouch.prototype.setMiningFeeOverride = function(newMiningFeeOverride) {
+    this._txFeeOverride = newMiningFeeOverride;
+}
+
+HDWalletPouch.prototype.getCurrentMiningFee = function() {
+    var transactionFee = this._defaultTXFee;
+
+    if (this._txFeeOverride >= 0) {
+        transactionFee = this._txFeeOverride;
+    }
+
+    return transactionFee;
+}
+
 HDWalletPouch.prototype.buildBitcoinTransaction = function(toAddress, amount_smallUnit, doNotSign) {
     var tx = null;
-    var transactionFee = this._defaultTXFee;
+    var currentBitcoinMiningFee = this.getCurrentMiningFee();
+    var totalTransactionFee = currentBitcoinMiningFee;
 
 //    console.log("buildBitcoinTransaction :: address :: " + toAddress);
     while (true) {
-        tx = this._buildBitcoinTransaction(toAddress, amount_smallUnit, transactionFee, true);
+        tx = this._buildBitcoinTransaction(toAddress, amount_smallUnit, totalTransactionFee, true);
 
         // Insufficient funds
         if (tx == null) {
@@ -1629,25 +1693,25 @@ HDWalletPouch.prototype.buildBitcoinTransaction = function(toAddress, amount_sma
 
         // How big is the transaction and what fee do we need? (we didn't sign so fill in 107 bytes for signatures)
         var size = tx.toHex().length / 2 + tx.ins.length * 107;
-        var targetTransactionFee = Math.ceil(size / 1024) * this._defaultTXFee;
+        var targetTransactionFee = Math.ceil(size / 1024) * currentBitcoinMiningFee;
 
         //            console.log("targetTransactionFee :: " + targetTransactionFee)
         //            break;//
         // We have enough tx fee (sign it)
-        if (targetTransactionFee <= transactionFee) {
+        if (targetTransactionFee <= totalTransactionFee) {
             if (typeof(doNotSign) === 'undefined' || doNotSign === null || doNotSign === false) {
-                tx = this._buildBitcoinTransaction(toAddress, amount_smallUnit, transactionFee);
+                tx = this._buildBitcoinTransaction(toAddress, amount_smallUnit, totalTransactionFee);
             }
             break;
         }
 
         // Add at least enough tx fee to cover our size thus far (adding tx may increase fee)
-        while (targetTransactionFee > transactionFee) {
-            transactionFee += this._defaultTXFee;
+        while (targetTransactionFee > totalTransactionFee) {
+            totalTransactionFee += currentBitcoinMiningFee;
         }
     }
 
-    tx._kkTransactionFee = transactionFee;
+    tx._kkTransactionFee = totalTransactionFee;
     tx.getTransactionFee = function() { return this._kkTransactionFee; }
 
     return tx;

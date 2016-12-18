@@ -110,7 +110,7 @@ HDWalletHelper.getDefaultRegulatedTXFee = function(coinType) {
     //@note: @todo: get api service for recommended bitcoin fee.
     //https://api.blockcypher.com/v1/btc/main contains high low and average
     if (coinType === COIN_BITCOIN) {
-        return 10000;
+        return 20000;
     } else if (coinType === COIN_ETHEREUM){
         return HDWalletHelper.getDefaultEthereumGasPrice();
     }

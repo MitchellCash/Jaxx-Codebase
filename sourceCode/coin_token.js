@@ -571,11 +571,7 @@ CoinToken.prototype.getShiftsNecessary = function(minimumValue) {
 CoinToken.prototype.hasInsufficientGasForSpendable = function() {
     var highestAccountDict = this.getHighestAccountBalanceAndIndex(this._coinHolderWallet, this._gasPrice, this._gasLimit);
 
-    if (highestAccountDict !== null) {
-        return this._hasInsufficientGasForSpendable;
-    } else {
-        return false;
-    }
+    return this._hasInsufficientGasForSpendable;
 }
 
 CoinToken.prototype.hasBlockedForSpendable = function() {
@@ -719,14 +715,16 @@ CoinToken.prototype.sortHighestAccounts = function(ethereumPouch, ethGasPrice, e
 
         if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
             if (addressInfo.isTransferable !== true) {
-                console.log("getTransferableBalance :: addressInfo not transferable :: " + curAddress);
+//                console.log("getTransferableBalance :: addressInfo not transferable :: " + curAddress);
             }
-
-//            console.log("checking transferable address :: " + curAddress + " :: balance :: " + addressInfo.balance + " :: baseTXCost :: " + baseTXCost);
 
             var internalIndexAddressDict = ethereumPouch.getInternalIndexAddressDict(curAddress);
 
             var ethBalanceForAddress = ethereumPouch.getAccountBalance(internalIndexAddressDict.internal, internalIndexAddressDict.index);
+
+//            if (addressInfo.balance > 0) {
+//                console.log("checking transferable address :: " + curAddress + " :: balance :: " + addressInfo.balance + " :: ethBalanceForAddress :: " + ethBalanceForAddress + " :: baseTXCost :: " + baseTXCost);
+//            }
 
             if (ethBalanceForAddress >= baseTXCost) {
                 addressAvailableDict[curAddress] = {ethereumNodeIndex: internalIndexAddressDict.index};
@@ -740,6 +738,7 @@ CoinToken.prototype.sortHighestAccounts = function(ethereumPouch, ethGasPrice, e
                 }
             } else {
                 if (addressInfo.balance > 0) {
+//                    console.log("getTransferableBalance :: address :: " + curAddress + " has insufficient ether for transfering.")
                     this._hasInsufficientGasForSpendable.push(curAddress);
                 }
             }

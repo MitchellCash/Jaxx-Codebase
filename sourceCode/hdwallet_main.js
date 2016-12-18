@@ -130,6 +130,10 @@ HDWalletMain.prototype.setup = function() {
     var self = this;
 }
 
+HDWalletMain.prototype.confirmBackup = function() {
+    storeData('lastBackupTimestamp' + this.getPouch(COIN_BITCOIN)._storageKey, (new Date()).getTime());
+}
+
 HDWalletMain.prototype.shutDown = function(updateListener) {
     for (var i = 0; i < COIN_NUMCOINTYPES; i++) {
         this.getHelper().removeExchangeRateListener(i, updateListener);
@@ -461,8 +465,6 @@ HDWalletMain.prototype.checkAddress = function() {
     //        return bs58check.encode(payload)
     //    }
 }
-
-
 
 
 

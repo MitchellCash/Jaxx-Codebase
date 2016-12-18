@@ -36,6 +36,7 @@ var HDWalletPouch = function() {
 
     this._privateKeyCache = {};
     this._publicAddressCache = {};
+    this._checkAddressCache = {};
 
     this._spendableBalance = null;
 
@@ -67,6 +68,9 @@ var HDWalletPouch = function() {
     this._BASE_URL = "";
 
     this._PUSH_TX = "";
+
+    this._txCacheValid = false;
+    this._wkrCacheValid = false;
 }
 
 HDWalletPouch._derive = function(node, index, hardened) {
@@ -96,6 +100,7 @@ HDWalletPouch.getCoinAddress = function(coinType, node) {
         var ethKeyPair = node.keyPair;
 //        console.log("[ethereum] keyPair :: " + ethKeyPair.d + " :: " + ethKeyPair.__Q);
 
+        var prevCompressed = ethKeyPair.compressed;
         ethKeyPair.compressed = false;
 
         var ethKeyPairPublicKey = ethKeyPair.getPublicKeyBuffer();
@@ -107,6 +112,8 @@ HDWalletPouch.getCoinAddress = function(coinType, node) {
         var hashEth = thirdparty.CryptoJS.SHA3(pubKeyWordArrayEth, { outputLength: 256 });
 
         var addressEth = hashEth.toString(thirdparty.CryptoJS.enc.Hex).slice(24);
+
+        ethKeyPair.compressed = prevCompressed;
 
 //        console.log("[ethereum] address :: " + addressEth);
         return "0x" + addressEth;
@@ -120,6 +127,9 @@ HDWalletPouch.getLightwalletEthereumAddress = function(node) {
 
     //@note: @here: hack to get the Q to regenerate on the next 'get', triggered by getPublicKeyBuffer.
     //        ethKeyPair.__Q = null;
+
+    var prevCompressed = ethKeyPair.compressed;
+
     ethKeyPair.compressed = false;
 
     var ethKeyPairPublicKey = ethKeyPair.getPublicKeyBuffer();
@@ -131,6 +141,8 @@ HDWalletPouch.getLightwalletEthereumAddress = function(node) {
     var hashEth = thirdparty.CryptoJS.SHA3(pubKeyWordArrayEth, { outputLength: 256 });
 
     var addressEth = hashEth.toString(thirdparty.CryptoJS.enc.Hex).slice(24);
+
+    ethKeyPair.compressed = prevCompressed;
 
     //        console.log("[ethereum] address :: " + addressEth);
     return "0x" + addressEth;
@@ -177,6 +189,8 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
     //@note: @security: this should not need to use the decrypted mnemonic as it's only an identifier, but it's needed for backwards compatibility.
 
     this._storageKey = thirdparty.bitcoin.crypto.sha256(mnemonic + this._networkTypeString).toString('hex');
+
+    this.zeroPtEighteenCheckAndClearCache();
 
     var transactionCache = getStoredData('wTxCache_' + this._coinFullName + "_" + this._storageKey, true);
 
@@ -225,6 +239,35 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
             }
         });
     }, this._blockRequestTimeout);
+}
+
+HDWalletPouch.prototype.zeroPtEighteenCheckAndClearCache = function() {
+    var zeroPtEighteenCheck = getStoredData("zeroPtEighteenCheck", false);
+    if (this._coinType === COIN_ETHEREUM) {
+        if (typeof(zeroPtEighteenCheck) === 'undefined' || zeroPtEighteenCheck === null || (zeroPtEighteenCheck !== null && zeroPtEighteenCheck !== "true")) {
+            console.log("zeroPtEighteenCheck");
+
+            var clearDataItems = ['wTxCache_' + this._coinFullName + "_" + this._storageKey,
+                                  'wPubAddrCache_' + this._coinFullName + "_" + this._storageKey,
+                                  'wCurRecA_' + this._coinFullName + "_" + this._storageKey,
+                                  'wWrkrCacheAddrMap_' + this._coinFullName + "_" + this._storageKey,
+                                  'ethereum_legacySweepRan',
+                                 ];
+
+            for (var i = 0; i < clearDataItems.length; i++) {
+                var curDataItemName = clearDataItems[i];
+                var curDataItem = getStoredData(curDataItemName, false);
+
+                console.log("checking :: " + curDataItemName + " :: " + curDataItem);
+
+                if (typeof(curDataItem) !== 'undefined' && curDataItem !== null) {
+                    removeStoredData(curDataItemName);
+                }
+            }
+            storeData("zeroPtEighteenCheck", "true", false);
+        } else {
+        }
+    }
 }
 
 HDWalletPouch.prototype.update = function() {
@@ -313,12 +356,13 @@ HDWalletPouch.prototype.loadAndCache = function() {
     //@note: using the neutered() versions here to get parity with the ethereum side of things in relation
     //to the wallet worker code. I'm relatively sure that the
 
-    var currentReceiveAddress = getStoredData('wCurRecA_' + self._coinFullName + "_" + this._storageKey, true);
+    var currentReceiveAddress = getStoredData('wCurRecA_' + this._coinFullName + "_" + this._storageKey, true);
     if (!currentReceiveAddress) {
         currentReceiveAddress = HDWalletPouch.getCoinAddress(this._coinType, HDWalletPouch._derive(this._receiveNode, 0, false)).toString();
     }
 
     this._currentReceiveAddress = currentReceiveAddress;
+
     console.log("pouch :: " + this._coinType + " :: primary receive address :: " + this._currentReceiveAddress);
 
     //@note: @todo: @next: @optimization: pretty sure that this could be cached as it is generated.
@@ -326,7 +370,7 @@ HDWalletPouch.prototype.loadAndCache = function() {
 //    this._currentChangeAddress = HDWalletPouch._derive(this._changeNode, 0, false).getAddress().toString();
     this._currentChangeAddress = HDWalletPouch.getCoinAddress(this._coinType, HDWalletPouch._derive(this._changeNode, 0, false)).toString();
 
-    var publicAddressCache = getStoredData('wPubAddrCache_' + self._coinFullName + "_" + this._storageKey, true);
+    var publicAddressCache = getStoredData('wPubAddrCache_' + this._coinFullName + "_" + this._storageKey, true);
 
     if (!publicAddressCache) {
         publicAddressCache = {};
@@ -336,8 +380,16 @@ HDWalletPouch.prototype.loadAndCache = function() {
 
     this._publicAddressCache = publicAddressCache;
 
-    //@note: @todo: @next: @optimization: these should definitely be cached:
-//    this._privateKeyCache = {};
+
+    var qrCodeBase64Cache = getStoredData('wQRCodeCache_' + this._coinFullName + "_" + this._storageKey, true);
+
+    if (!qrCodeBase64Cache) {
+        qrCodeBase64Cache = {};
+    } else {
+        qrCodeBase64Cache = JSON.parse(qrCodeBase64Cache);
+    }
+
+    this._qrCodeBase64Cache = qrCodeBase64Cache;
 }
 
 HDWalletPouch.prototype.setupWorkers = function() {
@@ -357,7 +409,16 @@ HDWalletPouch.prototype.setupWorkers = function() {
                 // Set transaction, utxo, etc.
             } else if (action === 'update') {
 
-//                console.log("update :: " + self._coinFullName);
+                var numPrevTXKeys = Object.keys(self._transactions).length;
+                var numUpdateTXKeys = Object.keys(message.data.content.transactions).length;
+
+                var didModifyTX = false;
+
+                if (numPrevTXKeys < numUpdateTXKeys) {
+                    didModifyTX = true;
+                }
+
+                //                console.log("update :: " + self._coinFullName);
 
                 if (message.data.content.transactions) {
                     var transactions = message.data.content.transactions;
@@ -365,15 +426,44 @@ HDWalletPouch.prototype.setupWorkers = function() {
                         var transaction = transactions[txid];
 
                         if (self._coinType === COIN_BITCOIN) {
+                            var existingTransaction = self._transactions[txid];
+                            if (typeof(existingTransaction) === 'undefined') {
+                                existingTransaction = null;
+                            }
+                            //@note: @here: @next:
+//                            if (typeof(existingTransaction) !== 'undefined' && existingTransaction !== null && existingTransaction.inputs && existingTransaction.outputs) {
+//                                if (transaction.inputs.length !== existingTransaction.inputs.length) {
+//                                    console.log("tx inputs different length");
+//                                    didModifyTX = true;
+//                                }
+//
+//                                if (transaction.outputs.length !== existingTransaction.outputs.length) {
+//                                    console.log("tx outputs different length");
+//                                    didModifyTX = true;
+//                                }
+//                            }
+
                             // We need to convert all the amounts from BTC to satoshis (cannot do this inside the worker easily)
                             for (var i = 0; i < transaction.inputs.length; i++) {
                                 var input = transaction.inputs[i];
                                 input.amount = HDWalletHelper.convertBitcoinsToSatoshis(input.amountBtc);
+
+                                if (existingTransaction && (existingTransaction.inputs[i].addressIndex !== input.addressIndex || existingTransaction.inputs[i].addressInternal !== input.addressInternal)) {
+//                                    console.log("[inputs] :: " + i + " :: [existingTransaction] :: addressIndex :: " + existingTransaction.inputs[i].addressIndex + " :: addressInternal :: " + existingTransaction.inputs[i].addressInternal + " :: [incomingTransaction] : addressIndex :: " + input.addressIndex + " :: addressInternal :: " + input.addressInternal);
+                                    didModifyTX = true;
+                                }
 //                                console.log("input.amountBtc :: " + input.amountBtc + " :: input.amount :: " + input.amount)
                             }
                             for (var i = 0; i < transaction.outputs.length; i++) {
                                 var output = transaction.outputs[i];
                                 output.amount = HDWalletHelper.convertBitcoinsToSatoshis(output.amountBtc);
+
+                                if (existingTransaction && (existingTransaction.outputs[i].addressIndex !== output.addressIndex || existingTransaction.outputs[i].addressInternal !== output.addressInternal)) {
+//                                    console.log("[outputs] :: " + i + " :: [existingTransaction] :: addressIndex :: " + existingTransaction.outputs[i].addressIndex + " :: addressInternal :: " + existingTransaction.outputs[i].addressInternal + " :: [incomingTransaction] : addressIndex :: " + output.addressIndex + " :: addressInternal :: " + output.addressInternal);
+
+                                    didModifyTX = true;
+                                }
+
 //                                console.log("output.amountBtc :: " + output.amountBtc + " :: output.amount :: " + output.amount)
                             }
 
@@ -391,7 +481,17 @@ HDWalletPouch.prototype.setupWorkers = function() {
                         }
                     }
 
-                    storeData('wTxCache_' + self._coinFullName + "_" + self._storageKey, JSON.stringify(self._transactions), true);
+                    if (self._txCacheValid === false ||                                     didModifyTX === true) {
+                        if (self._coinType === COIN_BITCOIN) {
+                            console.log(self._coinFullName + " ::  updating transaction cache");
+                        }
+                        self._txCacheValid = true;
+                        storeData('wTxCache_' + self._coinFullName + "_" + self._storageKey, JSON.stringify(self._transactions), true);
+                    } else {
+                        if (self._coinType === COIN_BITCOIN) {
+                            console.log(self._coinFullName + " ::  not updating transaction cache");
+                        }
+                    }
                 }
 
                 if (message.data.content.currentReceiveAddress) {
@@ -414,10 +514,20 @@ HDWalletPouch.prototype.setupWorkers = function() {
                     self._largeQrCode = message.data.content.largeQrCode;
                 }
 
-                if (message.data.content.workerCache) {
-                    storeData('wWrkrCache_' + self._coinFullName + "_" + self._storageKey, JSON.stringify(message.data.content.workerCache), true);
+                if (message.data.content.workerCacheAddressMap) {
+                    var workerCacheAddressMap = message.data.content.workerCacheAddressMap;
 
-                    self._w_addressMap = message.data.content.workerCache.addressMap;
+                    var numPrevWorkerCacheKeys = Object.keys(self._w_addressMap).length;
+                    var numUpdatedWorkerCacheKeys = Object.keys(workerCacheAddressMap).length;
+
+                    if (self._wkrCacheValid === false || numPrevWorkerCacheKeys < numUpdatedWorkerCacheKeys) {
+                        self._wkrCacheValid = true;
+                        storeData('wWrkrCacheAddrMap_' + self._coinFullName + "_" + self._storageKey, JSON.stringify(workerCacheAddressMap), true);
+                    } else {
+//                        console.log(self._coinFullName + " ::  not updating worker cache");
+                    }
+
+                    self._w_addressMap = message.data.content.workerCacheAddressMap;
 
                     if (self._coinFullName === "Bitcoin") {
                     } else if (self._coinFullName === "Ethereum") {
@@ -437,17 +547,17 @@ HDWalletPouch.prototype.setupWorkers = function() {
     if (this._worker) {
         var shouldPostWorkerCache = false;
 
-        var workerCache = getStoredData('wWrkrCache_' + this._coinFullName + "_" + this._storageKey, true);
+        var workerCacheAddressMap = getStoredData('wWrkrCacheAddrMap_' + this._coinFullName + "_" + this._storageKey, true);
 
-        if (workerCache) {
+        if (workerCacheAddressMap) {
             try {
-                workerCache = JSON.parse(workerCache);
+                workerCacheAddressMap = JSON.parse(workerCacheAddressMap);
 
 //                for (var idx in workerCache.addressMap) {
 //                    workerCache.addressMap[idx].accountTXProcessed = {};
 //                }
 
-                this._w_addressMap = workerCache.addressMap;
+                this._w_addressMap = workerCacheAddressMap;
 
                 shouldPostWorkerCache = true;
             } catch (e) {
@@ -467,9 +577,9 @@ HDWalletPouch.prototype.setupWorkers = function() {
 
         if (shouldPostWorkerCache === true) {
             this._worker.postMessage({
-                action: 'restoreCache',
+                action: 'restoreAddressMapCache',
                 content: {
-                    workerCache: workerCache
+                    workerCacheAddressMap: workerCacheAddressMap
                 }
             });
         }
@@ -483,6 +593,15 @@ HDWalletPouch.prototype.setupWorkers = function() {
         });
     }
 }
+
+HDWalletPouch.prototype.invalidateTransactionCache = function() {
+    this._txCacheValid = false;
+}
+
+HDWalletPouch.prototype.invalidateWorkerCache = function() {
+    this._wkrCacheValid = false;
+}
+
 
 HDWalletPouch.prototype.shutDown = function() {
     if (this._worker) {
@@ -587,42 +706,6 @@ HDWalletPouch.prototype.getHistory = function() {
                 txid: transaction.txid
             });
         } else if (this._coinType === COIN_ETHEREUM) {
-            //        console.log("ethereum transaction :: " + JSON.stringify(transaction));
-//            var cost = thirdparty.web3.fromWei(transaction.value);
-//
-//            var toAddress = "unknown";
-//
-//            if (transaction.to === this.getAddress()) {
-//                toAddress = transaction.from.substring(0, 7) + '...' + transaction.from.substring(transaction.from.length - 5);
-//                if (transaction.from === 'GENESIS') {
-//                    toAddress = transaction.from;
-//                }
-//
-//            } else if (transaction.from === this.getAddress()) {
-//                cost *= -1;
-//                toAddress = transaction.to.substring(0, 7) + '...' + transaction.to.substring(transaction.from.length - 5);
-//
-//            } else {
-//                console.log('Weird', this.getAddress(), tx.to, tx.from);
-//            }
-//
-//            //        console.log("toAddress :: " + toAddress)
-//            var deltaBalance = cost;
-//
-//            var txid = transaction.hash;
-//
-//            var gasPrice = thirdparty.web3.fromWei(transaction.gas * transaction.gasPrice);
-//
-//            history.push({
-//                toAddress: toAddress,
-//                blockNumber: transaction.blockNumber,
-//                confirmations: transaction.confirmations,
-//                deltaBalance: deltaBalance,
-//                gasPriceEther: gasPrice,
-//                timestamp: transaction.timeStamp,
-//                txid: txid
-//            });
-//
 //            console.log("A :: ethereum transaction :: " + JSON.stringify(transaction));
             if (typeof(transaction.addressIndex) !== 'undefined' && transaction.addressIndex !== null) {
 //                console.log("B :: ethereum transaction :: " + JSON.stringify(transaction));
@@ -763,7 +846,11 @@ HDWalletPouch.prototype.getBalance = function() {
     }
 }
 
-HDWalletPouch.prototype.getPrivateKey = function(internal, index) {
+HDWalletPouch.prototype.getPrivateKey = function(internal, index, ignoreCached) {
+    if (internal === false) {
+        internal = 0;
+    }
+
     if (index < 0 || internal < 0) {
         throw new Error('Invalid private key');
     }
@@ -772,7 +859,7 @@ HDWalletPouch.prototype.getPrivateKey = function(internal, index) {
     //@note: @here: @security: wondering if it might be better not to cache this..
     var privateKey = this._privateKeyCache[key];
 
-    if (typeof(privateKey) === 'undefined' || privateKey === null) {
+    if (typeof(privateKey) === 'undefined' || privateKey === null || typeof(ignoreCached) !== 'undefined') {
         //@note: use a 'truthy' comparison.
         if (internal == true) {
             privateKey = HDWalletPouch._derive(this._changeNode, index, false).keyPair;
@@ -780,15 +867,20 @@ HDWalletPouch.prototype.getPrivateKey = function(internal, index) {
             privateKey = HDWalletPouch._derive(this._receiveNode, index, false).keyPair;
         }
 
-        this._privateKeyCache[key] = privateKey;
+        if (typeof(ignoreCached) === 'undefined') {
+            this._privateKeyCache[key] = privateKey;
+        } else {
+            console.log("uncached fetch of private key");
+        }
     }
+
 
     return privateKey;
 }
 
 //@note: this function returns a checksum address for ethereum. a ".toLowerCase()" on the returned
 //variable will be the non-checksummed version.
-HDWalletPouch.prototype.getPublicAddress = function(internal, index) {
+HDWalletPouch.prototype.getPublicAddress = function(internal, index, ignoreCached) {
     if (internal === false) {
         internal = 0;
     }
@@ -796,7 +888,7 @@ HDWalletPouch.prototype.getPublicAddress = function(internal, index) {
     var key = index + '-' + internal;
     var publicAddress = this._publicAddressCache[key];
 
-    if (typeof(publicAddress) === 'undefined' || publicAddress === null) {
+    if (typeof(publicAddress) === 'undefined' || publicAddress === null || typeof(ignoreCached) !== 'undefined') {
         //@note: use a 'truthy' comparison.
         if (internal == true) {
             publicAddress = HDWalletPouch.getCoinAddress(this._coinType, HDWalletPouch._derive(this._changeNode, index, false));
@@ -811,9 +903,18 @@ HDWalletPouch.prototype.getPublicAddress = function(internal, index) {
 //            console.log("caching public address :: " + publicAddress)
         }
 
-        this._publicAddressCache[key] = publicAddress;
+        if (typeof(ignoreCached) === 'undefined') {
+            this._publicAddressCache[key] = publicAddress;
 
-        storeData('wPubAddrCache_' + this._coinFullName + "_" + this._storageKey, JSON.stringify(this._publicAddressCache), true);
+            storeData('wPubAddrCache_' + this._coinFullName + "_" + this._storageKey, JSON.stringify(this._publicAddressCache), true);
+        } else {
+            console.log("uncached fetch of public address");
+        }
+    } else {
+        if (this._coinType === COIN_ETHEREUM) {
+            publicAddress = HDWalletHelper.toEthereumChecksumAddress(publicAddress);
+            //            console.log("caching public address :: " + publicAddress)
+        }
     }
 
     return publicAddress;
@@ -946,31 +1047,47 @@ HDWalletPouch.prototype.getEthereumNonce = function(internal, index) {
     return nonce;
 }
 
-HDWalletPouch.prototype.isAddressFromSelf = function(addressToCheck) {
-    var highestIndexToCheck = this.getHighestReceiveIndex();
+HDWalletPouch.prototype.isAddressFromSelf = function(addressToCheck, ignoreCached) {
+    var isSelfAddress = false;
 
-    //@note: for ethereum checksum addresses.
-    if (this._coinType === COIN_ETHEREUM) {
-        addressToCheck = addressToCheck.toLowerCase();
-    }
+    var key = addressToCheck;
+    var checkAddress = this._checkAddressCache[key];
 
-    if (highestIndexToCheck !== -1) {
-        for (var i = 0; i < highestIndexToCheck + 1; i++) {
-            var checkAddress = this.getPublicAddress(false, i);
+    if (typeof(checkAddress) === 'undefined' || checkAddress === null || typeof(ignoreCached) !== 'undefined') {
+        var highestIndexToCheck = this.getHighestReceiveIndex();
 
-            //@note: for ethereum checksum addresses.
-            if (this._coinType === COIN_ETHEREUM) {
-                checkAddress = checkAddress.toLowerCase();
+        //@note: for ethereum checksum addresses.
+        if (this._coinType === COIN_ETHEREUM) {
+            addressToCheck = addressToCheck.toLowerCase();
+        }
+
+        if (highestIndexToCheck !== -1) {
+            for (var i = 0; i < highestIndexToCheck + 1; i++) {
+                var curAddress = this.getPublicAddress(false, i);
+
+                //@note: for ethereum checksum addresses.
+                if (this._coinType === COIN_ETHEREUM) {
+                    curAddress = curAddress.toLowerCase();
+                }
+
+                //            console.log("addressToCheck :: " + addressToCheck + " :: checkAddress :: " + checkAddress);
+                if (curAddress === addressToCheck) {
+                    isSelfAddress = true;
+                    break;
+                }
             }
+        }
 
-//            console.log("addressToCheck :: " + addressToCheck + " :: checkAddress :: " + checkAddress);
-            if (checkAddress === addressToCheck) {
-                return true;
-            }
+        if (typeof(ignoreCached) === 'undefined') {
+            this._checkAddressCache[key] = isSelfAddress;
+
+            storeData('wChkAddrCache_' + this._coinFullName + "_" + this._storageKey, JSON.stringify(this._checkAddressCache), true);
+        } else {
+            console.log("uncached");
         }
     }
 
-    return false;
+    return isSelfAddress;
 }
 
 HDWalletPouch.prototype.getHighestReceiveIndex = function() {
@@ -1045,13 +1162,40 @@ HDWalletPouch.prototype.getInternalIndexForPublicAddress = function(publicAddres
 }
 
 HDWalletPouch.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) {
+    var curRecAddr = this.getCurrentReceiveAddress();
+
+    var genQRCode = "";
+
+    if ((typeof(largeFormat) === 'undefined' || largeFormat === null) && (typeof(coinAmountSmallType) === 'undefined' || coinAmountSmallType === null)) {
+//        console.log("generating basic qr");
+
+        var key = curRecAddr;
+        genQRCode = this._qrCodeBase64Cache[key];
+
+        if (typeof(genQRCode) === 'undefined' || genQRCode === null) {
+            genQRCode = this._generateQRCode(largeFormat, coinAmountSmallType);
+
+            this._qrCodeBase64Cache[key] = genQRCode;
+//            console.log("generating qr :: " + genQRCode);
+
+            storeData('wQRCodeCache_' + this._coinFullName + "_" + this._storageKey, JSON.stringify(this._qrCodeBase64Cache), true);
+        }
+    } else {
+        genQRCode = this._generateQRCode(largeFormat, coinAmountSmallType);
+    }
+
+    return genQRCode;
+}
+
+HDWalletPouch.prototype._generateQRCode = function(largeFormat,  coinAmountSmallType) {
+    var curRecAddr = this.getCurrentReceiveAddress();
 
     var uri = "";
 
     if (this._coinType === COIN_BITCOIN) {
-        uri = "bitcoin:" + this.getCurrentReceiveAddress();
+        uri = "bitcoin:" + curRecAddr;
     } else if (this._coinType === COIN_ETHEREUM) {
-        uri = "iban:" + HDWalletHelper.getICAPAddress(this.getCurrentReceiveAddress());
+        uri = "iban:" + HDWalletHelper.getICAPAddress(curRecAddr);
     }
 
     if (coinAmountSmallType) {
@@ -1457,6 +1601,8 @@ HDWalletPouch.prototype.sendBitcoinTransaction = function(transaction, callback)
     this._transactions[txid] = mockTx;
     this._spendable = null;
 
+    this.invalidateTransactionCache();
+
     this._notify();
 
     // Post the transaction
@@ -1495,6 +1641,9 @@ HDWalletPouch.prototype.sendEthereumTransaction = function(transaction, callback
 //
     var self = this;
     $.getJSON('https://api.etherscan.io/api?module=proxy&action=eth_sendRawTransaction&hex=' + hex, function (data) {
+        self.invalidateTransactionCache();
+        self.invalidateWorkerCache();
+
         if (!data || !data.result || data.result.length !== 66) {
             console.log('Error sending', data, " :: " + debugIdx + " :: " + JSON.stringify(transaction) + " :: hex :: " + hex);
 
@@ -1513,6 +1662,7 @@ HDWalletPouch.prototype.sendEthereumTransaction = function(transaction, callback
                     var txCostPlusGas = transaction._mockTx.valueDelta - (transaction._mockTx.gasUsed * transaction._mockTx.gasPrice);
 
                     addressInfo.accountBalance -= txCostPlusGas;
+                    addressInfo.nonce--;
                     delete addressInfo.accountTXProcessed[transaction._mockTx.hash];
                 } else {
                     console.log("sendEthereumTransaction error :: addressInfo undefined")
@@ -1527,8 +1677,6 @@ HDWalletPouch.prototype.sendEthereumTransaction = function(transaction, callback
                     });
                 }
             }
-
-            return;
         } else {
             console.log('Success sending', data, " :: " + debugIdx + " :: " + JSON.stringify(transaction) + " :: hex :: " + hex);
 
@@ -1548,6 +1696,8 @@ HDWalletPouch.prototype.sendEthereumTransaction = function(transaction, callback
                 var txCostPlusGas = transaction._mockTx.valueDelta - (transaction._mockTx.gasUsed * transaction._mockTx.gasPrice);
 
                 addressInfo.accountBalance += txCostPlusGas;
+                addressInfo.nonce++;
+
                 addressInfo.accountTXProcessed[transaction._mockTx.hash] = true;
             } else {
                 console.log("sendEthereumTransaction success :: addressInfo undefined")
@@ -1723,48 +1873,80 @@ HDWalletPouch.prototype.getKeypairsList = function(){
 //        tempPair[1] = this.getPublicAddress(false, lastIndex + 1);
 //        result.push(tempPair);
     } else if (this._coinType === COIN_ETHEREUM) {
+        var finalIndex = 0;
+
+        if (result.length === 0) {
+            finalIndex = 0;
+        } else {
+            finalIndex = lastIndex + 1;
+        }
         var tempPair = [];
-        tempPair[0] = this.getPrivateKey(false, lastIndex).d.toBuffer(32).toString('hex');
-        tempPair[1] = this.getPublicAddress(false, lastIndex + 1);
+        tempPair[0] = this.getPrivateKey(false, finalIndex).d.toBuffer(32).toString('hex');
+        tempPair[1] = this.getPublicAddress(false, finalIndex);
         result.push(tempPair);
     }
 
     result.reverse();
 
-//    if (this._coinType === COIN_ETHEREUM) {
-//        for (var info in this._w_addressMap) {
-//            var addressInfo = this._w_addressMap[info];
-//            if (!addressInfo.internal) {
-//                console.log("account balance :: " + this.getPublicAddress(false, addressInfo.index) + " :: " + this.getEthereumAccountBalance(false, addressInfo.index));
-//            }
-//        }
-//
-//        this.sortHighestAccounts();
-////        console.log("_sortedHighestAccountArray :: " + JSON.stringify(this._sortedHighestAccountArray));
-//    }
-//    if (this._coinType === COIN_ETHEREUM) {
-//        results = {};
-//
-//        for (var i = 0; i < 30; i++) {
-//            var privateKey = this.getPrivateKey(false, i).d.toBuffer(32).toString('hex');
-//
-//            var publicAddress = HDWalletPouch.getLightwalletEthereumAddress(HDWalletPouch._derive(this._receiveNode, i, false));
-////            var publicAddress = this.getPublicAddress(false, i);
-//
-//            console.log("private key :: " + i + " :: " + privateKey + " :: " + publicAddress);
-//
-//            var tempPair = [];
-//            tempPair[0] = privateKey;
-//            tempPair[1] = publicAddress;
-//            result.push(tempPair);
-//        }
-//    }
+    var extremeDebug = false;
+
+    if (extremeDebug) {
+        if (this._coinType === COIN_ETHEREUM) {
+            for (var info in this._w_addressMap) {
+                var addressInfo = this._w_addressMap[info];
+                if (!addressInfo.internal) {
+                    console.log("account balance :: " + this.getPublicAddress(false, addressInfo.index) + " :: " + this.getEthereumAccountBalance(false, addressInfo.index));
+                }
+            }
+
+            this.sortHighestAccounts();
+            console.log("_sortedHighestAccountArray :: " + JSON.stringify(this._sortedHighestAccountArray));
+        }
+        if (this._coinType === COIN_ETHEREUM) {
+            results = {};
+            //        console.log("[receiveNode] :: " + this._receiveNode.toBase58());
+            //        console.log("[receiveNode] chaincode :: " + this._receiveNode.chainCode);
+
+            //@note: @here: transfer paper wallet repro.
+//            this._receiveNode.keyPair.compressed = false;
+            console.log("[receiveNode] pubKeyBuff :: " + this._receiveNode.keyPair.getPublicKeyBuffer());
+//            var manualPvt = this.manuallyDeriveUnhardened(this._receiveNode, 0).keyPair.d.toBuffer(32).toString('hex');
+
+            //        console.log("[receiveNode] manual zeroth :: " + manualPvt);
+
+            for (var i = 0; i < 2; i++) {
+                var privateKey = this.getPrivateKey(false, i, true).d.toBuffer(32).toString('hex');
+
+                //            var publicAddress = HDWalletPouch.getLightwalletEthereumAddress(HDWalletPouch._derive(this._receiveNode, i, false));
+                var publicAddress = this.getPublicAddress(false, i, true);
+
+                //            console.log("[receive] buffer :: " + HDWalletPouch._derive(this._receiveNode, i, false).toBase58());
+                //            console.log("[receive] chaincode :: " + HDWalletPouch._derive(this._receiveNode, i, false).chainCode)
+                //            console.log("[receive] derive private key :: " + i + " :: " + HDWalletPouch._derive(this._receiveNode, i, false).keyPair.d.toBuffer(32).toString('hex'));
+
+                console.log("[receive] uncached private key :: " + i + " :: " + privateKey + " :: " + publicAddress);
+
+                //            var privateKey = this.getPrivateKey(false, i, true).d.toBuffer(32).toString('hex');
+                //
+                //            //            var publicAddress = HDWalletPouch.getLightwalletEthereumAddress(HDWalletPouch._derive(this._receiveNode, i, false));
+                //            var publicAddress = this.getPublicAddress(false, i, true);
+                //
+                //            console.log("[receive] cached private key :: " + i + " :: " + privateKey + " :: " + publicAddress);
+                //
+                //            var tempPair = [];
+                //            tempPair[0] = privateKey;
+                //            tempPair[1] = publicAddress;
+                //            result.push(tempPair);
+            }
+        }
+    }
+
 
     return result;
 }
 
 HDWalletPouch.prototype.getEthereumLegacyStableKeypair = function() {
-    return HDWalletHelper.toEthereumChecksumAddress(HDWalletPouch.getCoinAddress(this._coinType, this._receiveNode).toString()) + ", " + this._receiveNode.keyPair.d.toBuffer(32).toString('hex');
+    return HDWalletHelper.toEthereumChecksumAddress(this.getPrivateKey(this._coinType, this._receiveNode).toString()) + ", " + this._receiveNode.keyPair.d.toBuffer(32).toString('hex');
 }
 
 HDWalletPouch.prototype.log = function() {
@@ -1793,4 +1975,91 @@ HDWalletPouch.prototype.dumpLog = function() {
     for (var i = 0; i < this._log.length; i++) {
         this._logger.log.apply(this._logger, this._log[i]);
     }
+}
+
+//@note: not really needed anymore, was used to do a test of derivation functions.
+HDWalletPouch.prototype.manuallyDeriveUnhardened = function(fromNode, index) {
+//    typeforce(types.UInt32, index)
+    var curve = thirdparty.ecurve.getCurveByName('secp256k1');
+
+    var isHardened = index >= thirdparty.bitcoin.HDNode.HIGHEST_BIT
+    var data = new Buffer(37)
+
+    // Hardened child
+    if (isHardened) {
+        if (!fromNode.keyPair.d) {
+            console.log("error :: A in derivation");
+            return null;
+        }
+
+        // data = 0x00 || ser256(kpar) || ser32(index)
+        data[0] = 0x00
+        fromNode.keyPair.d.toBuffer(32).copy(data, 1)
+        data.writeUInt32BE(index, 33)
+
+        // Normal child
+    } else {
+        // data = serP(point(kpar)) || ser32(index)
+        //      = serP(Kpar) || ser32(index)
+        console.log("pubkeybuff :: " + fromNode.keyPair.getPublicKeyBuffer().toString('hex'));
+        fromNode.keyPair.getPublicKeyBuffer().copy(data, 0)
+        data.writeUInt32BE(index, 33)
+    }
+
+    var I = thirdparty.createHmac('sha512', fromNode.chainCode).update(data).digest()
+    console.log("createHmac :: I :: " + I);
+    var IL = I.slice(0, 32)
+    var IR = I.slice(32)
+
+    var pIL = thirdparty.bigi.fromBuffer(IL)
+
+    // In case parse256(IL) >= n, proceed with the next value for i
+    if (pIL.compareTo(curve.n) >= 0) {
+        console.log("error :: B in derivation");
+        return null;
+        //return this.derive(index + 1)
+    }
+
+    // Private parent key -> private child key
+    var derivedKeyPair
+    if (fromNode.keyPair.d) {
+        // ki = parse256(IL) + kpar (mod n)
+        var ki = pIL.add(fromNode.keyPair.d).mod(curve.n)
+        console.log("ki :: " + ki);
+
+        // In case ki == 0, proceed with the next value for i
+        if (ki.signum() === 0) {
+            console.log("error :: C in derivation");
+            return null;
+            //return this.derive(index + 1)
+        }
+
+        derivedKeyPair = new thirdparty.bitcoin.ECPair(ki, null, {
+            network: fromNode.keyPair.network
+        })
+
+        // Public parent key -> public child key
+    } else {
+        // Ki = point(parse256(IL)) + Kpar
+        //    = G*IL + Kpar
+        var Ki = curve.G.multiply(pIL).add(fromNode.keyPair.Q)
+
+        // In case Ki is the point at infinity, proceed with the next value for i
+        if (curve.isInfinity(Ki)) {
+            console.log("error :: D in derivation");
+            return null;
+//            return this.derive(index + 1)
+        }
+
+        derivedKeyPair = new thirdparty.bitcoin.ECPair(null, Ki, {
+            network: fromNode.keyPair.network
+        })
+    }
+
+    var hd = new thirdparty.bitcoin.HDNode(derivedKeyPair, IR)
+    hd.depth = fromNode.depth + 1
+    hd.index = index
+    hd.parentFingerprint = fromNode.getFingerprint().readUInt32BE(0)
+
+    return hd;
 }

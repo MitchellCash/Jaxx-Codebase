@@ -204,7 +204,7 @@ HDWalletWorker.prototype.update = function() {
 //    log("watcher :: " + this._coinType + " :: update :: " + this._transactions.length);
     var updates = {
         transactions: this._transactions,
-        workerCache: {addressMap: this._addressMap},
+        workerCacheAddressMap: this._addressMap,
     }
 
     if (!this._currentReceiveAddress) {
@@ -845,12 +845,12 @@ onmessage = function(message) {
     }
     if (message.data.action === 'setExtendedPublicKeys') {
         hdWalletWorker.setExtendedPublicKeys(message.data.content.receive, message.data.content.change);
-    } else if (message.data.action === 'restoreCache') {
-        var cache = message.data.content.workerCache;
+    } else if (message.data.action === 'restoreAddressMapCache') {
+        var cache = message.data.content.workerCacheAddressMap;
 
-        if (cache && cache.addressMap) {
-            for (var address in cache.addressMap) {
-                hdWalletWorker._addressMap[address] = cache.addressMap[address];
+        if (cache) {
+            for (var address in cache) {
+                hdWalletWorker._addressMap[address] = cache[address];
                 hdWalletWorker._watchAddress(address);
             }
         }

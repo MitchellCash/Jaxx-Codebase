@@ -27,6 +27,8 @@ var HDWalletMain = function() {
     this._hasShownLegacySweep = false;
     this._shouldSetUpLegacyEthereumSweep = false;
     this._hasSetupLegacyEthereumSweep = false;
+
+    this._legacyEthereumWalletLoadCallback = null;
 }
 
 HDWalletMain.TESTNET = TESTNET;
@@ -85,6 +87,16 @@ HDWalletMain.prototype.switchToCoinType = function(coinType) {
             }
         }
     }
+}
+
+HDWalletMain.prototype.getHasSetupLegacyEthereumSweep = function() {
+    return this._hasSetupLegacyEthereumSweep;
+}
+
+HDWalletMain.prototype.setShouldSetUpLegacyEthereumSweep = function(callback) {
+    this._shouldSetUpLegacyEthereumSweep = true;
+    this._legacyEthereumWalletLoadCallback = callback;
+    this.setupLegacyEthereumSweep();
 }
 
 HDWalletMain.prototype.update = function() {
@@ -153,7 +165,7 @@ HDWalletMain.prototype.setupLegacyEthereumSweep = function() {
     var setupTimeout = 1.5 * 60 * 1000;
     var legacyEthereumSweepRan = getStoredData("ethereum_legacySweepRan", false);
 
-    if (!legacyEthereumSweepRan || legacyEthereumSweepRan !== "true") {
+    if (!legacyEthereumSweepRan || legacyEthereumSweepRan !== "true" || this._legacyEthereumWalletLoadCallback !== null) {
         storeData("ethereum_legacySweepRan", "true", false);
         setupTimeout = 1500;
     }
@@ -166,6 +178,9 @@ HDWalletMain.prototype.setupLegacyEthereumSweep = function() {
         self._legacyEthereumWallet = new EthereumWallet();
         self._legacyEthereumWallet._finishedLoadingEthereumCallback = function(isGlitchedWallet) {
             self._hasGlitchedLegacyEthereumWallet = isGlitchedWallet;
+            if (self._legacyEthereumWalletLoadCallback !== null) {
+                self._legacyEthereumWalletLoadCallback();
+            }
         }
         self._legacyEthereumWallet.addBalanceListener(function() {
 //            console.log("[ethereum] :: legacy balance :: " + self._legacyEthereumWallet.getBalance());

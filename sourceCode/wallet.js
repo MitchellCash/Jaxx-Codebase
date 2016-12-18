@@ -445,6 +445,72 @@ HDWallet.convertFiatToSatoshis = function(fiatAmount, fiatUnit) {
     return parseInt(100000000 * (fiatAmount / rate));
 }
 
+
+
+HDWallet.prototype.getPrivateKeys =  function() {
+    var result = [];
+    var pairList = this.getKeypairsList();
+    for (var i = 0; i < pairList.length; i++) {
+        result.push(pairList[i][0])
+    }
+    return $.unique(result);
+}
+
+HDWallet.prototype.getUsedAddresses =  function() {
+    var result = [];
+    var pairList = this.getKeypairsList();
+    for (var i = 0; i < pairList.length; i++) {
+        result.push(pairList[i][1])
+    }
+    return $.unique(result);
+}
+
+//Returns a multidimensional array with pairs public/private key
+HDWallet.prototype.getKeypairsList = function(){
+    var result = [];
+
+    var transactions = this.getTransactions(); //Get all transactions
+
+    for (var ti = 0; ti < transactions.length; ti++) { //iterate through txs
+        var transaction = transactions[ti];
+
+        //First we need to determine if this is an incoming tx. let see balance
+        var deltaBalance = 0;
+
+        //Iterate on Inputs
+        for (var i = 0; i < transaction.inputs.length; i++) {
+            var input = transaction.inputs[i];
+            // Our address, money sent (input values are always negative)
+            if (input.addressIndex !== null) {
+                deltaBalance += input.amount;
+            }
+        }
+
+        for (var i = 0; i < transaction.outputs.length; i++) {
+            var output = transaction.outputs[i];
+            if (output.addressIndex !== null) {
+                deltaBalance += output.amount;
+            }
+        }
+
+        if(deltaBalance > 0 ) { //incoming tx
+             for (var i = 0; i < transaction.outputs.length; i++) {
+                var output = transaction.outputs[i];
+                if (output.addressIndex != null){ //search outputs to our addresses
+                    var tempPair = [];
+                    tempPair[0] = this._privateKey(output.addressInternal, output.addressIndex).toWIF();
+                    tempPair[1] = output.address;
+                    result.push(tempPair);
+                 }
+            }
+        }
+
+    }
+
+    return result;
+}
+
+
 // Populates all the expensive to compute parts of the wallet
 HDWallet.prototype._load = function() {
     if (this._rootNode) { return; }
@@ -979,6 +1045,8 @@ HDWallet.prototype._getUnspentOutputs = function() {
 
     return result;
 }
+
+
 
 /**
  *  Get the current balance of all unspent transactions for this wallet.

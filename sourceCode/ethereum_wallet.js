@@ -164,6 +164,14 @@ EthereumWallet.prototype.callbackOnErrorLoadingLightwallet = function(jqXHR, tex
 
 }
 
+EthereumWallet.prototype.getPrivateKey = function(){
+    return getStoredData('ethereum_cachedPrivateFromStorage_' + w_Obj._storageKey, true);
+}
+
+EthereumWallet.prototype.getPublicAddress = function(){
+    return getStoredData('ethereum_cachedAddressFromStorage_' + w_Obj._storageKey, true);
+}
+
 EthereumWallet.prototype.initHDStore = function(checkForEthereumIssue) {
     console.log("[ EthereumWallet :: Init HD Store ]");
 

@@ -828,6 +828,8 @@ EthereumWallet.prototype.getTransactions = function () {
 EthereumWallet.prototype.getHistory = function() {
     var transactions = this.getTransactions();
 
+	console.log(transactions);
+
     var history = [];
     for (var ti = 0; ti < transactions.length; ti++) {
         var transaction = transactions[ti];
@@ -835,17 +837,20 @@ EthereumWallet.prototype.getHistory = function() {
         var cost = thirdparty.web3.fromWei(transaction.value);
 
         var toAddress = "unknown";
+		var toAddressFull = "unknown";
 
         if (transaction.to === this.getAddress()) {
             toAddress = transaction.from.substring(0, 7) + '...' + transaction.from.substring(transaction.from.length - 5);
+			toAddressFull = transaction.from;
             if (transaction.from === 'GENESIS') {
                 toAddress = transaction.from;
             }
 
         } else if (transaction.from === this.getAddress()) {
             cost *= -1;
-            toAddress = transaction.to.substring(0, 7) + '...' + transaction.to.substring(transaction.from.length - 5);
-
+            toAddress = transaction.to.substring(0, 7) + '...' +
+			transaction.to.substring(transaction.from.length - 5);
+			toAddressFull = transaction.to;
         } else {
             console.log('Weird', this.getAddress(), tx.to, tx.from);
         }
@@ -859,7 +864,8 @@ EthereumWallet.prototype.getHistory = function() {
 
         history.push({
             toAddress: toAddress,
-            blockNumber: transaction.blockNumber,
+            toAddressFull: toAddressFull,
+			blockNumber: transaction.blockNumber,
             confirmations: transaction.confirmations,
             deltaBalance: deltaBalance,
             gasUsed: gasUsed,

@@ -445,16 +445,21 @@ HDWalletHelper.prototype.convertSatoshisToFiat = function(satoshis, fiatUnit, no
         return value;
     }
 
-    if (window.Intl) {
-        var formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: fiatUnit});
-        //        console.log("value :: " + value + " :: formatter :: " + formatter);
-        return formatter.format(value);
-    }
+	if (window.Intl) {
+		var formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: fiatUnit});
+		// Cut front end until first digit and then append prefix.
+		value = formatter.format(value);
+		value = value.substring(value.indexOf(value.match(/\d/)), value.length); // This will cut the prefix off of 'value'.
+		value = prefix + value; // This appends the prefix to the currency value.
+		return value;
+	}
 
-    // @TOOD: format this nicely on iOS
-    if (prefix === '$') {
-        value = value.toFixed(2);
-    }
+    // Assertion: The user is running the program with an Apple device.
+	if (['AUD', 'CAD', 'CLP', 'HKD', 'NZD', 'SGD', 'MXN', 'NOK', 'USD', 'BRL', 'CNY', 'DKK', 'EUR', 'GBP', 'INR', 'PLN', 'RUB', 'SEK', 'TWD', 'FRA'].indexOf(fiatUnit) >= 0) {
+        value = value.toFixed(2); // Show currency to 2 decimal places.
+	} else if (['ISK', 'JPY', 'KRW'].indexOf(fiatUnit) >= 0) {
+		value = value.toFixed(0); // No sub-currency so show currency as whole number.
+	}
 
     var commified = value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
@@ -500,13 +505,19 @@ HDWalletHelper.prototype.convertWeiToFiat = function(wei, fiatUnit, noPrefix) {
 
     if (window.Intl) {
         var formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: fiatUnit});
-        return formatter.format(value);
+		// Cut front end until first digit and then append prefix.
+		value = formatter.format(value);
+		value = value.substring(value.indexOf(value.match(/\d/)), value.length); // This will cut the prefix off of 'value'.
+		value = prefix + value; // This appends the prefix to the currency value.
+        return value;
     }
 
-    // @TOOD: format this nicely on iOS
-    if (prefix === '$') {
-        value = value.toFixed(2);
-    }
+	// Assertion: The user is running the program with an Apple device.
+	if (['AUD', 'CAD', 'CLP', 'HKD', 'NZD', 'SGD', 'MXN', 'NOK', 'USD', 'BRL', 'CNY', 'DKK', 'EUR', 'GBP', 'INR', 'PLN', 'RUB', 'SEK', 'TWD', 'FRA'].indexOf(fiatUnit) >= 0) {
+		value = value.toFixed(2); // Show currency to 2 decimal places.
+	} else if (['ISK', 'JPY', 'KRW'].indexOf(fiatUnit) >= 0) {
+		value = value.toFixed(0); // No sub-currency so show currency as whole number.
+	}
 
     var commified = value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
@@ -945,6 +956,10 @@ HDWalletHelper.convertCoinToUnitType = function(coinType, coinAmount, coinUnitTy
         coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertSatoshisToBitcoins(coinAmount) : HDWalletHelper.convertBitcoinsToSatoshis(coinAmount);
     } else if (coinType === COIN_ETHEREUM) {
         coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertWeiToEther(coinAmount) : HDWalletHelper.convertEtherToWei(coinAmount);
+    } else if (coinType === COIN_THEDAO_ETHEREUM) {
+        coinOtherUnitAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertWeiToEther(coinAmount) : HDWalletHelper.convertEtherToWei(coinAmount);
+
+//        console.log("convert :: " + coinAmount + " :: " + coinOtherUnitAmount)
     }
 
     return coinOtherUnitAmount;

@@ -13,7 +13,6 @@ The second, which is being implemented here, is that the highest valued index th
 
 */
 
-
 var HDWalletPouch = function() {
     this._coinType = -1;
 
@@ -89,7 +88,15 @@ var HDWalletPouch = function() {
     this._miningFeeUpdateTimer = 60 * 1000;
 
     this._miningFeeDict = {"fastestFee": 40, "halfHourFee": 20, "hourFee": 10};
+
+    this._miningFeeLevel = -1;
+
+    this._doEthTXDebug = false;
 }
+
+HDWalletPouch.MiningFeeLevelSlow = 0;
+HDWalletPouch.MiningFeeLevelAverage = 1;
+HDWalletPouch.MiningFeeLevelFast = 2;
 
 HDWalletPouch._derive = function(node, index, hardened) {
     if (hardened) {
@@ -166,8 +173,16 @@ HDWalletPouch.getLightwalletEthereumAddress = function(node) {
     return "0x" + addressEth;
 }
 
+HDWalletPouch.prototype.ethTXLog = function(logString) {
+    if (this._doEthTXDebug) {
+        console.log(logString);
+    }
+}
+
 HDWalletPouch.prototype.setup = function(coinType, testNet, helper) {
     this._coinType = coinType;
+
+    this._miningFeeLevel = HDWalletPouch.MiningFeeLevelAverage;
 
     this._helper = helper;
 
@@ -284,7 +299,8 @@ HDWalletPouch.prototype.updateMiningFees = function() {
                 console.log("cannot access default fee");
             } else  {
                 self._miningFeeDict = data;
-                self._defaultTXFee = parseInt(data.halfHourFee) * 1000;
+                //@note: @here: default to "average"
+                self._defaultTXFee = parseInt(data.hourFee) * 1000;
             }
         });
     }
@@ -294,6 +310,21 @@ HDWalletPouch.prototype.updateMiningFees = function() {
 
 HDWalletPouch.prototype.getMiningFeeDict = function() {
     return this._miningFeeDict;
+}
+
+HDWalletPouch.prototype.getMiningFeeLevel = function() {
+    return this._miningFeeLevel;
+}
+
+HDWalletPouch.prototype.setMiningFeeLevel = function(newMiningFeeLevel) {
+    if (newMiningFeeLevel !== HDWalletPouch.MiningFeeLevelSlow &&
+        newMiningFeeLevel !== HDWalletPouch.MiningFeeLevelAverage &&
+        newMiningFeeLevel !== HDWalletPouch.MiningFeeLevelFast) {
+        console.log("HDWalletPouch :: setMiningFeeLevel :: error :: attempting to set mining fee to undetermined level :: " + newMiningFeeLevel);
+        return;
+    }
+
+    this._miningFeeLevel = newMiningFeeLevel;
 }
 
 HDWalletPouch.prototype._notify = function(reason) {
@@ -793,6 +824,7 @@ HDWalletPouch.prototype.getHistory = function() {
 
         if (this._coinType === COIN_BITCOIN) {
             var deltaBalance = 0;
+			var deltaDAO = 0;
             var miningFee = 0;
 
             for (var i = 0; i < transaction.inputs.length; i++) {
@@ -823,14 +855,19 @@ HDWalletPouch.prototype.getHistory = function() {
             }
 
             var toAddress = null;
+			var toAddressFull = null;
+
             if (deltaBalance > 0 && myInputAddress.length === 1) {
                 toAddress = myInputAddress[0];
+				toAddressFull = myInputAddress[0];
             } else if (deltaBalance < 0 && otherOutputAddress.length === 1) {
                 toAddress = otherOutputAddress[0];
+				toAddressFull = otherOutputAddress[0];
             }
 
             history.push({
                 toAddress: toAddress,
+				toAddressFull: toAddressFull,
                 blockHeight: transaction.block,
                 confirmations: transaction.confirmations,
                 deltaBalance: deltaBalance,
@@ -844,13 +881,17 @@ HDWalletPouch.prototype.getHistory = function() {
 //                console.log("B :: ethereum transaction :: " + JSON.stringify(transaction));
 
                 var toAddress = "";
+				var toAddressFull = "";
 
                 var valueDelta = thirdparty.web3.fromWei(transaction.valueDelta);
+				var valueDAO = 77777; // Need transaction.txid --> address from DAOhub
 
                 if (this.isAddressFromSelf(transaction.to)) {
                     toAddress = "Self";
+					toAddressFull = "Self"
                 } else {
                     toAddress = transaction.to.substring(0, 7) + '...' + transaction.to.substring(transaction.to.length - 5);
+					toAddressFull = transaction.to;
                     if (transaction.from === 'GENESIS') {
                         toAddress = transaction.from;
                     }
@@ -861,9 +902,11 @@ HDWalletPouch.prototype.getHistory = function() {
 
                 history.push({
                     toAddress: toAddress,
+					toAddressFull: toAddressFull,
                     blockNumber: transaction.blockNumber,
                     confirmations: transaction.confirmations,
                     deltaBalance: valueDelta,
+					deltaDAO: valueDAO,
                     gasCost: gasCost,
                     timestamp: transaction.timestamp,
                     txid: transaction.txid
@@ -969,7 +1012,10 @@ HDWalletPouch.prototype.getPouchFoldBalance = function() {
 
         var highestIndexToCheck = this.getHighestReceiveIndex();
 
+        highestIndexToCheck++; //@note: @here: check for internal transaction balances on current receive account.
+
         if (highestIndexToCheck !== -1) {
+
             for (var i = 0; i < highestIndexToCheck + 1; i++) {
                 var curBalance = this.getAccountBalance(false, i);
                 balance += curBalance;
@@ -1261,9 +1307,14 @@ HDWalletPouch.prototype.getAccountBalance = function(internal, index, ignoreCach
 
         var addressInfo = this._w_addressMap[publicAddress];
 
-        //    console.log("internal :: " + internal + " :: index :: " + index + " :: publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo) + " :: _w_addressMap :: " + JSON.stringify(this._w_addressMap));
+//        console.log("publicAddress :: " + publicAddress);
+//        if (publicAddress == "0x8e63e85adebcdb448bb93a2f3bd00215c1cbaec4") {
+//            console.log("internal :: " + internal + " :: index :: " + index + " :: publicAddress :: " + publicAddress + " :: info :: " + JSON.stringify(addressInfo) + " :: _w_addressMap :: " + JSON.stringify(this._w_addressMap));
+//
+//        }
 
         if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
+//            console.log("publicAddress :: " + publicAddress + " :: balance :: " + addressInfo.accountBalance);
             accountBalance = addressInfo.accountBalance;
         }
     }
@@ -1403,7 +1454,12 @@ HDWalletPouch.prototype.sortHighestAccounts = function() {
 
     var highestIndexToCheck = this.getHighestReceiveIndex();
 
+    if (this._coinType === COIN_ETHEREUM) {
+        highestIndexToCheck++; //@note: @here: check for internal transaction balances on current receive account.
+    }
+
     if (highestIndexToCheck !== -1) {
+
         for (var i = 0; i < highestIndexToCheck + 1; i++) {
             var curBalance = this.getAccountBalance(false, i);
             this._sortedHighestAccountArray.push({index: i, balance: curBalance});
@@ -1674,6 +1730,8 @@ HDWalletPouch.prototype.getCurrentMiningFee = function() {
         transactionFee = this._txFeeOverride;
     }
 
+//    console.log("getCurrentMiningFee :: txFeeOverride :: " + this._txFeeOverride + " :: transactionFee :: " + transactionFee);
+
     return transactionFee;
 }
 
@@ -1682,7 +1740,7 @@ HDWalletPouch.prototype.buildBitcoinTransaction = function(toAddress, amount_sma
     var currentBitcoinMiningFee = this.getCurrentMiningFee();
     var totalTransactionFee = currentBitcoinMiningFee;
 
-//    console.log("buildBitcoinTransaction :: address :: " + toAddress);
+//    console.log("buildBitcoinTransaction :: address :: " + toAddress + " :: currentBitcoinMiningFee :: " + currentBitcoinMiningFee);
     while (true) {
         tx = this._buildBitcoinTransaction(toAddress, amount_smallUnit, totalTransactionFee, true);
 
@@ -1724,11 +1782,11 @@ HDWalletPouch.prototype._buildEthereumTransaction = function(fromNodeInternal, f
 
     var fromAddress = HDWalletPouch.getCoinAddress(this._coinType, this.getNode(fromNodeInternal, fromNodeIndex));
 
-    console.log("ethereum :: from address :: " + fromAddress);
+    this.ethTXLog("ethereum :: from address :: " + fromAddress);
 
     var nonce = this.getEthereumNonce(fromNodeInternal, fromNodeIndex);
 
-    console.log("ethereum :: build tx nonce :: " + nonce + " :: gasPrice :: " + ethGasPrice + " :: gasLimit :: " + ethGasLimit);
+    this.ethTXLog("ethereum :: build tx nonce :: " + nonce + " :: gasPrice :: " + ethGasPrice + " :: gasLimit :: " + ethGasLimit);
 
     var rawTx = {
         nonce: HDWalletHelper.hexify(nonce),
@@ -1803,11 +1861,11 @@ HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddressArray, 
         if (amountWei + baseTXCost <= highestAccountDict.balance) {
             totalTXCost = baseTXCost;
 
-            console.log("ethereum transaction :: account :: " + highestAccountDict.index + " :: " + highestAccountDict.balance + " :: can cover the entire balance + tx cost :: " + (amountWei + baseTXCost));
+            this.ethTXLog("ethereum transaction :: account :: " + highestAccountDict.index + " :: " + highestAccountDict.balance + " :: can cover the entire balance + tx cost :: " + (amountWei + baseTXCost));
             var newTX = this._buildEthereumTransaction(false, highestAccountDict.index, toAddressArray[0], amountWei, gasPrice, gasLimit, ethData, doNotSign);
 
             if (!newTX) {
-                console.log("error :: ethereum transaction :: account failed to build :: " + highestAccountDict.index);
+                this.ethTXLog("error :: ethereum transaction :: account failed to build :: " + highestAccountDict.index);
                 return null;
             } else {
                 txArray.push(newTX);
@@ -1819,13 +1877,13 @@ HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddressArray, 
 
             //@note: this array is implicitly regenerated and sorted when the getHighestAccountBalanceAndIndex function is called.
             for (var i = 0; i < this._sortedHighestAccountArray.length; i++) {
-                console.log("ethereum transaction :: balanceRemaining (pre) :: " + balanceRemaining);
+                this.ethTXLog("ethereum transaction :: balanceRemaining (pre) :: " + balanceRemaining);
 //                console.log(typeof(this._sortedHighestAccountArray[i].balance));
                 var accountBalance = this._sortedHighestAccountArray[i].balance;
 
                 //@note: if the account cannot support the base tx cost + 1 wei (which might be significantly higher in the case of a contract address target), this process cannot continue as list is already sorted, and this transaction cannot be completed.
                 if (accountBalance <= baseTXCost) {
-                    console.log("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " cannot cover current dust limit of :: " + baseTXCost);
+                    this.ethTXLog("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " cannot cover current dust limit of :: " + baseTXCost);
                     txSuccess = false;
                     break;
                 } else {
@@ -1838,14 +1896,14 @@ HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddressArray, 
                     //@note: check if subtracting the balance of this account from the remaining target transaction balance will result in exactly zero or a positive balance for this account.
                     if (accountBalance - balanceRemaining - baseTXCost < 0) {
                         //@note: this account doesn't have enough of a balance to cover by itself.. keep combining.
-                        console.log("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " :: does not have enough to cover balance + tx cost :: " + (balanceRemaining + baseTXCost) + " :: accountBalance - tx cost :: " + (accountBalance - baseTXCost));
+                        this.ethTXLog("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " :: does not have enough to cover balance + tx cost :: " + (balanceRemaining + baseTXCost) + " :: accountBalance - tx cost :: " + (accountBalance - baseTXCost));
 
                         amountToSendFromAccount = (accountBalance - baseTXCost);
                     } else {
                         var accountChange = accountBalance - balanceRemaining - baseTXCost;
                         //                        console.log("types :: " + typeof(balanceRemaining) + " :: " + typeof(baseTXCost));
                         amountToSendFromAccount = balanceRemaining;
-                        console.log("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " :: accountBalance :: " + accountBalance + " :: account balance after (balance + tx cost) :: " + accountChange);
+                        this.ethTXLog("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " :: accountBalance :: " + accountBalance + " :: account balance after (balance + tx cost) :: " + accountChange);
 
                         //@note: don't do things like bitcoin's change address system for now.
                     }
@@ -1860,13 +1918,13 @@ HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddressArray, 
                         targetEthereumAddress = toAddressArray[i];
                     }
 
-                    console.log("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " :: will send  :: " + amountToSendFromAccount + " :: to :: " + targetEthereumAddress);
+                    this.ethTXLog("ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " :: will send  :: " + amountToSendFromAccount + " :: to :: " + targetEthereumAddress);
 
 
                     var newTX = this._buildEthereumTransaction(false, this._sortedHighestAccountArray[i].index, targetEthereumAddress, amountToSendFromAccount, gasPrice, gasLimit, ethData, doNotSign);
 
                     if (!newTX) {
-                        console.log("error :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " cannot build");
+                        this.ethTXLog("error :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].index + " cannot build");
 
                         txSuccess = false;
                         break;
@@ -1877,15 +1935,15 @@ HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddressArray, 
                     //@note: keep track of the total TX cost for user review on the UI side.
                     totalTXCost += baseTXCost;
 
-                    console.log("ethereum transaction :: current total tx cost :: " + totalTXCost);
+                    this.ethTXLog("ethereum transaction :: current total tx cost :: " + totalTXCost);
 
                     //note: subtract the amount sent from the balance remaining, and check whether there's zero remaining.
                     balanceRemaining -= amountToSendFromAccount;
 
-                    console.log("ethereum transaction :: balanceRemaining (post) :: " + balanceRemaining);
+                    this.ethTXLog("ethereum transaction :: balanceRemaining (post) :: " + balanceRemaining);
 
                     if (balanceRemaining <= 0) {
-                        console.log("ethereum transaction :: finished combining :: number of accounts involved :: " + txArray.length + " :: total tx cost :: " + totalTXCost);
+                        this.ethTXLog("ethereum transaction :: finished combining :: number of accounts involved :: " + txArray.length + " :: total tx cost :: " + totalTXCost);
                         break;
                     } else {
                         //@note: otherwise, there's another transaction necessary so increase the balance remaining by the base tx cost.
@@ -1895,7 +1953,7 @@ HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddressArray, 
             }
 
             if (txSuccess === false) {
-                console.log("ethereum transaction :: txSuccess is false");
+                this.ethTXLog("ethereum transaction :: txSuccess is false");
                 return null;
             }
         }
@@ -1904,11 +1962,11 @@ HDWalletPouch.prototype.buildEthereumTransactionList = function(toAddressArray, 
         if (txArray.length > 0) {
             return {txArray: txArray, totalTXCost: totalTXCost};
         } else {
-            console.log("ethereum transaction :: txArray.length is zero");
+            this.ethTXLog("ethereum transaction :: txArray.length is zero");
             return null;
         }
     } else {
-        console.log("ethereum transaction :: no accounts found");
+        this.ethTXLog("ethereum transaction :: no accounts found");
         return null;
     }
 }

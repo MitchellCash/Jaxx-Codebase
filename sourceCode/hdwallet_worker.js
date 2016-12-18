@@ -222,7 +222,6 @@ HDWalletWorker.prototype.update = function(forcePouchRecheck) {
 
         updates.currentReceiveAddress = this._currentReceiveAddress;
 
-        //@note:@todo:@here:
         if (this._coinType === COIN_BITCOIN) {
             updates.smallQrCode = "data:image/png;base64," + thirdparty.qrImage.imageSync("bitcoin:" + this._currentReceiveAddress, {type: "png", ec_level: "H", size: 3, margin: 1}).toString('base64');
             updates.largeQrCode = "data:image/png;base64," + thirdparty.qrImage.imageSync("bitcoin:" + this._currentReceiveAddress, {type: "png", ec_level: "H", size: 7, margin: 4}).toString('base64');
@@ -244,34 +243,12 @@ HDWalletWorker.prototype.update = function(forcePouchRecheck) {
     postMessage({action: 'update', content: updates});
 }
 
-HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
-//    if (this._coinType === COIN_ETHEREUM) {
-//        log("checkTransactions")
-//    }
-//    if (this._coinType === COIN_ETHEREUM) {
-//        log("watcher :: " + this._coinType + " :: check transactions :: " + addressesOrMinimumAge);
-//    }
-
-    //    log('Check Transactions: ' + addressesOrMinimumAge);
-    var minimumAge = null;
-    var addresses = [];
-    if (typeof(addressesOrMinimumAge) === 'number') {
-        minimumAge = addressesOrMinimumAge;
-    } else {
-        addresses = addressesOrMinimumAge;
-    }
-
-    // Can't do anything until we have the change and receive nodes
-    if (!this._changeNode || !this._receiveNode) {
-        log("watcher :: " + this._coinType + " :: checkTransactions :: nodes required");
-        return;
-    }
-
+HDWalletWorker.prototype.getAddressInfoLastUsedAndHighestDict = function() {
     var lastUsedReceiveIndex = -1, lastUsedChangeIndex = -1;
     var highestReceiveIndex = -1, highestChangeIndex = -1;
-//    if (this._coinType === COIN_ETHEREUM) {
-//        log("watcher :: " + this._coinType + " :: Object.keys(this._addressMap).length :: " + Object.keys(this._addressMap).length);
-//    }
+    //    if (this._coinType === COIN_ETHEREUM) {
+    //        log("watcher :: " + this._coinType + " :: Object.keys(this._addressMap).length :: " + Object.keys(this._addressMap).length);
+    //    }
 
     for (var address in this._addressMap) {
         var addressInfo = this._addressMap[address];
@@ -279,9 +256,9 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
         // Track the highest index we've used
         if (addressInfo.used) {
             if (this._coinType === COIN_ETHEREUM) {
-//                if (!addressInfo.internal) {
-//                    log("watcher :: " + this._coinType + " :: address used :: " + address + " :: " + JSON.stringify(addressInfo));
-//                }
+                //                if (!addressInfo.internal) {
+                //                    log("watcher :: " + this._coinType + " :: address used :: " + address + " :: " + JSON.stringify(addressInfo));
+                //                }
             }
             if (addressInfo.internal && addressInfo.index > lastUsedChangeIndex) {
                 lastUsedChangeIndex = addressInfo.index;
@@ -310,6 +287,38 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
         }
     }
 
+    return {lastUsedReceiveIndex: lastUsedReceiveIndex,
+            lastUsedChangeIndex: lastUsedChangeIndex,
+            highestReceiveIndex: highestReceiveIndex,
+            highestChangeIndex: highestChangeIndex};
+}
+
+HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
+//    if (this._coinType === COIN_ETHEREUM) {
+//        log("checkTransactions")
+//    }
+//    if (this._coinType === COIN_ETHEREUM) {
+//        log("watcher :: " + this._coinType + " :: check transactions :: " + addressesOrMinimumAge);
+//    }
+
+    //    log('Check Transactions: ' + addressesOrMinimumAge);
+    var minimumAge = null;
+    var addresses = [];
+    if (typeof(addressesOrMinimumAge) === 'number') {
+        minimumAge = addressesOrMinimumAge;
+    } else {
+        addresses = addressesOrMinimumAge;
+    }
+
+    // Can't do anything until we have the change and receive nodes
+    if (!this._changeNode || !this._receiveNode) {
+        log("watcher :: " + this._coinType + " :: checkTransactions :: nodes required");
+        return;
+    }
+
+    var lastAndHighestDict = this.getAddressInfoLastUsedAndHighestDict();
+
+
 //    if (this._coinType === COIN_ETHEREUM) {
 //        log("watcher :: " + this._coinType + " :: address used :: " + JSON.stringify(addressInfo));
 //    }
@@ -318,8 +327,8 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
     var neededGenerate = false;
 
     // Now see if we need to generate another receive address
-    if (lastUsedReceiveIndex + 20 > highestReceiveIndex) {
-        var index = highestReceiveIndex + 1;
+    if (lastAndHighestDict.lastUsedReceiveIndex + 20 > lastAndHighestDict.highestReceiveIndex) {
+        var index = lastAndHighestDict.highestReceiveIndex + 1;
         var address = HDWalletPouch.getCoinAddress(this._coinType, this._receiveNode.derive(index)).toString();
 
 //        if (this._coinType === COIN_ETHEREUM) {
@@ -333,8 +342,8 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
     }
 
     // Now see if we need to generate another change address
-    if (lastUsedChangeIndex + 20 > highestChangeIndex) {
-        var index = highestChangeIndex + 1;
+    if (lastAndHighestDict.lastUsedChangeIndex + 20 > lastAndHighestDict.highestChangeIndex) {
+        var index = lastAndHighestDict.highestChangeIndex + 1;
         var address = HDWalletPouch.getCoinAddress(this._coinType, this._changeNode.derive(index)).toString();
 //        if (this._coinType === COIN_ETHEREUM) {
 //            log("watcher :: " + this._coinType + " :: address :: " + address +  " :: index :: " + index + " :: changeNode :: " +  this._changeNode.derive(index) + " :: lastUsedChangeIndex :: " + lastUsedChangeIndex + " :: highestChangeIndex :: " + highestChangeIndex);
@@ -363,6 +372,14 @@ HDWalletWorker.prototype.checkTransactions = function(addressesOrMinimumAge) {
 //                console.log("forcing recheck with max addresses :: " + Object.keys(this._addressMap).length);
                 this._transactions = {};
                 this.checkTransactions(0);
+            }
+        } else if (this._coinType === COIN_ETHEREUM) {
+            //@note: @here: @next:
+            if (this._hasForcedRecheck === false) {
+                this._hasForcedRecheck = true;
+                //                console.log("forcing recheck with max addresses :: " + Object.keys(this._addressMap).length);
+
+                this.updateBalancesEthereum(0);
             }
         }
     }
@@ -446,12 +463,27 @@ HDWalletWorker.prototype._batchScanBlockchain = function(addresses) {
 //@note: @here: @todo: reexamine this usefulness of this function once our relays
 //can give us proper balances from internal contract transactions.
 
+
+//@note: @next:
+
 HDWalletWorker.prototype.updateBalancesEthereum = function() {
     var addressesToCheck = [];
 
     for (var address in this._addressMap) {
         addressesToCheck.push(address);
     }
+
+//    var lastAndHighestDict = this.getAddressInfoLastUsedAndHighestDict();
+//
+//    var index = lastAndHighestDict.lastUsedReceiveIndex + 1;
+//    var address = HDWalletPouch.getCoinAddress(this._coinType, this._receiveNode.derive(index)).toString();
+
+
+//    addressesToCheck.push(address);
+
+//    console.log("extra check for address :: " + address + " :: addressMap :: "  + JSON.stringify(this._addressMap[address]));
+//    this._addressMap[address] = {index: index, internal: 0, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0, isTheDAOAssociated: false};
+//    this._watchAddress(address);
 
 //    console.log("addressesToCheck :: " + addressesToCheck + " :: " + addressesToCheck.length);
 
@@ -875,7 +907,6 @@ HDWalletWorker.prototype._updateTransactionsBitcoin = function(transactions) {
 
             var addressInfo = this._addressMap[input.address];
             if (!addressInfo) {
-                //@note: @here: @todo: I'm relatively sure this is where the "nulls" come from when
                 //you send the BTC to yourself.
                 addressInfo = {internal: null, index: null};
             } else if (!addressInfo.internal && addressInfo.index > this._lastReceiveIndex) {

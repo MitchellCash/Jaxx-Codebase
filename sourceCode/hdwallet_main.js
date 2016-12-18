@@ -169,7 +169,7 @@ HDWalletMain.prototype.getMnemonic = function() {
 }
 
 HDWalletMain.prototype.setupLegacyEthereumSweep = function() {
-    console.log("[ethereum] :: setup legacy sweep :: load callback :: " + this._legacyEthereumWalletLoadCallback);
+//    console.log("[ethereum] :: setup legacy sweep :: load callback :: " + this._legacyEthereumWalletLoadCallback);
 
     this._shouldSetUpLegacyEthereumSweep = false;
     this._hasSetupLegacyEthereumSweep = true;

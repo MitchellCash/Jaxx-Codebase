@@ -1,15 +1,15 @@
 //importScripts("../jaxx_wallet_storage_impl_bitcoin.js");
 
-var HDWalletWorkerBitcoin = function() {
+var HDWalletWorkerLitecoin = function() {
     this._doDebug = true;
     //@note: @todo: @here: get the batch size from the relay directly.
     this._batchSize = 10;
-    this._coinName = "Bitcoin";
+    this._coinName = "Litecoin";
 
     this._workerManager = null;
 }
 
-HDWalletWorkerBitcoin.networkParams = {
+HDWalletWorkerLitecoin.networkParams = {
     static_relay_url: "",
     gather_tx: "",
     gather_tx_append: "",
@@ -17,22 +17,22 @@ HDWalletWorkerBitcoin.networkParams = {
     multi_balance_append: "",
 };
 
-HDWalletWorkerBitcoin.relayManagerParams = {
+HDWalletWorkerLitecoin.relayManagerParams = {
     isSupported: true,
-    implementationFileName: "relay_manager_impl_bitcoin.js",
+    implementationFileName: "relay_manager_impl_litecoin.js",
 }
 
-HDWalletWorkerBitcoin.prototype.initialize = function(workerManager) {
+HDWalletWorkerLitecoin.prototype.initialize = function(workerManager) {
     this._workerManager = workerManager;
 }
 
-HDWalletWorkerBitcoin.prototype.log = function(logString) {
+HDWalletWorkerLitecoin.prototype.log = function(logString) {
     if (this._doDebug === false) {
         return;
     }
 
     var args = [].slice.call(arguments);
-    args.unshift('BitcoinWorkerLog:');
+    args.unshift('LitecoinWorkerLog:');
     console.log(args);
 }
 
@@ -41,7 +41,7 @@ HDWalletWorkerBitcoin.prototype.log = function(logString) {
 //this._lastChangeIndex = addressInfo.index;
 //this._currentChangeAddress = null;
 
-HDWalletWorkerBitcoin.prototype.batchScanBlockchain = function(addresses) {
+HDWalletWorkerLitecoin.prototype.batchScanBlockchain = function(addresses) {
     var self = this;
     var batch = [];
 
@@ -97,7 +97,7 @@ HDWalletWorkerBitcoin.prototype.batchScanBlockchain = function(addresses) {
     }
 }
 
-HDWalletWorkerBitcoin.prototype._populateHistory = function(addressData, passthroughParam) {
+HDWalletWorkerLitecoin.prototype._populateHistory = function(addressData, passthroughParam) {
     if (!addressData || (addressData.status !== 'success' && addressData.status !== '1' && typeof(addressData.byAddress) === undefined)) {
         this.log("hdwalletworker :: " + this._coinName + " :: _populateHistory :: error :: addressData is not returning success :: addressData :: " + JSON.stringify(addressData));
 
@@ -156,7 +156,7 @@ HDWalletWorkerBitcoin.prototype._populateHistory = function(addressData, passthr
         }
     }
 
-    this._lookupBitcoinTransactions(Object.keys(allTxid), function() {
+    this._lookupLitecoinTransactions(Object.keys(allTxid), function() {
         //@note: @here: @todo: catch bad tx from _lookupBitcoinTransactions -> _populateTransactionsBitcoin
     });
 
@@ -165,7 +165,7 @@ HDWalletWorkerBitcoin.prototype._populateHistory = function(addressData, passthr
     this._workerManager.updateWorkerManager(updateDict);
 }
 
-HDWalletWorkerBitcoin.prototype._lookupBitcoinTransactions = function(txids, callback) {
+HDWalletWorkerLitecoin.prototype._lookupLitecoinTransactions = function(txids, callback) {
     var self = this;
 
     // Create batches of txid to send to the blockr.io/blockcypher/etc API
@@ -183,7 +183,7 @@ HDWalletWorkerBitcoin.prototype._lookupBitcoinTransactions = function(txids, cal
             var relayArguments = [txidParam, function(status, txDetails) {
 //                console.log("txDetails :: " + JSON.stringify(txDetails));
 
-                self._populateTransactionsBitcoin(txDetails, callback);
+                self._populateTransactionsLitecoin(txDetails, callback);
             }];
 
             var callbackIndex = 1;
@@ -237,7 +237,7 @@ HDWalletWorkerBitcoin.prototype._lookupBitcoinTransactions = function(txids, cal
 }
 
 
-HDWalletWorkerBitcoin.prototype._populateTransactionsBitcoin = function(transactions, callback) {
+HDWalletWorkerLitecoin.prototype._populateTransactionsLitecoin = function(transactions, callback) {
     if (!transactions) {
         if (callback) {
             callback({});
@@ -245,14 +245,14 @@ HDWalletWorkerBitcoin.prototype._populateTransactionsBitcoin = function(transact
         return;
     }
 
-    var updated = this._updateTransactionsBitcoin(transactions);
+    var updated = this._updateTransactionsLitecoin(transactions);
 
     if (callback) {
         callback(updated);
     }
 }
 
-HDWalletWorkerBitcoin.prototype._updateTransactionsBitcoin = function(transactions) {
+HDWalletWorkerLitecoin.prototype._updateTransactionsLitecoin = function(transactions) {
     var updateDict = {transactions: {},
                       lastReceiveIndex: -1,
                       currentReceiveAddress: null,
@@ -388,11 +388,11 @@ HDWalletWorkerBitcoin.prototype._updateTransactionsBitcoin = function(transactio
     }
 }
 
-HDWalletWorkerBitcoin.prototype.updateBalances = function() {
+HDWalletWorkerLitecoin.prototype.updateBalances = function() {
 //    this.updateBalancesBitcoin();
 }
 
-HDWalletWorkerBitcoin.prototype.performRecheck = function() {
+HDWalletWorkerLitecoin.prototype.performRecheck = function() {
     this.log("forcing recheck with max addresses :: " + Object.keys(this._workerManager._addressMap).length);
 
     var updateDict = {

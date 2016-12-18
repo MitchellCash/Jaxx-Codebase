@@ -77,7 +77,6 @@ var HDWalletPouch = function() {
 
     this._TESTNET = false;
 
-    this._NETWORK = null;
     this._STATIC_RELAY_URL = "";
 
     this._txCacheValid = false;
@@ -117,9 +116,15 @@ HDWalletPouch.getStaticCoinPouchImplementation = function(coinType) {
         return HDWalletPouchEthereumClassic;
     } else if (coinType === COIN_THEDAO_ETHEREUM) {
         //@note: @here: @todo: this should be a thedao specific cointoken.
-        return CoinToken;
+        return CoinTokenTheDAOEthereum;
     } else if (coinType === COIN_DASH) {
         return HDWalletPouchDash;
+    } else if (coinType === COIN_AUGUR_ETHEREUM) {
+        //@note: @here: @todo: this should be a thedao specific cointoken.
+        return CoinTokenAugurEthereum;
+    } else if (coinType === COIN_LITECOIN) {
+        //@note: @here: @todo: this should be a thedao specific cointoken.
+        return HDWalletPouchLitecoin;
     }
 }
 
@@ -137,8 +142,17 @@ HDWalletPouch.getStaticCoinWorkerImplementation = function(coinType) {
         return CoinTokenWorker;
     } else if (coinType === COIN_DASH) {
         return HDWalletWorkerDash;
+    } else if (coinType === COIN_AUGUR_ETHEREUM) {
+        //@note: @here: @todo: this should be a thedao specific cointoken.
+        //@note: @here: this doesn't have the same parameters like block number.
+        return CoinTokenWorker;
+    } else if (coinType === COIN_LITECOIN) {
+        //@note: @here: @todo: this should be a thedao specific cointoken.
+        //@note: @here: this doesn't have the same parameters like block number.
+        return HDWalletWorkerLitecoin;
     }
 }
+
 HDWalletPouch.getNewCoinPouchImplementation = function(coinType) {
     //@note: @here: @token: this seems necessary.
     if (coinType === COIN_BITCOIN) {
@@ -149,6 +163,8 @@ HDWalletPouch.getNewCoinPouchImplementation = function(coinType) {
         return new HDWalletPouchEthereumClassic();
     } else if (coinType === COIN_DASH) {
         return new HDWalletPouchDash();
+    } else if (coinType === COIN_LITECOIN) {
+        return new HDWalletPouchLitecoin();
     }
 }
 
@@ -209,22 +225,7 @@ HDWalletPouch.prototype.setup = function(coinType, testNet, helper) {
     this._coinFullName = coinFullName;
     console.log("[ HDWalletPouch Setup :: " + this._coinFullName + " ]");
 
-
     this._TESTNET = testNet;
-
-    if (this._coinType === COIN_BITCOIN) {
-        if (this._TESTNET) {
-            this._NETWORK = thirdparty.bitcoin.networks.testnet;
-        } else {
-        }
-    } else if (this._coinType === COIN_ETHEREUM) {
-    } else if (this._coinType === COIN_DASH) {
-//        if (this._TESTNET) {
-//            this._NETWORK = HDWalletPouchDash.networkDefinitionTestNet;
-//        } else {
-        this._NETWORK = HDWalletPouchDash.networkDefinitionMainNet;
-//        }
-    }
 }
 
 HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic) {
@@ -373,6 +374,13 @@ HDWalletPouch.prototype.loadAndCache = function() {
 
 //    console.log("mnemonic :: " + this._mnemonic);
 
+    var coinNetwork = null;
+
+    if (this._TESTNET) {
+        coinNetwork = HDWalletPouch.getStaticCoinPouchImplementation(this._coinType).networkDefinitions.testNet;
+    } else {
+        coinNetwork = HDWalletPouch.getStaticCoinPouchImplementation(this._coinType).networkDefinitions.mainNet;
+    }
 
     var self = this;
 
@@ -384,11 +392,11 @@ HDWalletPouch.prototype.loadAndCache = function() {
     this._seedHex = seedHex;
 
     var rootNodeBase58 = CacheUtils.getCachedOrRun("wRTn_" + this._coinFullName + "_" + self._storageKey, function() {
-        var rootNodeBase58 = thirdparty.bitcoin.HDNode.fromSeedHex(self._seedHex, self._NETWORK).toBase58();
+        var rootNodeBase58 = thirdparty.bitcoin.HDNode.fromSeedHex(self._seedHex, coinNetwork).toBase58();
         return rootNodeBase58;
     });
 
-    var rootNode = thirdparty.bitcoin.HDNode.fromBase58(rootNodeBase58, this._NETWORK);
+    var rootNode = thirdparty.bitcoin.HDNode.fromBase58(rootNodeBase58, coinNetwork);
     this._rootNode = rootNode;
 
     var accountNodeBase58 = CacheUtils.getCachedOrRun("wAn_" + this._coinFullName + "_" + self._storageKey, function() {
@@ -396,7 +404,7 @@ HDWalletPouch.prototype.loadAndCache = function() {
         return accountNodeBase58;
     });
 
-    var accountNode = thirdparty.bitcoin.HDNode.fromBase58(accountNodeBase58, this._NETWORK);
+    var accountNode = thirdparty.bitcoin.HDNode.fromBase58(accountNodeBase58, coinNetwork);
     this._accountNode = accountNode;
 
     var receiveNodeBase58 = CacheUtils.getCachedOrRun("wRn_" + this._coinFullName + "_" + self._storageKey, function() {
@@ -404,7 +412,7 @@ HDWalletPouch.prototype.loadAndCache = function() {
         return receiveNodeBase58;
     });
 
-    var receiveNode = thirdparty.bitcoin.HDNode.fromBase58(receiveNodeBase58, this._NETWORK);
+    var receiveNode = thirdparty.bitcoin.HDNode.fromBase58(receiveNodeBase58, coinNetwork);
     this._receiveNode = receiveNode;
 
 //    if (this._coinType === COIN_ETHEREUM) {
@@ -419,7 +427,7 @@ HDWalletPouch.prototype.loadAndCache = function() {
         return changeNodeBase58;
     });
 
-    var changeNode = thirdparty.bitcoin.HDNode.fromBase58(changeNodeBase58, this._NETWORK);
+    var changeNode = thirdparty.bitcoin.HDNode.fromBase58(changeNodeBase58, coinNetwork);
     this._changeNode = changeNode;
 
 
@@ -591,6 +599,10 @@ HDWalletPouch.prototype.setupWorkers = function() {
                             if (accountInfo.isTheDAOAssociated === true && existingAccountInfo.isTheDAOAssociated !== true) {
                                 cacheBalancesUpdate = true;
                             }
+
+                            if (accountInfo.isAugurAssociated === true && existingAccountInfo.isAugurAssociated !== true) {
+                                cacheBalancesUpdate = true;
+                            }
                         }
                     }
 
@@ -619,11 +631,12 @@ HDWalletPouch.prototype.setupWorkers = function() {
     }
 
     if (this._worker) {
-        this.log(this._coinFullName + " :: initialize worker");
+        this.log(this._coinFullName + " :: initialize coin worker");
         this._worker.postMessage({
             action: 'initialize',
             coinType: this._coinType,
-            testNet: this._TESTNET
+            testNet: this._TESTNET,
+            sourceName: this._coinFullName,
         });
     }
 }

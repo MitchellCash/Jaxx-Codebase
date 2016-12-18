@@ -29,29 +29,30 @@ HDWalletPouchDash.pouchParameters = {
     coinAbbreviatedName: 'DASH'
 };
 
-HDWalletPouchDash.networkDefinitionMainNet = {
-    messagePrefix: '\x19DarkCoin Signed Message:\n',
-    bip32: {
-        public: 0x02fe52cc,
-        private: 0x02fe52f8
+HDWalletPouchDash.networkDefinitions = {
+    mainNet: {
+        messagePrefix: '\x19DarkCoin Signed Message:\n',
+        bip32: {
+            public: 0x02fe52cc,
+            private: 0x02fe52f8
+        },
+        pubKeyHash: 0x4c,
+        scriptHash: 0x10,
+        wif: 0xcc,
+        dustThreshold: 5460
     },
-    pubKeyHash: 0x4c,
-    scriptHash: 0x10,
-    wif: 0xcc,
-    dustThreshold: 5460
-};
-
-HDWalletPouchDash.networkDefinitionTestNet = {
-    messagePrefix: '\x19DarkCoin Signed Message:\n',
-    bip32: {
-        public: 0x3a805837,
-        private: 0x3a8061a0
+    testNet: {
+        messagePrefix: '\x19DarkCoin Signed Message:\n',
+        bip32: {
+            public: 0x3a805837,
+            private: 0x3a8061a0
+        },
+        pubKeyHash: 0x8c,
+        scriptHash: 0x13,
+        wif: 0xef,
+        dustThreshold: 5460
     },
-    pubKeyHash: 0x8c,
-    scriptHash: 0x13,
-    wif: 0xef,
-    dustThreshold: 5460
-};
+}
 
 HDWalletPouchDash.getCoinAddress = function(node) {
     var pubKey = node.keyPair.getPublicKeyBuffer();
@@ -382,6 +383,14 @@ HDWalletPouchDash.prototype.getSpendableBalance = function(minimumValue) {
 }
 
 HDWalletPouchDash.prototype._buildBitcoinTransaction = function(toAddress, amount_smallUnit, transactionFee, doNotSign) {
+    var coinNetwork = null;
+
+    if (this._TESTNET) {
+        coinNetwork = HDWalletPouch.getStaticCoinPouchImplementation(this._pouchManager._coinType).networkDefinitions.testNet;
+    } else {
+        coinNetwork = HDWalletPouch.getStaticCoinPouchImplementation(this._pouchManager._coinType).networkDefinitions.mainNet;
+    }
+
     //    this._load();
 
     // Get all UTXOs, biggest to smallest)
@@ -409,7 +418,7 @@ HDWalletPouchDash.prototype._buildBitcoinTransaction = function(toAddress, amoun
     }
 
     // Create the transaction
-    var tx = new thirdparty.bitcoin.TransactionBuilder(this._pouchManager._NETWORK);
+    var tx = new thirdparty.bitcoin.TransactionBuilder(coinNetwork);
 
     // This mimicks the data structure we keep our transactions in so we can
     // simulate instantly fulfilling the transaction
@@ -424,8 +433,8 @@ HDWalletPouchDash.prototype._buildBitcoinTransaction = function(toAddress, amoun
     var self = this;
 
     var addressToScript = function(address) {
-//        console.log("network :: " + JSON.stringify(self._pouchManager._NETWORK));
-        return thirdparty.bitcoin.address.toOutputScript(toAddress, self._pouchManager._NETWORK);
+        //        console.log("network :: " + JSON.stringify(coinNetwork));
+        return thirdparty.bitcoin.address.toOutputScript(toAddress, coinNetwork);
     }
 
 
@@ -674,7 +683,7 @@ HDWalletPouchDash.prototype.getAccountList = function(transactions) {
     return result;
 }
 
-HDWalletPouchDash.prototype.generateQRCode = function(largeFormat,  coinAmountSmallType) {
+HDWalletPouchDash.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) {
     var curRecAddr = this._pouchManager.getCurrentReceiveAddress();
 
     var uri = "dash:" + curRecAddr;
@@ -743,6 +752,14 @@ HDWalletPouchDash.prototype.afterWorkerCacheInvalidate = function() {
 }
 
 HDWalletPouchDash.prototype.prepareSweepTransaction = function(privateKey, callback) {
+    var coinNetwork = null;
+
+    if (this._TESTNET) {
+        coinNetwork = HDWalletPouch.getStaticCoinPouchImplementation(this._pouchManager._coinType).networkDefinitions.testNet;
+    } else {
+        coinNetwork = HDWalletPouch.getStaticCoinPouchImplementation(this._pouchManager._coinType).networkDefinitions.mainNet;
+    }
+
     //@note: @todo: finish this function.
 
 //    console.log("error :: dash implementation of prepareSweepTransaction is incomplete.");
@@ -754,7 +771,7 @@ HDWalletPouchDash.prototype.prepareSweepTransaction = function(privateKey, callb
     // true if the bitcoins from the wallet with the given 'privateKey' could be successfully imported.
     var keypair = null;
     try { // This fills the variable keypair with an ECPair
-        keypair = thirdparty.bitcoin.ECPair.fromWIF(privateKey, HDWalletPouchDash.networkDefinitionMainNet);
+        keypair = thirdparty.bitcoin.ECPair.fromWIF(privateKey, coinNetwork);
         console.log("trying to fetch for address :: " + keypair.getAddress());
     } catch (err) {
         return false;
@@ -830,7 +847,7 @@ HDWalletPouchDash.prototype.prepareSweepTransaction = function(privateKey, callb
         }
 
         while ((totalValue - transactionFee) > 0) {
-            var tx = new thirdparty.bitcoin.TransactionBuilder(HDWalletPouchDash.networkDefinitionMainNet);
+            var tx = new thirdparty.bitcoin.TransactionBuilder(coinNetwork);
             tx.addOutput(wallet.getPouchFold(COIN_DASH).getCurrentChangeAddress(), totalValue - transactionFee);
 
             for (var i = 0; i < toSpend.length; i++) {
@@ -925,4 +942,17 @@ HDWalletPouchDash.prototype.toChecksumAddress = function(address) {
 
 HDWalletPouchDash.prototype.getBaseCoinAddressFormatType = function() {
     return this._baseFormatCoinType;
+}
+
+HDWalletPouchDash.prototype.createTransaction = function(address, amount) {
+    //@note: @here: this should check for address, amount validity.
+    //@note: @todo: maybe a transaction queue?
+
+    var transaction = this.buildBitcoinTransaction(address, amount);
+    var miningFee = transaction ? HDWalletHelper.convertSatoshisToBitcoins(transaction._kkTransactionFee) : HDWalletHelper.convertSatoshisToBitcoins(this._pouchManager.getDefaultTransactionFee());
+
+    //                console.log("transaction._kkTransactionFee :: " + transaction._kkTransactionFee);
+    //                console.log("computedFee :: " + computedFee);
+
+    return {transaction: transaction, miningFee: miningFee};
 }

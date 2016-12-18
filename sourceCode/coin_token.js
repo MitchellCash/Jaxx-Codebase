@@ -28,6 +28,8 @@ var CoinToken = function() {
     this._tokenSymbol = "";
     this._tokenCoinType = 0;
 
+    this._tokenImpl = null;
+
     this._storageKey = "";
 
     this._coinHolderWallet = null;
@@ -40,7 +42,7 @@ var CoinToken = function() {
     this._transferableAddresses = [];
     this._votableAddresses = [];
 
-    this._sortedHighestAccountArray = []
+    this._sortedHighestAccountArray = [];
 
     this._transferableTokens = {};
     this._votableTokens = {};
@@ -62,15 +64,18 @@ var CoinToken = function() {
 
     this._numShiftsNecessary = 0;
 
-    this._doDAOTXDebug = false;
+    this._doTXDebug = false;
 }
 
 CoinToken.TheDAO = 0;
-CoinToken.numCoinTokens = 1;
+CoinToken.Augur = 1;
+CoinToken.numCoinTokens = 2;
 
 //@note: gets the coin type that holds this token.
 CoinToken.getTokenCoinHolderType = function(tokenType) {
     if (tokenType === CoinToken.TheDAO) {
+        return COIN_ETHEREUM;
+    } else if (tokenType === CoinToken.Augur) {
         return COIN_ETHEREUM;
     }
 }
@@ -92,6 +97,8 @@ CoinToken.getCoinTypeTokenList = function(coinType) {
 CoinToken.getTokenToMainTypeMap = function(tokenType) {
     if (tokenType === CoinToken.TheDAO) {
         return COIN_THEDAO_ETHEREUM;
+    } else if (tokenType === CoinToken.Augur) {
+        return COIN_AUGUR_ETHEREUM;
     }
 }
 
@@ -100,6 +107,8 @@ CoinToken.getMainTypeToTokenMap = function(mainType) {
 //    console.log("token type for main coin type :: " + coinType);
     if (mainType === COIN_THEDAO_ETHEREUM) {
         return CoinToken.TheDAO;
+    } else if (mainType === COIN_AUGUR_ETHEREUM) {
+        return CoinToken.Augur;
     }
 }
 
@@ -108,9 +117,30 @@ CoinToken.getMainTypeToTokenCoinHolderTypeMap = function(mainType) {
     return CoinToken.getTokenCoinHolderType(CoinToken.getMainTypeToTokenMap(mainType));
 }
 
+CoinToken.getStaticTokenImplementation = function(tokenType) {
+    //@note: @here: @token: this seems necessary.
+    if (tokenType === CoinToken.TheDAO) {
+        return CoinTokenTheDAOEthereum;
+    } else if (tokenType === CoinToken.Augur) {
+        return CoinTokenAugurEthereum;
+    }
+}
 
-CoinToken.prototype.daoTXLog = function(logString) {
-    if (this._doDAOTXDebug) {
+//CoinToken.getStaticCoinWorkerImplementation = function(coinType) {
+//}
+
+CoinToken.getNewTokenImplementation = function(tokenType) {
+    //@note: @here: @token: this seems necessary.
+    if (tokenType === CoinToken.TheDAO) {
+        return new CoinTokenTheDAOEthereum();
+    } else if (tokenType === CoinToken.Augur) {
+        return new CoinTokenAugurEthereum();
+    }
+}
+
+
+CoinToken.prototype.txLog = function(logString) {
+    if (this._doTXDebug) {
         console.log(logString);
     }
 }
@@ -126,29 +156,6 @@ CoinToken.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
     return coinAmount;
 }
 
-//@note: @here: needs an implementation specification.
-CoinToken.uiComponents = {
-    coinFullName: 'TheDAOEthereum',
-    coinFullDisplayName: 'DAO',
-    coinSymbol: '\u0110',
-    coinButtonSVGName: 'DAOlogo',
-    coinLargePngName: '.imgDAO',
-    coinButtonName: '.imageLogoBannerDAO',
-    coinSpinnerElementName: '.imageTheDAOEtherWash',
-    coinDisplayColor: '#E52E4B',
-    //    csvExportField: '.backupPrivateKeyListETH',
-    transactionsListElementName: '.transactionsTheDAOEthereum',
-    transactionTemplateElementName: '.transactionTheDAOEthereum',
-    accountsListElementName: '.accountDataTableEthereum',
-    accountTemplateElementName: '.accountDataTheDAOEthereum',
-    displayNumDecimals: 8,
-};
-
-CoinToken.pouchParameters = {
-    coinIsTokenSubtype: true,
-    coinAbbreviatedName: 'DAO',
-};
-
 CoinToken.prototype.initialize = function(tokenName, tokenSymbol, tokenCoinType, baseReceiveAddress, coinHolderWallet, gasPrice, gasLimit, storageKey) {
     console.log("[ Initializing  " + tokenName + " token ]");
     this._tokenName = tokenName;
@@ -158,6 +165,13 @@ CoinToken.prototype.initialize = function(tokenName, tokenSymbol, tokenCoinType,
     this._storageKey = storageKey;
 
     this._currentReceiveAddress = baseReceiveAddress;
+
+    this._tokenImpl = CoinToken.getNewTokenImplementation(this._tokenCoinType);
+
+    this._tokenImpl.initialize(this);
+
+    //@note: for account list, which should be a simple keypair.
+    this._hasFinishedFinalBalanceUpdate = true;
 
     this._coinHolderWallet = coinHolderWallet;
     this._gasPrice = gasPrice;
@@ -174,6 +188,10 @@ CoinToken.prototype.shutDown = function() {
             action: 'shutDown',
         });
     }
+}
+
+CoinToken.prototype.getPouchFoldImplementation = function() {
+    return this._tokenImpl;
 }
 
 CoinToken.prototype.loadAndCache = function() {
@@ -386,13 +404,15 @@ CoinToken.prototype.setupWorkers = function() {
 
                 shouldPostWorkerCache = true;
             } catch (e) {
-                this.log('Invalid cache:', workerCache);
+                this.txLog('Invalid cache:', workerCache);
             }
         }
 
         //        if (this._coinFullName === "Ethereum") {
         //        console.log("_w_addressMap :: " + this._coinFullName + "\n" + JSON.stringify(this._w_addressMap));
         //        }
+        this.txLog(this._tokenName + " :: initialize token worker");
+
         this._worker.postMessage({
             action: 'initialize',
             content: {
@@ -689,7 +709,7 @@ CoinToken.prototype.removeListener = function(callback) {
 CoinToken.prototype.getCurrentReceiveAddress = function() {
     var address = this._currentReceiveAddress;
 
-    if (this._tokenCoinType === CoinToken.TheDAO) {
+    if (CoinToken.getTokenCoinHolderType(this._tokenCoinType) === COIN_ETHEREUM) {
         address = HDWalletHelper.toEthereumChecksumAddress(address);
     }
 
@@ -701,7 +721,7 @@ CoinToken.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) 
 
     var qrCode = "";
 
-    if (this._tokenCoinType === CoinToken.TheDAO) {
+    if (CoinToken.getTokenCoinHolderType(this._tokenCoinType) === COIN_ETHEREUM) {
         uri = "iban:" + HDWalletHelper.getICAPAddress(this._currentReceiveAddress);
     }
 
@@ -745,37 +765,39 @@ CoinToken.prototype.setLogger = function(logger) {
 CoinToken.prototype.getTransferOpCode = function() {
     var transferOpCode = "";
 
-    if (this._tokenCoinType === CoinToken.TheDAO) {
-        transferOpCode = "0xa9059cbb";
+    var tokenIsERC20 = CoinToken.getStaticTokenImplementation(this._tokenCoinType).pouchParameters['tokenIsERC20'];
+
+    if (tokenIsERC20 === true) {
+        transferOpCode = CoinToken.getStaticTokenImplementation(this._tokenCoinType).pouchParameters['transferOpCode'];
     }
 
     return transferOpCode;
 }
 
 CoinToken.prototype.getRefundOpCode = function() {
-    var transferOpCode = "";
+    var refundOpCode = "";
 
     if (this._tokenCoinType === CoinToken.TheDAO) {
-        transferOpCode = "0x3ccfd60b";
+        refundOpCode = CoinToken.getStaticTokenImplementation(this._tokenCoinType).pouchParameters['refundOpCode'];
     }
 
-    return transferOpCode;
+    return refundOpCode;
 }
 
 CoinToken.prototype.getApproveOpCode = function() {
-    var transferOpCode = "";
+    var approveOpCode = "";
 
     if (this._tokenCoinType === CoinToken.TheDAO) {
-        transferOpCode = "0x095ea7b3";
+        approveOpCode = CoinToken.getStaticTokenImplementation(this._tokenCoinType).pouchParameters['approveOpCode'];
     }
 
-    return transferOpCode;
+    return approveOpCode;
 }
 
 CoinToken.prototype.getAccountBalance = function(address) {
     var balance = 0;
 
-	if (this._tokenCoinType === CoinToken.TheDAO){
+    if (CoinToken.getTokenCoinHolderType(this._tokenCoinType) === COIN_ETHEREUM){
 		address = address.toLowerCase();
 	}
 
@@ -890,7 +912,7 @@ CoinToken.prototype.getHighestAccountBalanceAndIndex = function(ethereumPouch, e
     return (this._sortedHighestAccountArray.length > 0) ? this._sortedHighestAccountArray[0] : null;
 }
 
-CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch, toAddress, amount_smallUnit, gasPrice, gasLimit, ethereumTXDataPrePendArray, doNotSign) {
+CoinToken.prototype.buildERC20EthereumTransactionList = function(ethereumPouch, toAddress, amount_smallUnit, gasPrice, gasLimit, ethereumTXDataPrePendArray, doNotSign) {
     var amountDao = parseInt(amount_smallUnit);
 
     var txArray = [];
@@ -903,14 +925,14 @@ CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch,
     //@note: returns {index: x, balance: y} format.
     var highestAccountDict = this.getHighestAccountBalanceAndIndex(ethereumPouch, gasPrice, gasLimit);
 
-    this.daoTXLog("the dao :: ethereum transaction :: highestAccountDict :: " + highestAccountDict);
+    this.txLog("the dao :: ethereum transaction :: highestAccountDict :: " + highestAccountDict);
 
     if (highestAccountDict !== null) {
         //@note: check to see whether this will result in the tx being able to be pushed through with this one account, or whether there will need to be more than one account involved in this transaction.
         if (amountDao <= highestAccountDict.balance) {
             totalTXCost = baseTXCost;
 
-            this.daoTXLog("the dao :: ethereum transaction :: account :: " + highestAccountDict.address + " :: " + highestAccountDict.balance + " :: can cover the entire balance :: " + (amountDao));
+            this.txLog("the dao :: ethereum transaction :: account :: " + highestAccountDict.address + " :: " + highestAccountDict.balance + " :: can cover the entire balance :: " + (amountDao));
 
             var ABIValueToTransfer = HDWalletHelper.zeroPadLeft(parseInt(amountDao).toString(16), 64);
 
@@ -919,7 +941,7 @@ CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch,
             var newTX = ethereumPouch.getPouchFoldImplementation()._buildEthereumTransaction(false, highestAccountDict.ethereumNodeIndex, toAddress, 0, gasPrice, gasLimit, ethData, doNotSign);
 
             if (!newTX) {
-                this.daoTXLog("error :: ethereum transaction :: account failed to build :: " + highestAccountDict.index);
+                this.txLog("error :: ethereum transaction :: account failed to build :: " + highestAccountDict.index);
                 return null;
             } else {
                 txArray.push(newTX);
@@ -931,7 +953,7 @@ CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch,
 
             //@note: this array is implicitly regenerated and sorted when the getHighestAccountBalanceAndIndex function is called.
             for (var i = 0; i < this._sortedHighestAccountArray.length; i++) {
-                this.daoTXLog("the dao :: ethereum transaction :: balanceRemaining (pre) :: " + balanceRemaining);
+                this.txLog("the dao :: ethereum transaction :: balanceRemaining (pre) :: " + balanceRemaining);
                 //                console.log(typeof(this._sortedHighestAccountArray[i].balance));
                 var accountBalance = this._sortedHighestAccountArray[i].balance;
 
@@ -940,19 +962,19 @@ CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch,
                 //@note: check if subtracting the balance of this account from the remaining target transaction balance will result in exactly zero or a positive balance for this account.
                 if (accountBalance - balanceRemaining < 0) {
                     //@note: this account doesn't have enough of a balance to cover by itself.. keep combining.
-                    this.daoTXLog("the dao :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].ethereumNodeIndex + " :: does not have enough to cover balance :: " + (balanceRemaining) + " :: accountBalance :: " + (accountBalance));
+                    this.txLog("the dao :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].ethereumNodeIndex + " :: does not have enough to cover balance :: " + (balanceRemaining) + " :: accountBalance :: " + (accountBalance));
 
                     amountToSendFromAccount = (accountBalance);
                 } else {
                     var accountChange = accountBalance - balanceRemaining;
                     //                        console.log("types :: " + typeof(balanceRemaining) + " :: " + typeof(baseTXCost));
                     amountToSendFromAccount = balanceRemaining;
-                    this.daoTXLog("the dao :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].ethereumNodeIndex + " :: accountBalance :: " + accountBalance + " :: account balance after (balance) :: " + accountChange);
+                    this.txLog("the dao :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].ethereumNodeIndex + " :: accountBalance :: " + accountBalance + " :: account balance after (balance) :: " + accountChange);
 
                     //@note: don't do things like bitcoin's change address system for now.
                 }
 
-                this.daoTXLog("the dao :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].ethereumNodeIndex + " :: will send  :: " + amountToSendFromAccount);
+                this.txLog("the dao :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].ethereumNodeIndex + " :: will send  :: " + amountToSendFromAccount);
 
 
                 var ABIValueToTransfer = HDWalletHelper.zeroPadLeft(parseInt(amountToSendFromAccount).toString(16), 64);
@@ -971,7 +993,7 @@ CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch,
                 var newTX = ethereumPouch.getPouchFoldImplementation()._buildEthereumTransaction(false, this._sortedHighestAccountArray[i].ethereumNodeIndex, toAddress, 0, gasPrice, gasLimit, ethData, doNotSign);
 
                 if (!newTX) {
-                    this.daoTXLog("error :: the dao :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].ethereumNodeIndex + " cannot build");
+                    this.txLog("error :: the dao :: ethereum transaction :: account :: " + this._sortedHighestAccountArray[i].ethereumNodeIndex + " cannot build");
 
                     txSuccess = false;
                     break;
@@ -982,22 +1004,22 @@ CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch,
                 //@note: keep track of the total TX cost for user review on the UI side.
                 totalTXCost += baseTXCost;
 
-                this.daoTXLog("the dao :: ethereum transaction :: current total tx cost :: " + totalTXCost);
+                this.txLog("the dao :: ethereum transaction :: current total tx cost :: " + totalTXCost);
 
                 //note: subtract the amount sent from the balance remaining, and check whether there's zero remaining.
                 balanceRemaining -= amountToSendFromAccount;
 
-                this.daoTXLog("the dao :: ethereum transaction :: balanceRemaining (post) :: " + balanceRemaining);
+                this.txLog("the dao :: ethereum transaction :: balanceRemaining (post) :: " + balanceRemaining);
 
                 if (balanceRemaining <= 0) {
-                    this.daoTXLog("the dao :: ethereum transaction :: finished combining :: number of accounts involved :: " + txArray.length + " :: total tx cost :: " + totalTXCost);
+                    this.txLog("the dao :: ethereum transaction :: finished combining :: number of accounts involved :: " + txArray.length + " :: total tx cost :: " + totalTXCost);
                     break;
                 }
             }
         }
 
         if (txSuccess === false) {
-            this.daoTXLog("the dao :: ethereum transaction :: txSuccess is false");
+            this.txLog("the dao :: ethereum transaction :: txSuccess is false");
             return null;
         }
 
@@ -1005,11 +1027,11 @@ CoinToken.prototype.buildTheDAOEthereumTransactionList = function(ethereumPouch,
         if (txArray.length > 0) {
             return {txArray: txArray, totalTXCost: totalTXCost};
         } else {
-            this.daoTXLog("the dao :: ethereum transaction :: txArray.length is zero");
+            this.txLog("the dao :: ethereum transaction :: txArray.length is zero");
             return null;
         }
     } else {
-        this.daoTXLog("the dao :: ethereum transaction :: no accounts found");
+        this.txLog("the dao :: ethereum transaction :: no accounts found");
         return null;
     }
 }

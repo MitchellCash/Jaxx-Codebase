@@ -1,6 +1,6 @@
 var BTCBlockrRelay = function() {
     this._baseUrl =  'https://btc.blockr.io/';
-    this._name = 'Blockr.io API';
+    this._name = 'Bitcoin Blockr.io API';
     this._reliable = true;
     this._lastBlock = 0;
 

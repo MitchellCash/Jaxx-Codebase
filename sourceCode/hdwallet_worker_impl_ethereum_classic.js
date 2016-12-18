@@ -1,3 +1,5 @@
+//importScripts("../jaxx_wallet_storage_impl_ethereum_classic.js");
+
 var HDWalletWorkerEthereumClassic = function() {
     this._doDebug = false;
     this._batchSizeGather = 30;
@@ -23,6 +25,11 @@ HDWalletWorkerEthereumClassic.networkParams = {
     send_tx: "/rawTransaction",
     nonce: "/nextNonce?address=",
 };
+
+HDWalletWorkerEthereumClassic.relayManagerParams = {
+    isSupported: false,
+    implementationFileName: "",
+}
 
 HDWalletWorkerEthereumClassic.prototype.initialize = function(workerManager) {
     this._workerManager = workerManager;
@@ -233,6 +240,10 @@ HDWalletWorkerEthereumClassic.prototype._updateTransactions = function(transacti
 
     var totalBalance = 0;
 
+    var theDAOTokenContractAddress = CoinToken.getStaticTokenImplementation(CoinToken.TheDAO).pouchParameters['tokenContractAddress'];
+
+    var augurTokenContractAddress = CoinToken.getStaticTokenImplementation(CoinToken.Augur).pouchParameters['tokenContractAddress'];
+
     this.log("ethereum classic :: _updateTransactionsEthereum :: " + Object.keys(transactions).length + " :: transactions :: "  + JSON.stringify(transactions) +  " :: associativeAddressList :: " + JSON.stringify(associativeAddressList));
 
     for (var i = 0; i < transactions.length; i++) {
@@ -280,9 +291,13 @@ HDWalletWorkerEthereumClassic.prototype._updateTransactions = function(transacti
                 //
                 if (addressInfo !== null) {
                     //                console.log("tx :: from :: " + transaction.from + " :: " + transaction.to + " :: theDAOAddress :: " + HDWalletHelper.theDAOAddress)
-                    if (transaction.to === HDWalletHelper.theDAOAddress) {
+                    if (transaction.to === theDAOTokenContractAddress) {
                         //                    console.log("found theDaoAssociated :: " + transaction.from);
                         addressInfo.isTheDAOAssociated = true;
+                    }
+                    if (transaction.to === augurTokenContractAddress) {
+                        //                    console.log("found theDaoAssociated :: " + transaction.from);
+                        addressInfo.isAugurAssociated = true;
                     }
                     if (transaction.to === transaction.from) {
                         txDelta = 0;

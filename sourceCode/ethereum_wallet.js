@@ -100,6 +100,7 @@ function EthereumWallet(noBootstrap) {
     this._recommendedCustomGasLimit = 21000;
 
     this._isTheDAOAssociated = -1;
+    this._isAugurAssociated = -1;
 
     if (window.chrome && chrome.extension && chrome.extension.getBackgroundPage) {
         this._lightwallet = chrome.extension.getBackgroundPage().lightwallet;
@@ -1162,12 +1163,35 @@ EthereumWallet.prototype.isTheDAOAssociated = function() {
 
     var isAssociated = false;
 
+    var tokenContractAddress = CoinToken.getStaticTokenImplementation(CoinToken.TheDAO).pouchParameters['tokenContractAddress'];
+
     for (var txid in this._transactions) {
         var tx = this._transactions[txid];
 //        console.log("tx :: " + tx.to + " :: theDAOAddress :: " + HDWalletHelper.theDAOAddress);
-        if (tx.to === HDWalletHelper.theDAOAddress) {
+        if (tx.to === tokenContractAddress) {
             isAssociated = true;
             this._isTheDAOAssociated = true;
+        }
+    }
+
+    return isAssociated;
+}
+
+EthereumWallet.prototype.isAugurAssociated = function() {
+    if (this._isAugurAssociated === true) {
+        return true;
+    }
+
+    var isAssociated = false;
+
+    var tokenContractAddress = CoinToken.getStaticTokenImplementation(CoinToken.Augur).pouchParameters['tokenContractAddress'];
+
+    for (var txid in this._transactions) {
+        var tx = this._transactions[txid];
+        //        console.log("tx :: " + tx.to + " :: theDAOAddress :: " + HDWalletHelper.theDAOAddress);
+        if (tx.to === tokenContractAddress) {
+            isAssociated = true;
+            this._isAugurAssociated = true;
         }
     }
 

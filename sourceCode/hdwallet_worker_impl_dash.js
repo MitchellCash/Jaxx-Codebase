@@ -1,3 +1,5 @@
+//importScripts("../jaxx_wallet_storage_impl_dash.js");
+
 var HDWalletWorkerDash = function() {
     this._doDebug = true;
     this._batchSize = 20;
@@ -13,6 +15,11 @@ HDWalletWorkerDash.networkParams = {
     multi_balance: "",
     multi_balance_append: "",
 };
+
+HDWalletWorkerDash.relayManagerParams = {
+    isSupported: false,
+    implementationFileName: "",
+}
 
 HDWalletWorkerDash.prototype.initialize = function(workerManager) {
     this._workerManager = workerManager;

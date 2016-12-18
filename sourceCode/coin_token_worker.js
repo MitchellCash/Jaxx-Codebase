@@ -5,6 +5,8 @@ importScripts('../../request.js');
 importScripts('../../jaxx_main/jaxx_constants.js');
 importScripts('../../wallet/hdwallet_helper.js');
 importScripts('../../wallet/token/coin_token.js');
+importScripts('../../wallet/token/coin_token_impl_augur_ethereum.js');
+importScripts('../../wallet/token/coin_token_impl_thedao_ethereum.js');
 
 var doDebug = false;
 
@@ -80,9 +82,26 @@ CoinTokenWorker.prototype.initialize = function(tokenName, tokenSymbol, tokenCoi
 //        this._STATIC_RELAY_URL = "http://api.jaxx.io:80/api/thedao";
 
         //@note: for etherscan.io
-        this._STATIC_RELAY_URL = "https://api.etherscan.io/api?module=account&tokenname=TheDAO";
+        this._STATIC_RELAY_URL = "https://api.etherscan.io/api?module=account";
 
-        this._GATHER_TX = "&action=tokenbalance";
+        this._GATHER_TX = "&tokenname=TheDAO&action=tokenbalance";
+
+        this._GATHER_TX_APPEND = "&tag=latest&apikey=" + HDWalletHelper.apiKeyEtherScan;
+
+
+        this._GATHER_UNCONFIRMED_TX = "";
+
+        this._MULTI_BALANCE = "/balance"//?addresses%5B%5D=";
+        //        this._MULTI_BALANCE_APPEND = "&tag=latest&apikey=" + HDWalletHelper.apiKeyEtherScan;
+    } else if (this._tokenCoinType === CoinToken.Augur) {
+        socketUri = "";// "wss://api.ether.fund";
+
+        //        this._STATIC_RELAY_URL = "http://api.jaxx.io:80/api/thedao";
+
+        //@note: for etherscan.io
+        this._STATIC_RELAY_URL = "https://api.etherscan.io/api?module=account";
+
+        this._GATHER_TX = "&action=tokenbalance&contractaddress=0x48c80F1f4D53D5951e5D5438B54Cba84f29F32a5";
 
         this._GATHER_TX_APPEND = "&tag=latest&apikey=" + HDWalletHelper.apiKeyEtherScan;
 
@@ -246,12 +265,10 @@ CoinTokenWorker.prototype.updateTokenData = function() {
 }
 
 CoinTokenWorker.prototype.updateBalances = function() {
-    if (this._tokenCoinType === CoinToken.TheDAO) {
-        this.updateBalancesTheDAO();
-    }
+    this._updateBalances();
 }
 
-CoinTokenWorker.prototype.updateBalancesTheDAO = function() {
+CoinTokenWorker.prototype._updateBalances = function() {
     var addressesToCheck = [];
 
     for (var address in this._addressMap) {
@@ -317,7 +334,7 @@ CoinTokenWorker.prototype.updateBalancesTheDAO = function() {
 //                        console.log("passthroughParam :: " + passthroughParam);
                         self._addressMap[passthroughParam.batch].balance = foundBalance;
                     } else {
-                        log("updateBalancesTheDAO :: error :: " + data.status);
+                        log("CoinTokenWorker :: updateBalances :: error :: " + data.status);
                     }
 
                     if (passthroughParam.requestCounter.curBatchCount >= passthroughParam.requestCounter.batchUpdateSize) {
@@ -327,7 +344,7 @@ CoinTokenWorker.prototype.updateBalancesTheDAO = function() {
                         self.update();
                     }
                 } else {
-                    log("updateBalancesTheDAO :: error :: " + success);
+                    log("CoinTokenWorker :: updateBalances :: error :: " + success);
                 }
 
                 if (passthroughParam.requestCounter.processedRequestCount === passthroughParam.requestCounter.numRequests) {

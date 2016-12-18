@@ -19,6 +19,7 @@ var w_gObj;
 var HDWalletMain = function() {
     this._mnemonic = "";
 
+    this._storageManager = new WalletStorageManager();
     this._pouches = [];
     this._helper = new HDWalletHelper();
 
@@ -38,6 +39,8 @@ HDWalletMain.TESTNET = TESTNET;
 
 
 HDWalletMain.prototype.initialize = function() {
+    this._storageManager.initialize();
+
     this._helper.initialize();
 
     for (var i = 0; i < COIN_NUMCOINTYPES; i++) {
@@ -285,6 +288,7 @@ HDWalletMain.prototype.getEthereumLegacyLightwalletAccount = function(coinType) 
         accountItem.balance = this._legacyEthereumWallet.getBalance();
 //        accountItem.coinType = COIN_ETHEREUM;
         accountItem.isTheDAOAssociated = this._legacyEthereumWallet.isTheDAOAssociated();
+        accountItem.isAugurAssociated = this._legacyEthereumWallet.isAugurAssociated();
 
 //        console.log("ethereum legacy :: account :: " + JSON.stringify(accountItem));
 

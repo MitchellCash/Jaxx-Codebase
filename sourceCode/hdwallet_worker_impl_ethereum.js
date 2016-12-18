@@ -1,3 +1,5 @@
+//importScripts("../jaxx_wallet_storage_impl_ethereum.js");
+
 var HDWalletWorkerEthereum = function() {
     this._doDebug = false;
     this._batchSize = 1;
@@ -20,6 +22,11 @@ HDWalletWorkerEthereum.networkParams = {
     send_tx: "/api?module=proxy&action=eth_sendRawTransaction&hex=",
     send_tx_append: "&apikey=" + HDWalletHelper.apiKeyEtherScan,
 };
+
+HDWalletWorkerEthereum.relayManagerParams = {
+    isSupported: false,
+    implementationFileName: "",
+}
 
 HDWalletWorkerEthereum.prototype.initialize = function(workerManager) {
     this._workerManager = workerManager;
@@ -183,20 +190,6 @@ HDWalletWorkerEthereum.prototype.updateBalancesEthereum = function(callback) {
         addressesToCheck.push(address);
     }
 
-    //    var lastAndHighestDict = this.getAddressInfoLastUsedAndHighestDict();
-    //
-    //    var index = lastAndHighestDict.lastUsedReceiveIndex + 1;
-    //    var address = HDWalletPouch.getCoinAddress(this._coinType, this._receiveNode.derive(index)).toString();
-
-
-    //    addressesToCheck.push(address);
-
-    //    console.log("extra check for address :: " + address + " :: addressMap :: "  + JSON.stringify(this._addressMap[address]));
-    //    this._addressMap[address] = {index: index, internal: 0, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0, isTheDAOAssociated: false};
-    //    this._watchAddress(address);
-
-    //    console.log("addressesToCheck :: " + addressesToCheck + " :: " + addressesToCheck.length);
-
     var self = this;
 
 
@@ -301,6 +294,10 @@ HDWalletWorkerEthereum.prototype._updateTransactionsEthereum = function(transact
 
     var totalBalance = 0;
 
+    var theDAOTokenContractAddress = CoinToken.getStaticTokenImplementation(CoinToken.TheDAO).pouchParameters['tokenContractAddress'];
+
+    var augurTokenContractAddress = CoinToken.getStaticTokenImplementation(CoinToken.Augur).pouchParameters['tokenContractAddress'];
+
     //    log("ethereum :: _updateTransactionsEthereum :: " + Object.keys(transactions).length + " :: ethScanAddress :: " + ethScanAddress);
 
     for (var txid in transactions) {
@@ -342,9 +339,14 @@ HDWalletWorkerEthereum.prototype._updateTransactionsEthereum = function(transact
             //
             if (addressInfo !== null) {
                 //                console.log("tx :: from :: " + transaction.from + " :: " + transaction.to + " :: theDAOAddress :: " + HDWalletHelper.theDAOAddress)
-                if (transaction.to === HDWalletHelper.theDAOAddress) {
+
+                if (transaction.to === theDAOTokenContractAddress) {
                     //                    console.log("found theDaoAssociated :: " + transaction.from);
                     addressInfo.isTheDAOAssociated = true;
+                }
+                if (transaction.to === augurTokenContractAddress) {
+                    //                    console.log("found theDaoAssociated :: " + transaction.from);
+                    addressInfo.isAugurAssociated = true;
                 }
                 if (transaction.to === transaction.from) {
                     txDelta = 0;

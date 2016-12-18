@@ -1,61 +1,58 @@
-var HDWalletPouchBitcoin = function() {
+var HDWalletPouchLitecoin = function() {
     this._doDebug = true;
 
     this._pouchManager = null;
 
-    this._baseFormatCoinType = COIN_BITCOIN;
+    this._baseFormatCoinType = COIN_LITECOIN;
 }
 
 
-HDWalletPouchBitcoin.uiComponents = {
-    coinFullName: 'Bitcoin',
-    coinFullDisplayName: 'Bitcoin',
-    coinSymbol: '\u0E3F',
-    coinButtonSVGName: 'bitcoin-here',
-    coinLargePngName: '.imgBTC',
-    coinButtonName: '.imageLogoBannerBTC',
-    coinSpinnerElementName: '.imageBTCWash',
+HDWalletPouchLitecoin.uiComponents = {
+    coinFullName: 'Litecoin',
+    coinFullDisplayName: 'Litecoin',
+    coinSymbol: '\u0141',
+    coinButtonSVGName: 'litecoin-here',
+    coinLargePngName: '.imgLTC',
+    coinButtonName: '.imageLogoBannerLTC',
+    coinSpinnerElementName: '.imageLTCWash',
     coinDisplayColor: '#F7931A',
-    csvExportField: '.backupPrivateKeyListBTC',
-    transactionsListElementName: '.transactionsBitcoin',
-    transactionTemplateElementName: '.transactionBitcoin',
-    accountsListElementName: '.accountDataTableBitcoin',
-    accountTemplateElementName: '.accountDataBitcoin',
+    csvExportField: '.backupPrivateKeyListLTC',
+    transactionsListElementName: '.transactionsLitecoin',
+    transactionTemplateElementName: '.transactionLitecoin',
+    accountsListElementName: '.accountDataTableLitecoin',
+    accountTemplateElementName: '.accountDataLitecoin',
     displayNumDecimals: 8,
 };
 
-HDWalletPouchBitcoin.pouchParameters = {
-    coinHDType: 0,
+HDWalletPouchLitecoin.pouchParameters = {
+    coinHDType: 2,
     coinIsTokenSubtype: false,
-    coinAbbreviatedName: 'BTC',
+    coinAbbreviatedName: 'LTC',
 };
 
-HDWalletPouchBitcoin.networkDefinitions = {
+HDWalletPouchLitecoin.networkDefinitions = {
     mainNet: {
-        messagePrefix: '\x18Bitcoin Signed Message:\n',
+        messagePrefix: '\x19Litecoin Signed Message:\n',
         bip32: {
-            public: 0x0488b21e,
-            private: 0x0488ade4
+            public: 0x019da462,
+            private: 0x019d9cfe
         },
-        pubKeyHash: 0x00,
+        pubKeyHash: 0x30,
         scriptHash: 0x05,
-        wif: 0x80,
-        dustThreshold: 546
+        wif: 0xb0,
+        dustThreshold: 0
     },
-    testNet: {
-        messagePrefix: '\x18Bitcoin Signed Message:\n',
-        bip32: {
-            public: 0x043587cf,
-            private: 0x04358394
-        },
-        pubKeyHash: 0x6f,
-        scriptHash: 0xc4,
-        wif: 0xef,
-        dustThreshold: 546
-    },
+    //@note: @todo: @here: needs to update to have litecoin testnet definitions.
+    testNet: {error: true},
 }
 
-HDWalletPouchBitcoin.getCoinAddress = function(node) {
+HDWalletPouchLitecoin.networkDefinitionTestNet = {
+
+};
+
+HDWalletPouchLitecoin.networkDefinitionTestNet = null;
+
+HDWalletPouchLitecoin.getCoinAddress = function(node) {
     var pubKey = node.keyPair.getPublicKeyBuffer();
 
     var pubKeyHash = thirdparty.bitcoin.crypto.hash160(pubKey);
@@ -71,7 +68,7 @@ HDWalletPouchBitcoin.getCoinAddress = function(node) {
     return address;
 }
 
-HDWalletPouchBitcoin.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
+HDWalletPouchLitecoin.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
     var coinAmount = 0;
 
     var satoshis = wallet.getHelper().convertFiatToSatoshis(fiatAmount);
@@ -80,46 +77,46 @@ HDWalletPouchBitcoin.prototype.convertFiatToCoin = function(fiatAmount, coinUnit
     return coinAmount;
 }
 
-HDWalletPouchBitcoin.prototype.initialize = function(pouchManager) {
+HDWalletPouchLitecoin.prototype.initialize = function(pouchManager) {
     this._pouchManager = pouchManager;
 }
 
-HDWalletPouchBitcoin.prototype.shutDown = function() {
+HDWalletPouchLitecoin.prototype.shutDown = function() {
 }
 
-HDWalletPouchBitcoin.prototype.setup = function() {
+HDWalletPouchLitecoin.prototype.setup = function() {
 }
 
-HDWalletPouchBitcoin.prototype.log = function(logString) {
+HDWalletPouchLitecoin.prototype.log = function(logString) {
     if (this._doDebug === false) {
         return;
     }
 
     var args = [].slice.call(arguments);
-    args.unshift('BitcoinPouchLog:');
+    args.unshift('LitecoinPouchLog:');
     console.log(args);
 }
 
-HDWalletPouchBitcoin.prototype.updateMiningFees = function() {
-    var self = this;
-
-    $.getJSON('https://bitcoinfees.21.co/api/v1/fees/recommended', function (data) {
-        if (!data || !data.halfHourFee) {
-            this.log("HDWalletPouchBitcoin.updateMiningFees :: error :: cannot access default fee");
-        } else  {
-            self._pouchManager._miningFeeDict = data;
-            //@note: @here: default to "average"
-            self._pouchManager._defaultTXFee = parseInt(data.hourFee) * 1000;
-        }
-    });
+HDWalletPouchLitecoin.prototype.updateMiningFees = function() {
+//    var self = this;
+//
+//    $.getJSON('https://bitcoinfees.21.co/api/v1/fees/recommended', function (data) {
+//        if (!data || !data.halfHourFee) {
+//            this.log("HDWalletPouchLitecoin.updateMiningFees :: error :: cannot access default fee");
+//        } else  {
+//            self._pouchManager._miningFeeDict = data;
+//            //@note: @here: default to "average"
+//            self._pouchManager._defaultTXFee = parseInt(data.hourFee) * 1000;
+//        }
+//    });
 }
 
-HDWalletPouchBitcoin.prototype.requestBlockNumber = function(callback) {
+HDWalletPouchLitecoin.prototype.requestBlockNumber = function(callback) {
     callback(null);
 }
 
 
-HDWalletPouchBitcoin.prototype.updateTransactionsFromWorker = function(txid, transactions) {
+HDWalletPouchLitecoin.prototype.updateTransactionsFromWorker = function(txid, transactions) {
     var isTXUpdated = false;
 
     var existingTransaction = this._pouchManager._transactions[txid];
@@ -168,7 +165,7 @@ HDWalletPouchBitcoin.prototype.updateTransactionsFromWorker = function(txid, tra
     return isTXUpdated;
 }
 
-HDWalletPouchBitcoin.prototype.getTransactions = function() {
+HDWalletPouchLitecoin.prototype.getTransactions = function() {
     var res = [];
 
     /**
@@ -187,7 +184,7 @@ HDWalletPouchBitcoin.prototype.getTransactions = function() {
     return res;
 }
 
-HDWalletPouchBitcoin.prototype.calculateHistoryforTransaction = function(transaction) {
+HDWalletPouchLitecoin.prototype.calculateHistoryforTransaction = function(transaction) {
     var deltaBalance = 0;
     var miningFee = 0;
 
@@ -249,7 +246,7 @@ HDWalletPouchBitcoin.prototype.calculateHistoryforTransaction = function(transac
     return newHistoryItem;
 }
 
-HDWalletPouchBitcoin.prototype.getPouchFoldBalance = function() {
+HDWalletPouchLitecoin.prototype.getPouchFoldBalance = function() {
     var balance = 0;
 
     var unspent = this._getUnspentOutputs();
@@ -261,7 +258,7 @@ HDWalletPouchBitcoin.prototype.getPouchFoldBalance = function() {
     return balance;
 }
 
-HDWalletPouchBitcoin.prototype._getUnspentOutputs = function() {
+HDWalletPouchLitecoin.prototype._getUnspentOutputs = function() {
     var unspent = {};
 
     // Sigh... We don't get the transaction index (within a block), so we can't strictly order them
@@ -303,7 +300,7 @@ HDWalletPouchBitcoin.prototype._getUnspentOutputs = function() {
     return result;
 }
 
-HDWalletPouchBitcoin.prototype.getAccountBalance = function(internal, index) {
+HDWalletPouchLitecoin.prototype.getAccountBalance = function(internal, index) {
     var accountBalance = 0;
 
     //@note:@todo:@optimization: this should probably be cached in the worker..
@@ -349,7 +346,7 @@ HDWalletPouchBitcoin.prototype.getAccountBalance = function(internal, index) {
     return accountBalance;
 }
 
-HDWalletPouchBitcoin.prototype.getSpendableBalance = function(minimumValue) {
+HDWalletPouchLitecoin.prototype.getSpendableBalance = function(minimumValue) {
     var spendableDict = {spendableBalance: 0,
                         numPotentialTX: 0};
 
@@ -370,7 +367,7 @@ HDWalletPouchBitcoin.prototype.getSpendableBalance = function(minimumValue) {
     return spendableDict;
 }
 
-HDWalletPouchBitcoin.prototype._buildBitcoinTransaction = function(toAddress, amount_smallUnit, transactionFee, doNotSign) {
+HDWalletPouchLitecoin.prototype._buildBitcoinTransaction = function(toAddress, amount_smallUnit, transactionFee, doNotSign) {
     var coinNetwork = null;
 
     if (this._pouchManager._TESTNET) {
@@ -498,7 +495,9 @@ HDWalletPouchBitcoin.prototype._buildBitcoinTransaction = function(toAddress, am
     // Sign the transaction
     for (var i = 0; i < toSpend.length; i++) {
         var utxo = toSpend[i];
-        //        console.log("signing with :: " + this.getPrivateKey(utxo.addressInternal, utxo.addressIndex).toWIF() + " :: " + utxo.addressInternal);
+
+        console.log("signing with :: " + this._pouchManager.getPrivateKey(utxo.addressInternal, utxo.addressIndex).toWIF() + " :: " + utxo.addressInternal);
+
         tx.sign(i, this._pouchManager.getPrivateKey(utxo.addressInternal, utxo.addressIndex));
     }
 
@@ -527,12 +526,12 @@ HDWalletPouchBitcoin.prototype._buildBitcoinTransaction = function(toAddress, am
 }
 
 
-HDWalletPouchBitcoin.prototype.buildBitcoinTransaction = function(toAddress, amount_smallUnit, doNotSign) {
+HDWalletPouchLitecoin.prototype.buildBitcoinTransaction = function(toAddress, amount_smallUnit, doNotSign) {
     var tx = null;
 
-    var currentBitcoinMiningFee = this._pouchManager.getCurrentMiningFee();
+    var currentLitecoinMiningFee = this._pouchManager.getCurrentMiningFee();
 
-    var totalTransactionFee = currentBitcoinMiningFee;
+    var totalTransactionFee = currentLitecoinMiningFee;
 
     //    console.log("buildBitcoinTransaction :: address :: " + toAddress + " :: currentBitcoinMiningFee :: " + currentBitcoinMiningFee);
     while (true) {
@@ -545,7 +544,7 @@ HDWalletPouchBitcoin.prototype.buildBitcoinTransaction = function(toAddress, amo
 
         // How big is the transaction and what fee do we need? (we didn't sign so fill in 107 bytes for signatures)
         var size = tx.toHex().length / 2 + tx.ins.length * 107;
-        var targetTransactionFee = Math.ceil(size / 1024) * currentBitcoinMiningFee;
+        var targetTransactionFee = Math.ceil(size / 1024) * currentLitecoinMiningFee;
 
         //            console.log("targetTransactionFee :: " + targetTransactionFee)
         //            break;//
@@ -559,7 +558,7 @@ HDWalletPouchBitcoin.prototype.buildBitcoinTransaction = function(toAddress, amo
 
         // Add at least enough tx fee to cover our size thus far (adding tx may increase fee)
         while (targetTransactionFee > totalTransactionFee) {
-            totalTransactionFee += currentBitcoinMiningFee;
+            totalTransactionFee += currentLitecoinMiningFee;
         }
     }
 
@@ -569,10 +568,10 @@ HDWalletPouchBitcoin.prototype.buildBitcoinTransaction = function(toAddress, amo
     return tx;
 }
 
-HDWalletPouchBitcoin.prototype.updateTokenAddresses = function(addressMap) {
+HDWalletPouchLitecoin.prototype.updateTokenAddresses = function(addressMap) {
 }
 
-HDWalletPouchBitcoin.prototype.getAccountList = function(transactions) {
+HDWalletPouchLitecoin.prototype.getAccountList = function(transactions) {
     var result = [];
 
     var lastIndexChange = 0;
@@ -659,10 +658,10 @@ HDWalletPouchBitcoin.prototype.getAccountList = function(transactions) {
     return result;
 }
 
-HDWalletPouchBitcoin.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) {
+HDWalletPouchLitecoin.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) {
     var curRecAddr = this._pouchManager.getCurrentReceiveAddress();
 
-    var uri = "bitcoin:" + curRecAddr;
+    var uri = "litecoin:" + curRecAddr;
 
     if (coinAmountSmallType) {
         uri += "?amount=" + coinAmountSmallType;
@@ -685,7 +684,7 @@ HDWalletPouchBitcoin.prototype.generateQRCode = function(largeFormat, coinAmount
     }
 }
 
-HDWalletPouchBitcoin.prototype.sendBitcoinTransaction = function(transaction, callback) {
+HDWalletPouchLitecoin.prototype.sendLitecoinTransaction = function(transaction, callback) {
     var mockTx = transaction._kkMockTx;
     var txid = mockTx.txid;
 
@@ -707,7 +706,7 @@ HDWalletPouchBitcoin.prototype.sendBitcoinTransaction = function(transaction, ca
 
 
     //@note: @here: @todo: @next: @relays:
-    g_JaxxApp.getBitcoinRelays().getRelayByIndex(0).pushRawTx(transaction.toHex(), function (response){
+    g_JaxxApp.getLitecoinRelays().getRelayByIndex(0).pushRawTx(transaction.toHex(), function (response){
         if ((response.status && response.status === 'success') || response === 'success') {
             self._pouchManager._transactions[txid].status = 'success';
             self._pouchManager._notify();
@@ -730,10 +729,10 @@ HDWalletPouchBitcoin.prototype.sendBitcoinTransaction = function(transaction, ca
     });
 }
 
-HDWalletPouchBitcoin.prototype.afterWorkerCacheInvalidate = function() {
+HDWalletPouchLitecoin.prototype.afterWorkerCacheInvalidate = function() {
 }
 
-HDWalletPouchBitcoin.prototype.prepareSweepTransaction = function(privateKey, callback) {
+HDWalletPouchLitecoin.prototype.prepareSweepTransaction = function(privateKey, callback) {
     var coinNetwork = null;
 
     if (this._pouchManager._TESTNET) {
@@ -741,6 +740,7 @@ HDWalletPouchBitcoin.prototype.prepareSweepTransaction = function(privateKey, ca
     } else {
         coinNetwork = HDWalletPouch.getStaticCoinPouchImplementation(this._pouchManager._coinType).networkDefinitions.mainNet;
     }
+
     // Function is called when:
     // The user enters their private key from a paper wallet and presses the 'Next' button.
     // Returns:
@@ -805,7 +805,7 @@ HDWalletPouchBitcoin.prototype.prepareSweepTransaction = function(privateKey, ca
 
         var signedTransaction = null;
 
-        var transactionFee = wallet.getPouchFold(COIN_BITCOIN).getDefaultTransactionFee();
+        var transactionFee = wallet.getPouchFold(COIN_LITECOIN).getDefaultTransactionFee();
 
         //        console.log("sweep bitcoin :: totalValue :: " + totalValue + " :: transactionFee :: " + transactionFee);
         if (transactionFee >= totalValue) {
@@ -817,7 +817,7 @@ HDWalletPouchBitcoin.prototype.prepareSweepTransaction = function(privateKey, ca
 
         while ((totalValue - transactionFee) > 0) {
             var tx = new thirdparty.bitcoin.TransactionBuilder(coinNetwork);
-            tx.addOutput(wallet.getPouchFold(COIN_BITCOIN).getCurrentChangeAddress(), totalValue - transactionFee);
+            tx.addOutput(wallet.getPouchFold(COIN_LITECOIN).getCurrentChangeAddress(), totalValue - transactionFee);
 
             for (var i = 0; i < toSpend.length; i++) {
                 var utxo = toSpend[i];
@@ -826,7 +826,7 @@ HDWalletPouchBitcoin.prototype.prepareSweepTransaction = function(privateKey, ca
 
             var unsignedTransaction = tx.buildIncomplete();
             var size = unsignedTransaction.toHex().length / 2 + unsignedTransaction.ins.length * 107;
-            var targetTransactionFee = Math.ceil(size / 1024) * wallet.getPouchFold(COIN_BITCOIN).getDefaultTransactionFee();
+            var targetTransactionFee = Math.ceil(size / 1024) * wallet.getPouchFold(COIN_LITECOIN).getDefaultTransactionFee();
 
             if (targetTransactionFee <= transactionFee) {
                 for (var i = 0; i < toSpend.length; i++) {
@@ -839,7 +839,7 @@ HDWalletPouchBitcoin.prototype.prepareSweepTransaction = function(privateKey, ca
 
             // Add at least enough tx fee to cover our size thus far (adding tx may increase fee)
             while (targetTransactionFee > transactionFee) {
-                transactionFee += wallet.getPouchFold(COIN_BITCOIN).getDefaultTransactionFee();
+                transactionFee += wallet.getPouchFold(COIN_LITECOIN).getDefaultTransactionFee();
             }
         }
 
@@ -857,8 +857,8 @@ HDWalletPouchBitcoin.prototype.prepareSweepTransaction = function(privateKey, ca
         mockTx.txid = txid;
 
         mockTx.outputs.push({
-            address: wallet.getPouchFold(COIN_BITCOIN).getCurrentChangeAddress(),
-            addressIndex: wallet.getPouchFold(COIN_BITCOIN).getCurrentChangeIndex(),
+            address: wallet.getPouchFold(COIN_LITECOIN).getCurrentChangeAddress(),
+            addressIndex: wallet.getPouchFold(COIN_LITECOIN).getCurrentChangeIndex(),
             addressInternal: true,
             confirmations: 0,
             index: 0,
@@ -878,27 +878,26 @@ HDWalletPouchBitcoin.prototype.prepareSweepTransaction = function(privateKey, ca
         });
     }
 
-    // btcRelays.getCurrentRelay().getUTXO(keypair.getAddress(), prepareTransaction); // Code for legacy relay system
-    g_JaxxApp.getBitcoinRelays().getUTXO(keypair.getAddress(), prepareTransaction); // Code for new relay system
+    g_JaxxApp.getLitecoinRelays().getUTXO(keypair.getAddress(), prepareTransaction); // Code for new relay system
 
-    console.log("bitcoin relay :: " + g_JaxxApp.getBitcoinRelays());
+    console.log("bitcoin relay :: " + g_JaxxApp.getLitecoinRelays());
 
     return true;
 }
 
-HDWalletPouchBitcoin.prototype.fromChecksumAddress = function(address) {
+HDWalletPouchLitecoin.prototype.fromChecksumAddress = function(address) {
     return address;
 }
 
-HDWalletPouchBitcoin.prototype.toChecksumAddress = function(address) {
+HDWalletPouchLitecoin.prototype.toChecksumAddress = function(address) {
     return address;
 }
 
-HDWalletPouchBitcoin.prototype.getBaseCoinAddressFormatType = function() {
+HDWalletPouchLitecoin.prototype.getBaseCoinAddressFormatType = function() {
     return this._baseFormatCoinType;
 }
 
-HDWalletPouchBitcoin.prototype.createTransaction = function(address, amount) {
+HDWalletPouchLitecoin.prototype.createTransaction = function(address, amount) {
     //@note: @here: this should check for address, amount validity.
     //@note: @todo: maybe a transaction queue?
 

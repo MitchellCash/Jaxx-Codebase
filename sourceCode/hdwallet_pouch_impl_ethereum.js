@@ -25,7 +25,7 @@ HDWalletPouchEthereum.uiComponents = {
     transactionTemplateElementName: '.transactionEthereum',
     accountsListElementName: '.accountDataTableEthereum',
     accountTemplateElementName: '.accountDataEthereum',
-    displayNumDecimals: 8,
+    displayNumDecimals: 6,
 };
 
 HDWalletPouchEthereum.pouchParameters = {
@@ -33,6 +33,11 @@ HDWalletPouchEthereum.pouchParameters = {
     coinIsTokenSubtype: false,
     coinAbbreviatedName: 'ETH',
 };
+
+HDWalletPouchEthereum.networkDefinitions = {
+    mainNet: null,
+    testNet: null,
+}
 
 HDWalletPouchEthereum.getCoinAddress = function(node) {
     //        console.log("[ethereum] node :: " + node);
@@ -74,6 +79,11 @@ HDWalletPouchEthereum.prototype.initialize = function(pouchManager) {
 
 HDWalletPouchEthereum.prototype.shutDown = function() {
     for (var i = 0; i < CoinToken.numCoinTokens; i++) {
+        if (typeof(this._pouchManager._token[i]) === 'undefined' ||
+            this._pouchManager._token[i] === null) {
+            continue;
+        }
+
         this._pouchManager._token[i].shutDown();
     }
 }
@@ -89,7 +99,13 @@ HDWalletPouchEthereum.prototype.setupTokens = function() {
 
     var baseReceiveAddress = HDWalletPouch.getCoinAddress(this._pouchManager._coinType, HDWalletPouch._derive(this._pouchManager._receiveNode, 0, false)).toString();
 
-    this._pouchManager._token[CoinToken.TheDAO].initialize("TheDAO", "DAO", CoinToken.TheDAO, baseReceiveAddress, this._pouchManager, HDWalletHelper.getDefaultEthereumGasPrice(), HDWalletHelper.getDefaultTheDAOGasLimit(), this._pouchManager._storageKey);
+    var theDAODefaultGasLimit = HDWalletPouch.getStaticCoinPouchImplementation(COIN_THEDAO_ETHEREUM).getDefaultGasLimit();
+
+    this._pouchManager._token[CoinToken.TheDAO].initialize("TheDAO", "DAO", CoinToken.TheDAO, baseReceiveAddress, this._pouchManager, HDWalletHelper.getDefaultEthereumGasPrice(), theDAODefaultGasLimit, this._pouchManager._storageKey);
+
+    var augurDefaultGasLimit = HDWalletPouch.getStaticCoinPouchImplementation(COIN_AUGUR_ETHEREUM).getDefaultGasLimit();
+
+    this._pouchManager._token[CoinToken.Augur].initialize("Augur", "AUG", CoinToken.Augur, baseReceiveAddress, this._pouchManager, HDWalletHelper.getDefaultEthereumGasPrice(), augurDefaultGasLimit, this._pouchManager._storageKey);
 
     this.updateTokenAddresses(this._pouchManager._w_addressMap);
 }
@@ -307,6 +323,11 @@ HDWalletPouchEthereum.prototype.updateTokenAddresses = function(addressMap) {
     }
 
     for (var i = 0; i < CoinToken.numCoinTokens; i++) {
+        if (typeof(this._pouchManager._token[i]) === 'undefined' ||
+            this._pouchManager._token[i] === null) {
+            continue;
+        }
+
         var tokenTransferableArray = [];
         var tokenVotableArray = [];
 
@@ -597,6 +618,24 @@ HDWalletPouchEthereum.prototype.getIsTheDAOAssociated = function(internal, index
     return false;
 }
 
+HDWalletPouchEthereum.prototype.getIsAugurAssociated = function(internal, index) {
+    var publicAddress = this._pouchManager.getPublicAddress(internal, index);
+
+    //@note: for ethereum checksum addresses.
+    publicAddress = publicAddress.toLowerCase();
+
+    var addressInfo = this._pouchManager._w_addressMap[publicAddress];
+
+    if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
+        //        console.log("publicAddress :: " + publicAddress + " :: isTheDAOAssociated :: " + addressInfo.isTheDAOAssociated);
+        if (addressInfo.isAugurAssociated === true) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 HDWalletPouchEthereum.prototype.getAccountList = function(transactions) {
     var result = [];
 
@@ -620,6 +659,7 @@ HDWalletPouchEthereum.prototype.getAccountList = function(transactions) {
                 account.pubAddr = this._pouchManager.getPublicAddress(false, transaction.addressIndex);
                 account.balance = this.getAccountBalance(false, transaction.addressIndex);
                 account.isTheDAOAssociated = this.getIsTheDAOAssociated(false, transaction.addressIndex);
+                account.isAugurAssociated = this.getIsAugurAssociated(false, transaction.addressIndex);
 
                 result.push(account);
             }
@@ -639,6 +679,7 @@ HDWalletPouchEthereum.prototype.getAccountList = function(transactions) {
     account.pubAddr = this._pouchManager.getPublicAddress(false, finalIndex);
     account.balance = this.getAccountBalance(false, finalIndex);
     account.isTheDAOAssociated = this.getIsTheDAOAssociated(false, i);
+    account.isAugurAssociated = this.getIsAugurAssociated(false, i);
 
     result.push(account);
 
@@ -693,7 +734,7 @@ HDWalletPouchEthereum.prototype.getAllAccountBalancesDict = function(transaction
     return result;
 }
 
-HDWalletPouchEthereum.prototype.generateQRCode = function(largeFormat,  coinAmountSmallType) {
+HDWalletPouchEthereum.prototype.generateQRCode = function(largeFormat, coinAmountSmallType) {
     var curRecAddr = this._pouchManager.getCurrentReceiveAddress();
 
     var uri = "iban:" + HDWalletHelper.getICAPAddress(curRecAddr);
@@ -1180,4 +1221,10 @@ HDWalletPouchEthereum.prototype.determineEtcSplit = function(baseTXCost, etcAcco
 
 HDWalletPouchEthereum.prototype.getBaseCoinAddressFormatType = function() {
     return this._baseFormatCoinType;
+}
+
+HDWalletPouchEthereum.prototype.createTransaction = function(address, amount) {
+    //@note: @here: @todo: from jaxx.js, gather custom data and such.
+    //@note: @here: this should check for address, amount validity.
+    //@note: @todo: maybe a transaction queue?
 }

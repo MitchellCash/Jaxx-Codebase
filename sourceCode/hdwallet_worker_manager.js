@@ -15,11 +15,15 @@ importScripts('../wallet/hdwallet_pouch.js');
 
 importScripts("../relays/relay_task.js");
 
-importScripts("../relays/blockchain_relay.js");
-importScripts("../relays/blockcypher_relay.js");
-importScripts("../relays/blockexplorer_relay.js");
-importScripts("../relays/blockr_relay.js");
-importScripts("../chainrelay.js");
+importScripts('../wallet/token/coin_token.js');
+importScripts('../wallet/token/coin_token_impl_augur_ethereum.js');
+importScripts('../wallet/token/coin_token_impl_thedao_ethereum.js');
+
+importScripts('../wallet/hdwallet_worker_impl_bitcoin.js');
+importScripts('../wallet/hdwallet_worker_impl_ethereum.js');
+importScripts('../wallet/hdwallet_worker_impl_dash.js');
+importScripts('../wallet/hdwallet_worker_impl_ethereum_classic.js');
+importScripts('../wallet/hdwallet_worker_impl_litecoin.js');
 
 var doDebug = true;
 
@@ -44,8 +48,6 @@ var HDWalletWorkerManager = function() {
     this._coinType = -1;
     this._coinWorkerImpl = null;
 
-    this._NETWORK = null;
-
     this._receiveNode = null;
     this._changeNode = null;
 
@@ -54,6 +56,8 @@ var HDWalletWorkerManager = function() {
 
     this._lastChangeIndex = -1;
     this._currentChangeAddress = null;
+
+    this._storage = {};
 
     this._addressMap = {};
 
@@ -79,17 +83,27 @@ HDWalletWorkerManager.prototype.initialize = function(coinType, testNet) {
 
     var self = this;
 
+    var relayManagerParams = HDWalletPouch.getStaticCoinWorkerImplementation(this._coinType).relayManagerParams;
+
     //@note: @here: @token: this seems necessary.
-    if (this._coinType === COIN_BITCOIN) {
+    if (relayManagerParams.isSupported === true) {
         log("[ HDWalletWorkerManager ] :: setup relay manager :: " + this._coinType);
 
-        this._relayManager = new BitcoinRelays();
-    } else {
-        log("[ HDWalletWorkerManager ] :: no relay manager :: " + this._coinType);
-    }
+        importScripts('../relays/relay_manager.js');
 
-    if (this._relayManager !== null) {
-        this._relayManager.initialize();
+        var scopePointer = this;
+
+        importScripts('../relays/' + relayManagerParams.implementationFileName);
+
+        if (this._coinType === COIN_BITCOIN) {
+            this._relayManagerImplementation = new RelayManagerBitcoin();
+        } else if (this._coinType === COIN_LITECOIN) {
+            this._relayManagerImplementation = new RelayManagerLitecoin();
+        }
+
+        this._relayManager = new RelayManager();
+        this._relayManager.initialize(this._relayManagerImplementation);
+
         this._relayManager.setup(function(resultParams) {
             self.finishInitialization();
             postMessage({action: 'didInitialize', content: {}});
@@ -97,6 +111,8 @@ HDWalletWorkerManager.prototype.initialize = function(coinType, testNet) {
             log("[ HDWalletWorkerManager ] :: RelayTests :: fetchBlockHeights :: " + JSON.stringify(resultParams));
         }); // Setup the relays (Stored in a global so that instance data is not discarded.)
     } else {
+        log("[ HDWalletWorkerManager ] :: no relay manager :: " + this._coinType);
+
         this.finishInitialization();
         postMessage({action: 'didInitialize', content: {}});
     }
@@ -108,11 +124,6 @@ HDWalletWorkerManager.prototype.finishInitialization = function() {
         importScripts('../wallet/hdwallet_worker_impl_bitcoin.js');
         importScripts('../wallet/hdwallet_pouch_impl_bitcoin.js');
         this._coinWorkerImpl = new HDWalletWorkerBitcoin();
-
-        if (this._TESTNET) {
-            this._NETWORK = thirdparty.bitcoin.networks.testnet;
-            this._STATIC_RELAY_URL = 'https://tbtc.blockr.io';
-        }
     } else if (this._coinType === COIN_ETHEREUM) {
         importScripts('../wallet/hdwallet_worker_impl_ethereum.js');
         importScripts('../wallet/hdwallet_pouch_impl_ethereum.js');
@@ -124,9 +135,11 @@ HDWalletWorkerManager.prototype.finishInitialization = function() {
     } else if (this._coinType === COIN_DASH) {
         importScripts('../wallet/hdwallet_worker_impl_dash.js');
         importScripts('../wallet/hdwallet_pouch_impl_dash.js');
-//        this._NETWORK = HDWalletPouchDash.networkDefinitionTestNet;
-        this._NETWORK = HDWalletPouchDash.networkDefinitionMainNet;
         this._coinWorkerImpl = new HDWalletWorkerDash();
+    } else if (this._coinType === COIN_LITECOIN) {
+        importScripts('../wallet/hdwallet_worker_impl_litecoin.js');
+        importScripts('../wallet/hdwallet_pouch_impl_litecoin.js');
+        this._coinWorkerImpl = new HDWalletWorkerLitecoin();
     }
 
     log("[ HDWalletWorkerManager ] :: init :: " + this._coinType);
@@ -292,9 +305,18 @@ HDWalletWorkerManager.prototype._watchAddress = function(address) {
 }
 
 HDWalletWorkerManager.prototype.setExtendedPublicKeys = function(receivePublicKey, changePublicKey) {
-    log(this._coinType + " :: this._NETWORK :: " + this._NETWORK);
-    this._receiveNode = thirdparty.bitcoin.HDNode.fromBase58(receivePublicKey, this._NETWORK);
-    this._changeNode = thirdparty.bitcoin.HDNode.fromBase58(changePublicKey, this._NETWORK);
+    var coinNetwork = null;
+
+    if (this._TESTNET) {
+        coinNetwork = HDWalletPouch.getStaticCoinPouchImplementation(this._coinType).networkDefinitions.testNet;
+    } else {
+        coinNetwork = HDWalletPouch.getStaticCoinPouchImplementation(this._coinType).networkDefinitions.mainNet;
+    }
+
+    log(this._coinType + " :: coinNetwork :: " + coinNetwork);
+
+    this._receiveNode = thirdparty.bitcoin.HDNode.fromBase58(receivePublicKey, coinNetwork);
+    this._changeNode = thirdparty.bitcoin.HDNode.fromBase58(changePublicKey, coinNetwork);
 
     var self = this;
     setTimeout(function() {
@@ -306,6 +328,9 @@ HDWalletWorkerManager.prototype.update = function(forcePouchRecheck) {
 //    log("watcher :: " + this._coinType + " :: update :: " + this._transactions.length);
     var updates = {
         transactions: this._transactions,
+
+        //@note: @todo: @storage: send the updated storage.
+
         workerCacheAddressMap: this._addressMap,
     }
 
@@ -434,7 +459,7 @@ HDWalletWorkerManager.prototype.checkTransactions = function(addressesOrMinimumA
 //            log("watcher :: " + this._coinType + " :: address :: " + address + " :: index :: " + index + " :: receiveNode :: " +  this._receiveNode.derive(index) + " :: lastUsedReceiveIndex :: " + lastUsedReceiveIndex + " :: highestReceiveIndex :: " + highestReceiveIndex);
 //        }
 
-        this._addressMap[address] = {index: index, internal: 0, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0, isTheDAOAssociated: false};
+        this._addressMap[address] = {index: index, internal: 0, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0, isTheDAOAssociated: false, isAugurAssociated: false};
         this._watchAddress(address);
 
         neededGenerate = true;
@@ -447,7 +472,7 @@ HDWalletWorkerManager.prototype.checkTransactions = function(addressesOrMinimumA
 //        if (this._coinType === COIN_ETHEREUM) {
 //            log("watcher :: " + this._coinType + " :: address :: " + address +  " :: index :: " + index + " :: changeNode :: " +  this._changeNode.derive(index) + " :: lastUsedChangeIndex :: " + lastUsedChangeIndex + " :: highestChangeIndex :: " + highestChangeIndex);
 //        }
-        this._addressMap[address] = {index: index, internal: 1, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0, isTheDAOAssociated: false};
+        this._addressMap[address] = {index: index, internal: 1, updatedTimestamp: 0, accountBalance: 0, accountTXProcessed: {}, nonce: 0, isTheDAOAssociated: false, isAugurAssociated: false};
         this._watchAddress(address);
 
         neededGenerate = true;
@@ -554,11 +579,14 @@ var hdWalletWorkerManager = new HDWalletWorkerManager();
 
 onmessage = function(message) {
     if (message.data.action === 'initialize') {
+        var srcName = message.data.sourceName;
         hdWalletWorkerManager.initialize(message.data.coinType, message.data.testNet);
     }
     if (message.data.action === 'setExtendedPublicKeys') {
         hdWalletWorkerManager.setExtendedPublicKeys(message.data.content.receive, message.data.content.change);
     } else if (message.data.action === 'restoreAddressMapCache') {
+        //@note: @todo: @storage: retrieve the updated storage.
+
         var cache = message.data.content.workerCacheAddressMap;
 
         if (cache) {

@@ -105,16 +105,58 @@ HDWalletPouch._derive = function(node, index, hardened) {
     }
 }
 
+//@note: @here: @token: this seems necessary.
+
+HDWalletPouch.getStaticCoinPouchImplementation = function(coinType) {
+    //@note: @here: @token: this seems necessary.
+    if (coinType === COIN_BITCOIN) {
+        return HDWalletPouchBitcoin;
+    } else if (coinType === COIN_ETHEREUM) {
+        return HDWalletPouchEthereum;
+    } else if (coinType === COIN_ETHEREUM_CLASSIC) {
+        return HDWalletPouchEthereumClassic;
+    } else if (coinType === COIN_THEDAO_ETHEREUM) {
+        //@note: @here: @todo: this should be a thedao specific cointoken.
+        return CoinToken;
+    } else if (coinType === COIN_DASH) {
+        return HDWalletPouchDash;
+    }
+}
+
+HDWalletPouch.getStaticCoinWorkerImplementation = function(coinType) {
+    //@note: @here: @token: this seems necessary.
+    if (coinType === COIN_BITCOIN) {
+        return HDWalletWorkerBitcoin;
+    } else if (coinType === COIN_ETHEREUM) {
+        return HDWalletWorkerEthereum;
+    } else if (coinType === COIN_ETHEREUM_CLASSIC) {
+        return HDWalletWorkerEthereumClassic;
+    } else if (coinType === COIN_THEDAO_ETHEREUM) {
+        //@note: @here: @todo: this should be a thedao specific cointoken.
+        //@note: @here: this doesn't have the same parameters like block number.
+        return CoinTokenWorker;
+    } else if (coinType === COIN_DASH) {
+        return HDWalletWorkerDash;
+    }
+}
+HDWalletPouch.getNewCoinPouchImplementation = function(coinType) {
+    //@note: @here: @token: this seems necessary.
+    if (coinType === COIN_BITCOIN) {
+        return new HDWalletPouchBitcoin();
+    } else if (coinType === COIN_ETHEREUM) {
+        return new HDWalletPouchEthereum();
+    } else if (coinType === COIN_ETHEREUM_CLASSIC) {
+        return new HDWalletPouchEthereumClassic();
+    } else if (coinType === COIN_DASH) {
+        return new HDWalletPouchDash();
+    }
+}
+
+//@note: @here: @todo: this
 HDWalletPouch.getCoinAddress = function(coinType, node) {
     var address = "";
 
-    if (coinType === COIN_BITCOIN) {
-        address = HDWalletPouchBitcoin.getCoinAddress(node);
-    } else if (coinType === COIN_ETHEREUM) {
-        address = HDWalletPouchEthereum.getCoinAddress(node);
-    } else if (coinType === COIN_DASH) {
-        address = HDWalletPouchDash.getCoinAddress(node);
-    }
+    address = HDWalletPouch.getStaticCoinPouchImplementation(coinType).getCoinAddress(node);
 
     return address;
 }
@@ -158,10 +200,13 @@ HDWalletPouch.prototype.setup = function(coinType, testNet, helper) {
     this._networkTypeString = networkTypeString;
 
     //@note: @todo: adding ethereum testnet support.
-    var hdCoinType = this._helper.getHDCoinType(coinType, testNet);
-    this._hdCoinType = hdCoinType;
+    var coinHDType = HDWalletPouch.getStaticCoinPouchImplementation(coinType).pouchParameters['coinHDType'];
 
-    this._coinFullName = coinFullName[coinType];
+    this._hdCoinType = coinHDType;
+
+    var coinFullName = HDWalletPouch.getStaticCoinPouchImplementation(coinType).uiComponents['coinFullName'];
+
+    this._coinFullName = coinFullName;
     console.log("[ HDWalletPouch Setup :: " + this._coinFullName + " ]");
 
 
@@ -185,13 +230,7 @@ HDWalletPouch.prototype.setup = function(coinType, testNet, helper) {
 HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic) {
     //@note: @security: this should not need to use the decrypted mnemonic as it's only an identifier, but it's needed for backwards compatibility.
 
-    if (this._coinType === COIN_BITCOIN) {
-        this._coinPouchImpl = new HDWalletPouchBitcoin();
-    } else if (this._coinType === COIN_ETHEREUM) {
-        this._coinPouchImpl = new HDWalletPouchEthereum();
-    } else if (this._coinType === COIN_DASH) {
-        this._coinPouchImpl = new HDWalletPouchDash();
-    }
+    this._coinPouchImpl = HDWalletPouch.getNewCoinPouchImplementation(this._coinType);
 
     this._coinPouchImpl.initialize(this);
 
@@ -210,6 +249,23 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
         }
     }
 
+    var workerCacheAddressMap = getStoredData('wWrkrCacheAddrMap_' + this._coinFullName + "_" + this._storageKey, true);
+
+    if (workerCacheAddressMap) {
+        try {
+            workerCacheAddressMap = JSON.parse(workerCacheAddressMap);
+
+            for (var idx in workerCacheAddressMap) {
+                workerCacheAddressMap[idx].newSendTX = null;
+            }
+
+            this._w_addressMap = workerCacheAddressMap;
+
+        } catch (e) {
+            this.log('Invalid cache:', workerCache);
+        }
+    }
+
     this._mnemonic = mnemonic;
 
     this.loadAndCache();
@@ -218,6 +274,8 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
 
     var self = this;
 
+    this.setupWorkers();
+
     this._requestBlockNumber(function(err) {
         if (err) {
             console.log("initializeWithMnemonic :: error :: " + err);
@@ -225,8 +283,6 @@ HDWalletPouch.prototype.initializeWithMnemonic = function(encMnemonic, mnemonic)
             console.log("initializeWithMnemonic :: first block :: " + self._currentBlock);
         }
     });
-
-    this.setupWorkers();
 
     setInterval(function() {
         self._requestBlockNumber(function(err) {
@@ -552,14 +608,18 @@ HDWalletPouch.prototype.setupWorkers = function() {
                 }
 
                 self._notify();
-            };
+            } else if (action === 'finishedFinalBalanceUpdate') {
+                self.log(self._coinFullName + " :: finishedFinalBalanceUpdate");
+
+                self.getPouchFoldImplementation().processFinishedFinalBalanceUpdate();
+            }
         }
     } catch (err) {
         console.error(err);
     }
 
     if (this._worker) {
-        console.log("initialize worker");
+        this.log(this._coinFullName + " :: initialize worker");
         this._worker.postMessage({
             action: 'initialize',
             coinType: this._coinType,
@@ -571,6 +631,8 @@ HDWalletPouch.prototype.setupWorkers = function() {
 HDWalletPouch.prototype.completeWorkerInitialization = function() {
     if (this._worker) {
         var self = this;
+
+        var shouldNotify = false;
 
         var shouldPostWorkerCache = false;
 
@@ -587,6 +649,8 @@ HDWalletPouch.prototype.completeWorkerInitialization = function() {
                 this._w_addressMap = workerCacheAddressMap;
 
                 shouldPostWorkerCache = true;
+
+                shouldNotify = true;
             } catch (e) {
                 this.log('Invalid cache:', workerCache);
             }
@@ -619,6 +683,10 @@ HDWalletPouch.prototype.completeWorkerInitialization = function() {
                 receive: self._receiveNode.neutered().toBase58()
             }
         });
+
+        if (shouldNotify === true) {
+            this._notify();
+        }
     }
 }
 
@@ -793,12 +861,7 @@ HDWalletPouch.prototype.getPublicAddress = function(internal, index, ignoreCache
             publicAddress = HDWalletPouch.getCoinAddress(this._coinType, HDWalletPouch._derive(this._receiveNode, index, false));
         }
 
-        if (this._coinType === COIN_BITCOIN) {
-
-        } else if (this._coinType === COIN_ETHEREUM) {
-            publicAddress = HDWalletHelper.toEthereumChecksumAddress(publicAddress);
-//            console.log("caching public address :: " + publicAddress)
-        }
+        publicAddress = this._coinPouchImpl.toChecksumAddress(publicAddress);
 
         if (typeof(ignoreCached) === 'undefined') {
             this._publicAddressCache[key] = publicAddress;
@@ -818,15 +881,9 @@ HDWalletPouch.prototype.getPublicAddress = function(internal, index, ignoreCache
 }
 
 HDWalletPouch.prototype.getInternalIndexAddressDict = function(publicAddress) {
-    var publicAddressKey = publicAddress;
-    if (this._coinType === COIN_BITCOIN) {
+    var publicAddressKey = this._coinPouchImpl.fromChecksumAddress(publicAddress);
 
-    } else if (this._coinType === COIN_ETHEREUM) {
-        publicAddressKey = publicAddressKey.toLowerCase();
-        //        console.log("caching public address :: " + publicAddressKey)
-    }
-
-    if (this._coinType === COIN_ETHEREUM) {
+    if (this._coinType === COIN_ETHEREUM || this._coinType === COIN_ETHEREUM_CLASSIC) {
         var internalIndexAddress = this._internalIndexAddressCache[publicAddressKey];
 
         var addToCache = false;
@@ -854,7 +911,7 @@ HDWalletPouch.prototype.getInternalIndexAddressDict = function(publicAddress) {
 
                 this._internalIndexAddressCache[publicAddressKey] = internalIndexAddress;
 
-                console.log("caching internalIndexAddress :: " + internalIndexAddress + " :: public address :: " + publicAddress)
+//                console.log("caching internalIndexAddress :: " + internalIndexAddress + " :: public address :: " + publicAddress)
 
                 storeData('wInternalIndexAddrCache_' + this._coinFullName + "_" + this._storageKey, JSON.stringify(this._internalIndexAddressCache), true);
             }
@@ -877,11 +934,7 @@ HDWalletPouch.prototype.getInternalIndexAddressDict = function(publicAddress) {
 HDWalletPouch.prototype.getCurrentReceiveAddress = function() {
     var address = this._currentReceiveAddress;
 
-    if (this._coinType === COIN_BITCOIN) {
-
-    } else if (this._coinType === COIN_ETHEREUM) {
-        address = HDWalletHelper.toEthereumChecksumAddress(address);
-    }
+    address = this._coinPouchImpl.toChecksumAddress(address);
 
     return address;
 }
@@ -970,7 +1023,8 @@ HDWalletPouch.prototype.sortHighestAccounts = function() {
 
     var highestIndexToCheck = this.getHighestReceiveIndex();
 
-    if (this._coinType === COIN_ETHEREUM) {
+    //@note: @here: @token: this should be refactored eventually.
+    if (this._coinType === COIN_ETHEREUM || this._coinType === COIN_ETHEREUM_CLASSIC) {
         highestIndexToCheck++; //@note: @here: check for internal transaction balances on current receive account.
     }
 
@@ -1007,17 +1061,12 @@ HDWalletPouch.prototype.getInternalIndexForPublicAddress = function(publicAddres
 
     highestIndexToCheck++;
 
-    //@note: for ethereum checksum addresses.
-    if (this._coinType === COIN_ETHEREUM) {
-        publicAddress = publicAddress.toLowerCase();
-    }
+    publicAddress = this._coinPouchImpl.fromChecksumAddress(publicAddress);
 
     for (var i = 0; i < highestIndexToCheck; i++) {
         var addressToCheck = this.getPublicAddress(false, i);
-        //@note: for ethereum checksum addresses.
-        if (this._coinType === COIN_ETHEREUM) {
-            addressToCheck = addressToCheck.toLowerCase();
-        }
+
+        addressToCheck = this._coinPouchImpl.fromChecksumAddress(addressToCheck);
 
         if (publicAddress === addressToCheck) {
             foundIdx = i;
@@ -1327,4 +1376,12 @@ HDWalletPouch.prototype.isTokenType = function() {
 
 HDWalletPouch.prototype.getPouchFoldImplementation = function() {
     return this._coinPouchImpl;
+}
+
+HDWalletPouch.prototype.prepareSweepTransaction = function(privateKey, callback) {
+    this._coinPouchImpl.prepareSweepTransaction(privateKey, callback);
+}
+
+HDWalletPouch.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType){
+    return this.getPouchFoldImplementation().convertFiatToCoin(fiatAmount, coinUnitType);
 }

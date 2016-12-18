@@ -1,8 +1,25 @@
 var HDWalletWorkerEthereum = function() {
     this._doDebug = false;
+    this._batchSize = 1;
+    this._batchSizeBalances = 20;
+    this._coinName = "Ethereum";
 
     this._workerManager = null;
 }
+
+HDWalletWorkerEthereum.networkParams = {
+    static_relay_url: "https://api.etherscan.io",
+    gather_tx: "/api?module=account&action=txlist&address=",
+    gather_tx_append: "&sort=asc&apikey=" + HDWalletHelper.apiKeyEtherScan,
+    multi_balance: "/api?module=account&action=balancemulti&address=",
+    multi_balance_append: "&tag=latest&apikey=" + HDWalletHelper.apiKeyEtherScan,
+    joinParameters: ",",
+    block_number: '/api?module=proxy&action=eth_blockNumber&apikey=' + HDWalletHelper.apiKeyEtherScan,
+    smart_contract_code: "/api?module=proxy&action=eth_getCode&address=",
+    smart_contract_code_append: "&tag=latest",
+    send_tx: "/api?module=proxy&action=eth_sendRawTransaction&hex=",
+    send_tx_append: "&apikey=" + HDWalletHelper.apiKeyEtherScan,
+};
 
 HDWalletWorkerEthereum.prototype.initialize = function(workerManager) {
     this._workerManager = workerManager;
@@ -18,7 +35,41 @@ HDWalletWorkerEthereum.prototype.log = function(logString) {
     console.log(args);
 }
 
-HDWalletWorkerEthereum.prototype.populateHistory = function(dateNow, addressData, passthroughParam) {
+HDWalletWorkerEthereum.prototype.batchScanBlockchain = function(addresses) {
+    var self = this;
+
+    var batch = [];
+    while (addresses.length) {
+        batch.push(addresses.shift());
+        if (batch.length === this._batchSize || addresses.length === 0) {
+
+            var addressParam = batch.join(HDWalletWorkerEthereum.networkParams.joinParameters);
+
+            //            if (this._coinType === COIN_ETHEREUM) {
+            //                log("ethereum :: requesting :: " + addressParam);
+            //            }
+
+            var requestURL = HDWalletWorkerEthereum.networkParams.static_relay_url + HDWalletWorkerEthereum.networkParams.gather_tx + addressParam + HDWalletWorkerEthereum.networkParams.gather_tx_append;
+
+
+            RequestSerializer.getJSON(requestURL, function(data, success, passthroughParam) {
+                self._populateHistory(data, passthroughParam);
+            }, null, addressParam);
+
+            // Clear the batch
+            batch = [];
+        }
+    }
+}
+
+HDWalletWorkerEthereum.prototype._populateHistory = function(addressData, passthroughParam) {
+    if (!addressData || (addressData.status !== 'success' && addressData.status !== '1' && typeof(addressData.byAddress) === undefined)) {
+        this.log("hdwalletworker :: " + this._coinName + " :: _populateHistory :: error :: addressData is not returning success :: addressData :: " + JSON.stringify(addressData));
+
+        return;
+    }
+
+    var dateNow = (new Date()).getTime();
     var updated = false;
 
     //@note: return data from etherscan.io
@@ -125,7 +176,7 @@ HDWalletWorkerEthereum.prototype.populateHistory = function(dateNow, addressData
 
 //@note: @next:
 
-HDWalletWorkerEthereum.prototype.updateBalancesEthereum = function() {
+HDWalletWorkerEthereum.prototype.updateBalancesEthereum = function(callback) {
     var addressesToCheck = [];
 
     for (var address in this._workerManager._addressMap) {
@@ -148,22 +199,45 @@ HDWalletWorkerEthereum.prototype.updateBalancesEthereum = function() {
 
     var self = this;
 
+
+    var threadingParams = {totalBalanceRequests: 0,
+                           numBalanceRequestsFailed: 0,
+                           numBalanceRequestsPassed: 0,
+                           callback: callback};
+
     //@note: @todo: @here: get the batch size from the relay directly.
-    var BATCH_SIZE = 20;
 
     var batch = [];
     while (addressesToCheck.length) {
         batch.push(addressesToCheck.shift());
-        if (batch.length === BATCH_SIZE || addressesToCheck.length === 0) {
+        if (batch.length === this._batchSizeBalances || addressesToCheck.length === 0) {
+            threadingParams.totalBalanceRequests++;
 
-            var addressParam = batch.join(',');
+            var addressParam = batch.join(HDWalletWorkerEthereum.networkParams.joinParameters);
 
+            var passthroughParams = {addressParam: addressParam,
+                                    threadingParams: threadingParams};
             //            console.log("checking :: " + batch + " :: " + batch.length + " :: " + this._STATIC_RELAY_URL + this._MULTI_BALANCE + addressParam + this._MULTI_BALANCE_APPEND);
 
+            var requestURL = HDWalletWorkerEthereum.networkParams.static_relay_url + HDWalletWorkerEthereum.networkParams.multi_balance + addressParam + HDWalletWorkerEthereum.networkParams.multi_balance_append;
+
             //@note: @here: request the account balances for this batch
-            RequestSerializer.getJSON(this._workerManager._STATIC_RELAY_URL + this._workerManager._MULTI_BALANCE + addressParam + this._workerManager._MULTI_BALANCE_APPEND, function(data, success, passthroughParam) {
-                self._updateBalancesEthereum(data);
-            }, null, addressParam);
+            RequestSerializer.getJSON(requestURL, function(data, success, passthroughParams) {
+                self._updateBalancesEthereum(data, function(err, res) {
+                    if (err) {
+                        passthroughParams.threadingParams.numBalanceRequestsFailed++;
+                    } else {
+                        passthroughParams.threadingParams.numBalanceRequestsPassed++;
+                    }
+
+                    if (passthroughParams.threadingParams.numBalanceRequestsFailed +
+                        passthroughParams.threadingParams.numBalanceRequestsPassed ===
+                        passthroughParams.threadingParams.totalBalanceRequests) {
+
+                        passthroughParams.threadingParams.callback(threadingParams);
+                    }
+                });
+            }, null, passthroughParams);
 
             // Clear the batch
             batch = [];
@@ -171,11 +245,15 @@ HDWalletWorkerEthereum.prototype.updateBalancesEthereum = function() {
     }
 }
 
-HDWalletWorkerEthereum.prototype._updateBalancesEthereum = function(data) {
+HDWalletWorkerEthereum.prototype._updateBalancesEthereum = function(data, callback) {
     //@note: as of april 18 2016 this was returning message: "OK" and status: 1 even
     //with addresses that were obviously wrong, like invalid hex characters.
     if (!data && data.result) {// || data.status !== 'success') {
-        this.log("HDWalletWorkerEthereum._updateBalancesEthereum :: error :: data is incorrect :: " + JSON.stringify(data));
+        var logString = "HDWalletWorkerEthereum._updateBalancesEthereum :: error :: data is incorrect :: " + JSON.stringify(data);
+
+        this.log(logString);
+
+        callback(logString, null);
         return;
     }
 
@@ -205,6 +283,8 @@ HDWalletWorkerEthereum.prototype._updateBalancesEthereum = function(data) {
 
         this._workerManager.updateWorkerManager(updateDict);
     }
+
+    callback(null, didUpdate);
 }
 
 HDWalletWorkerEthereum.prototype._updateTransactionsEthereum = function(transactions, ethScanAddress) {
@@ -341,10 +421,21 @@ HDWalletWorkerEthereum.prototype._updateTransactionsEthereum = function(transact
     }
 }
 
-HDWalletWorkerEthereum.prototype.updateBalances = function() {
-    this.updateBalancesEthereum();
+HDWalletWorkerEthereum.prototype.updateBalances = function(callback) {
+    if (typeof(callback) === 'undefined' || callback === null) {
+        callback = function() {
+        };
+    }
+
+    this.updateBalancesEthereum(callback);
 }
 
-HDWalletWorkerEthereum.prototype.performRecheck = function() {
-    this.updateBalances();
+HDWalletWorkerEthereum.prototype.performRecheck = function(callback) {
+    var self = this;
+
+    this.updateBalances(function(threadingParams) {
+        console.log("finished rechecking with :: requests # :: " + threadingParams.totalBalanceRequests);
+
+        self._workerManager.postFinishedFinalBalanceUpdate();
+    });
 }

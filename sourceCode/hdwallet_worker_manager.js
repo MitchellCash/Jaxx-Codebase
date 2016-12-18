@@ -9,6 +9,7 @@ importScripts('../request.js');
 
 importScripts('../network.js');
 importScripts('../jaxx_main/jaxx_constants.js');
+
 importScripts('../wallet/hdwallet_helper.js');
 importScripts('../wallet/hdwallet_pouch.js');
 
@@ -78,10 +79,13 @@ HDWalletWorkerManager.prototype.initialize = function(coinType, testNet) {
 
     var self = this;
 
+    //@note: @here: @token: this seems necessary.
     if (this._coinType === COIN_BITCOIN) {
         log("[ HDWalletWorkerManager ] :: setup relay manager :: " + this._coinType);
 
         this._relayManager = new BitcoinRelays();
+    } else {
+        log("[ HDWalletWorkerManager ] :: no relay manager :: " + this._coinType);
     }
 
     if (this._relayManager !== null) {
@@ -99,6 +103,7 @@ HDWalletWorkerManager.prototype.initialize = function(coinType, testNet) {
 }
 
 HDWalletWorkerManager.prototype.finishInitialization = function() {
+    //@note: @here: @token: this seems necessary.
     if (this._coinType === COIN_BITCOIN) {
         importScripts('../wallet/hdwallet_worker_impl_bitcoin.js');
         importScripts('../wallet/hdwallet_pouch_impl_bitcoin.js');
@@ -112,6 +117,10 @@ HDWalletWorkerManager.prototype.finishInitialization = function() {
         importScripts('../wallet/hdwallet_worker_impl_ethereum.js');
         importScripts('../wallet/hdwallet_pouch_impl_ethereum.js');
         this._coinWorkerImpl = new HDWalletWorkerEthereum();
+    } else if (this._coinType === COIN_ETHEREUM_CLASSIC) {
+        importScripts('../wallet/hdwallet_worker_impl_ethereum_classic.js');
+        importScripts('../wallet/hdwallet_pouch_impl_ethereum_classic.js');
+        this._coinWorkerImpl = new HDWalletWorkerEthereumClassic();
     } else if (this._coinType === COIN_DASH) {
         importScripts('../wallet/hdwallet_worker_impl_dash.js');
         importScripts('../wallet/hdwallet_pouch_impl_dash.js');
@@ -128,43 +137,57 @@ HDWalletWorkerManager.prototype.finishInitialization = function() {
     this._blockCypherToken = "443eb2360338caf91c041ddd1464ee86" ; //Current token
     var socketUri = "";
 
+    //@note: @here: @token: this seems necessary, however, may become deprecated with relay managers coming online.
+
     if (this._coinType === COIN_BITCOIN) {
-        this._STATIC_RELAY_URL = 'https://btc.blockr.io';
-        this._GATHER_TX = "/api/v1/address/txs/";
-        this._GATHER_TX_APPEND = "";
-
-        this._GATHER_UNCONFIRMED_TX = "/api/v1/address/unconfirmed/";
-
-        this._MULTI_BALANCE = "";
-        this._MULTI_BALANCE_APPEND = "";
+//        this._STATIC_RELAY_URL = 'https://btc.blockr.io';
+//        this._GATHER_TX = "/api/v1/address/txs/";
+//        this._GATHER_TX_APPEND = "";
+//
+//        this._GATHER_UNCONFIRMED_TX = "/api/v1/address/unconfirmed/";
+//
+//        this._MULTI_BALANCE = "";
+//        this._MULTI_BALANCE_APPEND = "";
 
         socketUri = "wss://socket.blockcypher.com/v1/btc/" + socketEntryPoint;
     } else if (this._coinType === COIN_ETHEREUM) {
-        this._STATIC_RELAY_URL = "https://api.etherscan.io";
-        this._GATHER_TX = "/api?module=account&action=txlist&address=";
-        this._GATHER_TX_APPEND = "&sort=asc&apikey=" + HDWalletHelper.jaxxEtherscanAPIKEY;
+//        this._STATIC_RELAY_URL = "https://api.etherscan.io";
+//        this._GATHER_TX = "/api?module=account&action=txlist&address=";
+//        this._GATHER_TX_APPEND = "&sort=asc&apikey=" + HDWalletHelper.apiKeyEtherScan;
+//
+//        this._GATHER_UNCONFIRMED_TX = "";
+//
+//        this._MULTI_BALANCE = "/api?module=account&action=balancemulti&address=";
+        this._MULTI_BALANCE_APPEND = "&tag=latest&apikey=" + HDWalletHelper.apiKeyEtherScan;
 
-        this._GATHER_UNCONFIRMED_TX = "";
-
-        this._MULTI_BALANCE = "/api?module=account&action=balancemulti&address=";
-        this._MULTI_BALANCE_APPEND = "&tag=latest&apikey=" + HDWalletHelper.jaxxEtherscanAPIKEY;
+        socketUri = "";// "wss://api.ether.fund";
+    } else if (this._coinType === COIN_ETHEREUM_CLASSIC) {
+        //@note: @todo: @ethereumclassic
+//        this._STATIC_RELAY_URL = "https://api.etherscan.io";
+//        this._GATHER_TX = "/api?module=account&action=txlist&address=";
+//        this._GATHER_TX_APPEND = "&sort=asc&apikey=" + HDWalletHelper.apiKeyEtherScan;
+//
+//        this._GATHER_UNCONFIRMED_TX = "";
+//
+//        this._MULTI_BALANCE = "/api?module=account&action=balancemulti&address=";
+//        this._MULTI_BALANCE_APPEND = "&tag=latest&apikey=" + HDWalletHelper.apiKeyEtherScan;
 
         socketUri = "";// "wss://api.ether.fund";
     } else if (this._coinType === COIN_DASH) {
 
-        if (this.TESTNET) {
-            this._STATIC_RELAY_URL = "http://jaxx-test.dash.org:3001/insight-api-dash";
-        } else {
-            this._STATIC_RELAY_URL = "http://api.jaxx.io:2052/insight-api-dash";
-        }
-
-        this._GATHER_TX = "/addrs/";
-        this._GATHER_TX_APPEND = "/txs?group=1";
-
-        this._GATHER_UNCONFIRMED_TX = "";
-
-        this._MULTI_BALANCE = "";
-        this._MULTI_BALANCE_APPEND = "";
+//        if (this.TESTNET) {
+//            this._STATIC_RELAY_URL = "http://jaxx-test.dash.org:3001/insight-api-dash";
+//        } else {
+//            this._STATIC_RELAY_URL = "http://api.jaxx.io:2052/insight-api-dash";
+//        }
+//
+//        this._GATHER_TX = "/addrs/";
+//        this._GATHER_TX_APPEND = "/txs?group=1";
+//
+//        this._GATHER_UNCONFIRMED_TX = "";
+//
+//        this._MULTI_BALANCE = "";
+//        this._MULTI_BALANCE_APPEND = "";
 
         var socketUri = "";
     }
@@ -310,6 +333,10 @@ HDWalletWorkerManager.prototype.update = function(forcePouchRecheck) {
     }
 
     postMessage({action: 'update', content: updates});
+}
+
+HDWalletWorkerManager.prototype.postFinishedFinalBalanceUpdate = function() {
+    postMessage({action: 'finishedFinalBalanceUpdate', content: {}});
 }
 
 HDWalletWorkerManager.prototype.getAddressInfoLastUsedAndHighestDict = function() {
@@ -486,63 +513,7 @@ HDWalletWorkerManager.prototype._manuallyAddAddress = function(address) {
 }
 
 HDWalletWorkerManager.prototype._batchScanBlockchain = function(addresses) {
-    var self = this;
-
-    if (this._coinType === COIN_DASH) {
-//        console.log("dash :: batchScanBlockchain :: addresses :: " + addresses);
-    }
-    //@note: @todo: @here: get the batch size from the relay directly.
-    // Create batches of addresses to send to the blockr.io API
-    var BATCH_SIZE = 1;
-
-    //@note: bitcoin REST api supports a batch return.
-    if (this._coinType === COIN_BITCOIN) {
-        BATCH_SIZE = 10;
-        //        console.log("tx checking for :: " + addresses.length);
-    } else if (this._coinType === COIN_ETHEREUM) {
-        BATCH_SIZE = 1;
-    } else if (this._coinType === COIN_DASH) {
-        BATCH_SIZE = 20;
-    }
-
-    //@note:@here:@todo: especially with the ethereum side, we'll probably have to throttle the download limit.
-
-    var batch = [];
-    while (addresses.length) {
-        batch.push(addresses.shift());
-        if (batch.length === BATCH_SIZE || addresses.length === 0) {
-
-            // Request the transactions and utxo for this batch
-            var addressParam = batch.join(',');
-
-            //            if (this._coinType === COIN_ETHEREUM) {
-            //                log("ethereum :: requesting :: " + addressParam);
-            //            }
-            //
-            var requestURL = this._STATIC_RELAY_URL + this._GATHER_TX + addressParam + this._GATHER_TX_APPEND;
-
-            if (this._coinType === COIN_DASH) {
-//                console.log("dash :: requestURL :: " + requestURL);
-            }
-
-            RequestSerializer.getJSON(requestURL, function(data, success, passthroughParam) {
-                if (this._coinType === COIN_DASH) {
-//                    console.log("dash :: requestURL :: completed");
-                }
-
-                self._populateHistory(data, passthroughParam);
-            }, null, addressParam);
-
-            if (this._GATHER_UNCONFIRMED_TX !== "") {
-                RequestSerializer.getJSON(this._STATIC_RELAY_URL + this._GATHER_UNCONFIRMED_TX + addressParam, function(data, success, passthroughParam) {
-                    self._populateHistory(data, passthroughParam);
-                }, null, addressParam);
-            }
-
-            // Clear the batch
-            batch = [];
-        }
-    }
+    this._coinWorkerImpl.batchScanBlockchain(addresses);
 }
 
 HDWalletWorkerManager.prototype.updateWorkerManager = function(updateDict) {
@@ -579,22 +550,6 @@ HDWalletWorkerManager.prototype.updateWorkerManager = function(updateDict) {
     }
 }
 
-HDWalletWorkerManager.prototype._populateHistory = function(addressData, passthroughParam) {
-    var dateNow = (new Date()).getTime();
-    var updated = false;
-
-    if (!addressData || (addressData.status !== 'success' && addressData.status !== '1' && typeof(addressData.byAddress) === undefined)) {
-        log("hdwalletworker :: " + this._coinType + " :: _populateHistory :: error :: addressData is not returning success" + JSON.stringify(addressData));
-    }
-
-    if (this._coinType === COIN_DASH) {
-//        console.log("dash populate :: " + JSON.stringify(addressData));
-    }
-
-    this._coinWorkerImpl.populateHistory(dateNow, addressData, passthroughParam);
-}
-
-
 var hdWalletWorkerManager = new HDWalletWorkerManager();
 
 onmessage = function(message) {
@@ -623,13 +578,13 @@ onmessage = function(message) {
     } else if (message.data.action === 'triggerExtendedUpdate') {
         if (message.data.content.type && message.data.content.type === 'balances') {
             setTimeout(function() {
-                if (hdWalletWorkerManager._coinType === COIN_ETHEREUM) {
-                    log("ethereum :: restore address map balance refresh");
+                if (hdWalletWorkerManager._coinType === COIN_ETHEREUM || hdWalletWorkerManager._coinType === COIN_ETHEREUM_CLASSIC) {
+                    log(hdWalletWorkerManager._coinWorkerImpl._coinName + " :: restore address map balance refresh");
                     hdWalletWorkerManager._coinWorkerImpl.updateBalances();
                 }
             }, 10000);
         }
-    }else if (message.data.action === 'refresh') {
+    } else if (message.data.action === 'refresh') {
         log("watcher :: " + hdWalletWorkerManager._coinType + " :: refreshing");
 
 //        var crashy = this.will.crash;
@@ -637,8 +592,8 @@ onmessage = function(message) {
 //        log('Refreshing...');
         setTimeout(function () {
             setTimeout(function() {
-                if (hdWalletWorkerManager._coinType === COIN_ETHEREUM) {
-                    log("ethereum :: manual refresh balance refresh");
+                if (hdWalletWorkerManager._coinType === COIN_ETHEREUM || hdWalletWorkerManager._coinType === COIN_ETHEREUM_CLASSIC) {
+                    log(hdWalletWorkerManager._coinWorkerImpl._coinName + " :: manual refresh balance refresh");
                     hdWalletWorkerManager._coinWorkerImpl.updateBalances();
                 }
             }, 10000);

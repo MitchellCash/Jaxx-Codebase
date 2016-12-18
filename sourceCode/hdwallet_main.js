@@ -30,6 +30,8 @@ var HDWalletMain = function() {
 
     this._legacyEthereumWalletLoadCallback = null;
     this._legacyEthereumWalletUpdateCallback = null;
+
+    this._etcEthAddressesToSplit = {};
 }
 
 HDWalletMain.TESTNET = TESTNET;
@@ -40,7 +42,9 @@ HDWalletMain.prototype.initialize = function() {
 
     for (var i = 0; i < COIN_NUMCOINTYPES; i++) {
 //    for (var i = 0; i < 1; i++) {
-        if (coinIsTokenSubtype[i] !== true) {
+        var coinIsTokenSubtype = HDWalletPouch.getStaticCoinPouchImplementation(i).pouchParameters['coinIsTokenSubtype'];
+
+        if (coinIsTokenSubtype !== true) {
             this._pouches[i] = new HDWalletPouch();
             this._pouches[i].setup(i, false, this._helper);
         }
@@ -59,7 +63,9 @@ HDWalletMain.prototype.setupWithEncryptedMnemonic = function(encMnemonic, callba
         if (!error) {
 //            console.log("decrypt success :: " + self._pouches.length);
             for (var i = 0; i < self._pouches.length; i++) {
-                console.log("pouch :: " + coinAbbreviatedName[i] + " :: " + self._pouches[i]);
+                var coinAbbreviatedName = HDWalletPouch.getStaticCoinPouchImplementation(i).pouchParameters['coinAbbreviatedName'];
+
+                console.log("pouch :: " + coinAbbreviatedName + " :: " + self._pouches[i]);
                 if (typeof(self._pouches[i]) !== 'undefined' && self._pouches[i] !== null) {
                     self._pouches[i].initializeWithMnemonic(encMnemonic, res);
                 }
@@ -78,9 +84,9 @@ HDWalletMain.prototype.setupWithEncryptedMnemonic = function(encMnemonic, callba
 }
 
 HDWalletMain.prototype.switchToCoinType = function(targetCoinType) {
-    if (targetCoinType === COIN_BITCOIN) {
-
-    } else if (targetCoinType === COIN_ETHEREUM) {
+//    if (targetCoinType === COIN_BITCOIN) {
+//
+//    } else if (targetCoinType === COIN_ETHEREUM) {
 //        if (this._mnemonic !== "") {
 //            this.setupLegacyEthereumSweep();
 //        } else {
@@ -88,7 +94,7 @@ HDWalletMain.prototype.switchToCoinType = function(targetCoinType) {
 //                this._shouldSetUpLegacyEthereumSweep = true;
 //            }
 //        }
-    }
+//    }
 }
 
 HDWalletMain.prototype.completeSwitchToCoinType = function(targetCoinType) {
@@ -152,7 +158,9 @@ HDWalletMain.prototype.getPouchFold = function(coinType) {
 //    console.log("this._pouches[coinType] :: " + this._pouches[coinType] + " :: coinType :: " + coinType);
 
     if (coinType >= 0 && coinType < COIN_NUMCOINTYPES) {
-        if (coinIsTokenSubtype[coinType] !== true) {
+        var coinIsTokenSubtype = HDWalletPouch.getStaticCoinPouchImplementation(coinType).pouchParameters['coinIsTokenSubtype'];
+
+        if (coinIsTokenSubtype !== true) {
             return this._pouches[coinType];
         } else {
             return this._pouches[CoinToken.getMainTypeToTokenCoinHolderTypeMap(coinType)].getToken(CoinToken.getMainTypeToTokenMap(coinType));
@@ -512,3 +520,150 @@ HDWallet.prototype.registerOnename = function(passname, name, callback) {
 
 }
 */
+
+HDWalletMain.prototype.setEtcEthAddressesToSplit = function(addressDictToSplit) {
+    console.log("HDWalletMain :: setEtcEthAddressesToSplit :: " + JSON.stringify(addressDictToSplit, null, 4));
+
+    var ethTargetAddress = HDWalletHelper.toEthereumNakedAddress(wallet.getPouchFold(COIN_ETHEREUM).getCurrentReceiveAddress().toLowerCase());
+
+    var etcTargetAddress = HDWalletHelper.toEthereumNakedAddress(wallet.getPouchFold(COIN_ETHEREUM_CLASSIC).getCurrentReceiveAddress().toLowerCase());
+
+    this._etcEthAddressesToSplit = {};
+    this._etcEthAddressesToSplit.targetEthAddress = ethTargetAddress;
+    this._etcEthAddressesToSplit.targetEtcAddress = etcTargetAddress;
+
+    var addressesList = [];
+
+    for (var i = 0; i < addressDictToSplit.length; i++) {
+        var curAddressDict = addressDictToSplit[i];
+
+        var curItem = {};
+        curItem.ethAddress = curAddressDict.address;
+        curItem.etcBalance = curAddressDict.etcBalance;
+        curItem.ethAddressIndex = parseInt(wallet.getPouchFold(COIN_ETHEREUM).getInternalIndexAddressDict(curItem.ethAddress).index);
+
+        addressesList.push(curItem);
+    }
+
+    this._etcEthAddressesToSplit.addressesList = addressesList;
+}
+
+HDWalletMain.prototype.getEtcEthAddressesToSplit = function() {
+    var returnVal = [];
+
+    if (typeof(this._etcEthAddressesToSplit.addressesList) !== 'undefined' && this._etcEthAddressesToSplit.addressesList !== null) {
+        for (var i = 0; i < this._etcEthAddressesToSplit.addressesList.length; i++) {
+            returnVal.push(this._etcEthAddressesToSplit.addressesList[i].ethAddress);
+        }
+    }
+
+    return returnVal;
+}
+
+HDWalletMain.prototype.processEtcEthSplit = function(callback) {
+    var gasPrice = HDWalletHelper.getDefaultEthereumGasPrice();
+    var gasLimit = thirdparty.web3.toBigNumber(100000);
+
+    var splitOpCode = HDWalletHelper.etcEthSplitOpCode;
+
+    var txArray = [];
+    var totalTXCost = 0;
+
+    var baseGasCost = gasPrice.mul(gasLimit).toNumber();
+
+    var ABIForkedTargetParameter = HDWalletHelper.zeroPadLeft(this._etcEthAddressesToSplit.targetEthAddress, 64);
+
+    var ABIUnforkedTargetParameter = HDWalletHelper.zeroPadLeft(this._etcEthAddressesToSplit.targetEtcAddress, 64);
+
+    var splitTXData = splitOpCode + ABIForkedTargetParameter + ABIUnforkedTargetParameter;
+
+    var threadingParams = {totalEtcTransactions: 0, processedEtcTransactions: 0, numEtcTransactionsPassed: 0, numEtcTransactionsFailed: 0, txData: {totalTXCost: 0, txArray: []}};
+
+    for (var i = 0; i < this._etcEthAddressesToSplit.addressesList.length; i++) {
+        threadingParams.totalEtcTransactions++;
+
+        //@note: @here: @critical: this is definitely incorrect: (parseInt(150154021000000020) === parseInt(152254021000000030)) === true
+        var bigNum_valueToSendMinusBaseTxCost = thirdparty.web3.toBigNumber(this._etcEthAddressesToSplit.addressesList[i].etcBalance).minus(thirdparty.web3.toBigNumber(baseGasCost));
+
+//        console.log("this._etcEthAddressesToSplit.addressesList[i].etcBalance :: " + this._etcEthAddressesToSplit.addressesList[i].etcBalance + " :: bigNum_valueToSendMinusBaseTxCost :: " + bigNum_valueToSendMinusBaseTxCost);
+
+        var passthroughParams = {};
+        wallet.getPouchFold(COIN_ETHEREUM_CLASSIC).getPouchFoldImplementation()._buildEthereumTransactionWithCustomEthereumLikeBlockchain(wallet.getPouchFold(COIN_ETHEREUM), false, this._etcEthAddressesToSplit.addressesList[i].ethAddressIndex, HDWalletHelper.etcEthSplitContractAddress, bigNum_valueToSendMinusBaseTxCost, gasPrice, gasLimit, splitTXData, null, function(newTx, passthroughParams) {
+            if (typeof(newTx) !== 'undefined' && newTx !== null) {
+                passthroughParams.txData.txArray.push(newTx);
+                passthroughParams.numEtcTransactionsPassed++;
+            } else {
+                console.log("error :: ethereum transaction :: account failed to build :: " + this._etcEthAddressesToSplit[i]);
+                passthroughParams.numEtcTransactionsFailed++;
+            }
+
+            passthroughParams.processedEtcTransactions++
+
+            passthroughParams.txData.totalTXCost += baseGasCost;
+
+            if (passthroughParams.processedEtcTransactions === passthroughParams.totalEtcTransactions) {
+                console.log("HDWalletMain :: processEtcEthSplit :: txArray.length :: " + passthroughParams.txData.txArray.length + " :: txArray :: " + JSON.stringify(passthroughParams.txData.txArray, null, 4));
+
+                if (passthroughParams.numEtcTransactionsPassed, passthroughParams.totalEtcTransactions) {
+                    callback(null, passthroughParams.txData);
+                } else {
+                    callback("error", null)
+                }
+            }
+        }, threadingParams);
+    }
+}
+
+HDWalletMain.prototype.performEtcEthSplit = function() {
+
+//    console.log("HDWalletMain :: performEtcEthSplit :: " + JSON.stringify(this._etcEthAddressesToSplit, null, 4));
+
+    this.processEtcEthSplit(function(err, splitTxDict) {
+        if (err) {
+            console.log("HDWalletMain :: performEtcEthSplit failed to build all necessary transactions :: " + JSON.stringify(this._etcEthAddressesToSplit, null, 4));
+        } else {
+//            console.log("HDWalletMain :: performEtcEthSplit :: success :: " + JSON.stringify(splitTxDict, null, 4));
+//            return;
+
+            g_JaxxApp.getTXManager().sendEthereumLikeTXList(COIN_ETHEREUM_CLASSIC, splitTxDict, function(result) {
+                console.log("performEtcEthSplit :: sendTransaction :: result :: " + result);
+                if (result === 'success') {
+                    $('.tabContent .address input').val('');
+                    $('.tabContent .amount input').val('').trigger('keyup');
+
+                    playSound("snd/balance.wav", null, null);
+                    Navigation.flashBanner('Successfully Sent', 5);
+
+                    //@note: @todo: @here: maybe ignore for this case.
+                    //            for (var i = 0; i < data.txArray.length; i++) {
+                    //                //@note: @here: @next: tx members.
+                    //                //                                    g_JaxxApp.getTXManager().addTXOfType(g_JaxxApp.getTXManager().getCurrentTXType(), COIN_ETHEREUM, data.txArray[i].hash);
+                    //            }
+
+                    Navigation.returnToDefaultView();
+                    Navigation.hideTransactionHistoryDetails();
+                } else if (result === 'failure') {
+                    //@note: all of the batch failed:
+                    Navigation.flashBanner('Error: ' + status, 5);
+                    console.log('Error', status);
+                } else { //@note: partial failure.
+                    //@note: some of the batch succeeded, some failed:
+
+                    $('.tabContent .address input').val('');
+                    $('.tabContent .amount input').val('').trigger('keyup');
+
+                    playSound("snd/balance.wav", null, null);
+                    Navigation.flashBanner('Batch Transaction: Some Failed', 5);
+
+                    Navigation.returnToDefaultView();
+                    Navigation.hideTransactionHistoryDetails();
+                }
+
+                Navigation.closeModal();
+
+                //@note: @here: always update the tx history for sends.
+                forceUpdateWalletUI();
+            });
+        }
+    });
+}

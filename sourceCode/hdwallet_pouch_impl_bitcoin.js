@@ -4,6 +4,30 @@ var HDWalletPouchBitcoin = function() {
     this._pouchManager = null;
 }
 
+
+HDWalletPouchBitcoin.uiComponents = {
+    coinFullName: 'Bitcoin',
+    coinFullDisplayName: 'Bitcoin',
+    coinSymbol: '\u0E3F',
+    coinButtonSVGName: 'bitcoin-here',
+    coinLargePngName: '.imgBTC',
+    coinButtonName: '.imageLogoBannerBTC',
+    coinSpinnerElementName: '.imageBTCWash',
+    coinDisplayColor: '#F7931A',
+    csvExportField: '.backupPrivateKeyListBTC',
+    transactionsListElementName: '.transactionsBitcoin',
+    transactionTemplateElementName: '.transactionBitcoin',
+    accountsListElementName: '.accountDataTableBitcoin',
+    accountTemplateElementName: '.accountDataBitcoin',
+    displayNumDecimals: 8,
+};
+
+HDWalletPouchBitcoin.pouchParameters = {
+    coinHDType: 0,
+    coinIsTokenSubtype: false,
+    coinAbbreviatedName: 'BTC',
+};
+
 HDWalletPouchBitcoin.getCoinAddress = function(node) {
     var pubKey = node.keyPair.getPublicKeyBuffer();
 
@@ -18,6 +42,15 @@ HDWalletPouchBitcoin.getCoinAddress = function(node) {
 
     //        console.log("[bitcoin] address :: " + address);
     return address;
+}
+
+HDWalletPouchBitcoin.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
+    var coinAmount = 0;
+
+    var satoshis = wallet.getHelper().convertFiatToSatoshis(fiatAmount);
+    coinAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertSatoshisToBitcoins(satoshis) : satoshis;
+
+    return coinAmount;
 }
 
 HDWalletPouchBitcoin.prototype.initialize = function(pouchManager) {
@@ -638,7 +671,8 @@ HDWalletPouchBitcoin.prototype.sendBitcoinTransaction = function(transaction, ca
     var self = this;
 
 
-    g_JaxxApp.getBitcoinRelays().getRelayByIndex(1).pushRawTx(transaction.toHex(), function (response){
+    //@note: @here: @todo: @next: @relays:
+    g_JaxxApp.getBitcoinRelays().getRelayByIndex(0).pushRawTx(transaction.toHex(), function (response){
         if ((response.status && response.status === 'success') || response === 'success') {
             self._pouchManager._transactions[txid].status = 'success';
             self._pouchManager._notify();
@@ -662,4 +696,158 @@ HDWalletPouchBitcoin.prototype.sendBitcoinTransaction = function(transaction, ca
 }
 
 HDWalletPouchBitcoin.prototype.afterWorkerCacheInvalidate = function() {
+}
+
+HDWalletPouchBitcoin.prototype.prepareSweepTransaction = function(privateKey, callback) {
+    // Function is called when:
+    // The user enters their private key from a paper wallet and presses the 'Next' button.
+    // Returns:
+    // true if the bitcoins from the wallet with the given 'privateKey' could be successfully imported.
+    var keypair = null;
+    try { // This fills the variable keypair with an ECPair
+        keypair = thirdparty.bitcoin.ECPair.fromWIF(privateKey, NETWORK);
+        console.log("trying to fetch for address :: " + keypair.getAddress());
+    } catch (err) {
+        return false;
+    }
+
+    var prepareTransaction = function(error, data) {
+        //        console.log("prepareTransaction :: " + status + " :: " + JSON.stringify(data));
+        var result = {};
+
+        if ((error && error !== "success") || !data) {
+            callback(new Error(JSON.stringify(data)), null);
+            return;
+        }
+
+        var mockTx = {
+            block: -1,
+            confirmations: 0,
+            inputs: [],
+            outputs: [],
+            timestamp: (new Date()).getTime(),
+            txid: null,
+        }
+
+        var toSpend = [];
+        var totalValue = 0;
+        for (var i = 0; i < data.data.unspent.length; i++) {
+            var tx = data.data.unspent[i];
+            var value = HDWalletHelper.convertBitcoinsToSatoshis(tx.amount);
+
+            toSpend.push({
+                amount: value,
+                confirmations: tx.confirmations,
+                index: tx.n,
+                txid: tx.tx,
+
+                //Keys for BIP 0069 sorting library
+                vout: tx.n,
+                txId: tx.tx,
+            });
+            mockTx.inputs.push({
+                address: "notmyaddress",
+                addressIndex: null,
+                addressInternal: null,
+                amount: -value,
+                previousIndex: tx.n,
+                previousTxid: tx.tx,
+                standard: true,
+            })
+            totalValue += value;
+        }
+
+        //
+
+        toSpend = thirdparty.bip69.sortInputs(toSpend);
+
+        var signedTransaction = null;
+
+        var transactionFee = wallet.getPouchFold(COIN_BITCOIN).getDefaultTransactionFee();
+
+        //        console.log("sweep bitcoin :: totalValue :: " + totalValue + " :: transactionFee :: " + transactionFee);
+        if (transactionFee >= totalValue) {
+            console.log(JSON.stringify(callback));
+
+            callback(new Error("the balance is lower than tx fee : " + HDWalletHelper.convertSatoshisToBitcoins(transactionFee)), null);
+            return;
+        }
+
+        while ((totalValue - transactionFee) > 0) {
+            var tx = new thirdparty.bitcoin.TransactionBuilder(NETWORK);
+            tx.addOutput(wallet.getPouchFold(COIN_BITCOIN).getCurrentChangeAddress(), totalValue - transactionFee);
+
+            for (var i = 0; i < toSpend.length; i++) {
+                var utxo = toSpend[i];
+                tx.addInput(utxo.txid, utxo.index);
+            }
+
+            var unsignedTransaction = tx.buildIncomplete();
+            var size = unsignedTransaction.toHex().length / 2 + unsignedTransaction.ins.length * 107;
+            var targetTransactionFee = Math.ceil(size / 1024) * wallet.getPouchFold(COIN_BITCOIN).getDefaultTransactionFee();
+
+            if (targetTransactionFee <= transactionFee) {
+                for (var i = 0; i < toSpend.length; i++) {
+                    tx.sign(i, keypair);
+                }
+
+                signedTransaction = tx.build();
+                break;
+            }
+
+            // Add at least enough tx fee to cover our size thus far (adding tx may increase fee)
+            while (targetTransactionFee > transactionFee) {
+                transactionFee += wallet.getPouchFold(COIN_BITCOIN).getDefaultTransactionFee();
+            }
+        }
+
+        if (!signedTransaction) {
+            callback(new Error("Unsigned Transaction"), null);
+            return;
+        }
+
+        // We get the txid in big endian... *sigh*
+        var txidBig = signedTransaction.getHash().toString('hex');
+        var txid = '';
+        for (var i = txidBig.length - 2; i >= 0; i-= 2) {
+            txid += txidBig.substring(i, i + 2);
+        }
+        mockTx.txid = txid;
+
+        mockTx.outputs.push({
+            address: wallet.getPouchFold(COIN_BITCOIN).getCurrentChangeAddress(),
+            addressIndex: wallet.getPouchFold(COIN_BITCOIN).getCurrentChangeIndex(),
+            addressInternal: true,
+            confirmations: 0,
+            index: 0,
+            spent: false,
+            standard: true,
+            timestamp: mockTx.timestamp,
+            amount: (totalValue - transactionFee),
+            txid: txid,
+        });
+
+        signedTransaction._kkMockTx = mockTx;
+
+        callback(null, {
+            signedTransaction: signedTransaction,
+            totalValue: HDWalletHelper.convertSatoshisToBitcoins(totalValue),
+            transactionFee: transactionFee,
+        });
+    }
+
+    // btcRelays.getCurrentRelay().getUTXO(keypair.getAddress(), prepareTransaction); // Code for legacy relay system
+    g_JaxxApp.getBitcoinRelays().getUTXO(keypair.getAddress(), prepareTransaction); // Code for new relay system
+
+    console.log("bitcoin relay :: " + g_JaxxApp.getBitcoinRelays());
+
+    return true;
+}
+
+HDWalletPouchBitcoin.prototype.fromChecksumAddress = function(address) {
+    return address;
+}
+
+HDWalletPouchBitcoin.prototype.toChecksumAddress = function(address) {
+    return address;
 }

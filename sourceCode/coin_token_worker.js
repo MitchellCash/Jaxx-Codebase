@@ -271,7 +271,6 @@ CoinTokenWorker.prototype.updateBalancesTheDAO = function() {
     //https://api.etherscan.io/api?module=account&action=tokenbalance&tokenname=TheDAO&address=0x051Da87c3679Be285DC22E2fbA5E833052375ced&tag=latest&apikey=YourApiKeyToken
 
     requestCounter.batchSize = 1; //@note: for etherscan.io
-//    var BATCH_SIZE = 20;
 
     var batch = [];
     while (addressesToCheck.length) {

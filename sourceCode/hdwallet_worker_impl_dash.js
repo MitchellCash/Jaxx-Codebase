@@ -1,8 +1,18 @@
 var HDWalletWorkerDash = function() {
     this._doDebug = true;
+    this._batchSize = 20;
+    this._coinName = "Dash";
 
     this._workerManager = null;
 }
+
+HDWalletWorkerDash.networkParams = {
+    static_relay_url: "http://api.jaxx.io:2052/insight-api-dash",
+    gather_tx: "/addrs/",
+    gather_tx_append: "/txs?group=1",
+    multi_balance: "",
+    multi_balance_append: "",
+};
 
 HDWalletWorkerDash.prototype.initialize = function(workerManager) {
     this._workerManager = workerManager;
@@ -19,14 +29,42 @@ HDWalletWorkerDash.prototype.log = function(logString) {
     console.log(args);
 }
 
-HDWalletWorkerDash.prototype.preprocessHistory = function(addressData) {
-    var formattedData = {};
+HDWalletWorkerDash.prototype.batchScanBlockchain = function(addresses) {
+    var self = this;
 
+    var batch = [];
 
-    return formattedData;
+    while (addresses.length) {
+        batch.push(addresses.shift());
+
+        if (batch.length === this._batchSize  || addresses.length === 0) {
+
+            var addressParam = batch.join(',');
+
+            var requestURL = HDWalletWorkerDash.networkParams.static_relay_url + HDWalletWorkerDash.networkParams.gather_tx + addressParam + HDWalletWorkerDash.networkParams.gather_tx_append;
+
+//                console.log("dash :: requestURL :: " + requestURL);
+
+            RequestSerializer.getJSON(requestURL, function(data, success, passthroughParam) {
+//                    console.log("dash :: requestURL :: completed");
+
+                self._populateHistory(data, passthroughParam);
+            }, null, addressParam);
+
+            // Clear the batch
+            batch = [];
+        }
+    }
 }
 
-HDWalletWorkerDash.prototype.populateHistory = function(dateNow, processorData, passthroughParam) {
+HDWalletWorkerDash.prototype._populateHistory = function(processorData, passthroughParam) {
+    if (!processorData || (processorData.status !== 'success' && processorData.status !== '1' && typeof(processorData.byAddress) === undefined)) {
+        this.log("hdwalletworker :: " + this._coinName + " :: _populateHistory :: error :: addressData is not returning success :: addressData :: " + JSON.stringify(processorData));
+
+        return;
+    }
+
+    var dateNow = (new Date()).getTime();
     var updated = false;
 
 //    console.log("dash :: addressData :: " + JSON.stringify(processorData));

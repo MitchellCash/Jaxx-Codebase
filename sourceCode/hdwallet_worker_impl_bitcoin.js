@@ -1,8 +1,19 @@
 var HDWalletWorkerBitcoin = function() {
     this._doDebug = true;
+    //@note: @todo: @here: get the batch size from the relay directly.
+    this._batchSize = 10;
+    this._coinName = "Bitcoin";
 
     this._workerManager = null;
 }
+
+HDWalletWorkerBitcoin.networkParams = {
+    static_relay_url: "",
+    gather_tx: "",
+    gather_tx_append: "",
+    multi_balance: "",
+    multi_balance_append: "",
+};
 
 HDWalletWorkerBitcoin.prototype.initialize = function(workerManager) {
     this._workerManager = workerManager;
@@ -23,8 +34,70 @@ HDWalletWorkerBitcoin.prototype.log = function(logString) {
 //this._lastChangeIndex = addressInfo.index;
 //this._currentChangeAddress = null;
 
+HDWalletWorkerBitcoin.prototype.batchScanBlockchain = function(addresses) {
+    var self = this;
+    var batch = [];
 
-HDWalletWorkerBitcoin.prototype.populateHistory = function(dateNow, addressData, passthroughParam) {
+    while (addresses.length) {
+        batch.push(addresses.shift());
+        if (batch.length === this._batchSize || addresses.length === 0) {
+
+            var addressParam = batch.join(',');
+
+            var delegateFunction = "getTxList";
+
+            var relayArguments = [addressParam, function(status, txList) {
+                //                    console.log("txList :: " + JSON.stringify(txList));
+
+                self._populateHistory(txList);
+            }];
+
+            var callbackIndex = 1;
+
+            var isCallbackSuccessfulFunction = function(status) {
+                if (typeof(status) === 'string' && status === 'success') {
+                    // console.log("callback successful");
+                    return true;
+                } else {
+                    console.log("callback unsuccessful");
+                    return false;
+                }
+            }
+
+            var isCallbackPermanentFailureFunction = function(status) {
+                console.log("failure with node...");
+
+                //@note: @here: @todo: @next: @relays:
+                return true;
+                //                return false;
+            }
+
+            var actionTakenWhenTaskIsNotExecuted = function(returnArgs) {
+                console.log("failure with relay system...");
+            };
+
+            //            this._workerManager._relayManager.startRelayTaskWithBestRelay(delegateFunction,
+
+
+            //@note: @here: @todo: @next: @relays:
+
+
+            this._workerManager._relayManager.startRelayTaskWithArbitraryRelay(0, delegateFunction, relayArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted);
+
+            // Clear the batch
+            batch = [];
+        }
+    }
+}
+
+HDWalletWorkerBitcoin.prototype._populateHistory = function(addressData, passthroughParam) {
+    if (!addressData || (addressData.status !== 'success' && addressData.status !== '1' && typeof(addressData.byAddress) === undefined)) {
+        this.log("hdwalletworker :: " + this._coinName + " :: _populateHistory :: error :: addressData is not returning success :: addressData :: " + JSON.stringify(addressData));
+
+        return;
+    }
+
+    var dateNow = (new Date()).getTime();
     var updated = false;
 
     //@note: return data from blockr.io
@@ -72,7 +145,7 @@ HDWalletWorkerBitcoin.prototype.populateHistory = function(dateNow, addressData,
 
         // Add each transaction to lookup
         for (var i = 0; i < txs.length; i++) {
-            allTxid[txs[i].tx] = true;
+            allTxid[txs[i].txHash] = true;
         }
     }
 
@@ -88,13 +161,12 @@ HDWalletWorkerBitcoin.prototype.populateHistory = function(dateNow, addressData,
 HDWalletWorkerBitcoin.prototype._lookupBitcoinTransactions = function(txids, callback) {
     var self = this;
 
-    //@note: @todo: @here: get the batch size from the relay directly.
     // Create batches of txid to send to the blockr.io/blockcypher/etc API
-    var BATCH_SIZE = 10;
+
     var batch = [];
     while (txids.length) {
         batch.push(txids.shift());
-        if (batch.length === BATCH_SIZE || txids.length === 0) {
+        if (batch.length === this._batchSize || txids.length === 0) {
 
             // Request the transactions and utxo for this batch
             var txidParam = batch.join(',');
@@ -122,7 +194,7 @@ HDWalletWorkerBitcoin.prototype._lookupBitcoinTransactions = function(txids, cal
             var isCallbackPermanentFailureFunction = function(status) {
                 console.log("failure with node...");
                 return true;
-                return false;
+//                return false;
             }
 
             var actionTakenWhenTaskIsNotExecuted = function(returnArgs) {
@@ -138,7 +210,11 @@ HDWalletWorkerBitcoin.prototype._lookupBitcoinTransactions = function(txids, cal
             };
 
 //            this._workerManager._relayManager.startRelayTaskWithBestRelay(delegateFunction,
-            this._workerManager._relayManager.startRelayTaskWithArbitraryRelay(1, delegateFunction, relayArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted);
+
+
+            //@note: @here: @todo: @next: @relays:
+
+            this._workerManager._relayManager.startRelayTaskWithArbitraryRelay(0, delegateFunction, relayArguments, callbackIndex, isCallbackSuccessfulFunction, isCallbackPermanentFailureFunction, actionTakenWhenTaskIsNotExecuted);
 
 //            RequestSerializer.getJSON(this._workerManager._STATIC_RELAY_URL + '/api/v1/tx/info/' + txidParam + "?amount_format=string", function(data) {
 //                self._populateTransactionsBitcoin(data, callback);
@@ -275,7 +351,7 @@ HDWalletWorkerBitcoin.prototype._updateTransactionsBitcoin = function(transactio
                 index: i,
                 spent: output.spent,
                 standard: output.standard,
-                timestamp: new Date(transaction.time_utc).getTime(),
+                timestamp: new Date(transaction.time_utc * 1000).getTime(),
                 txid: transaction.txid
             })
         }
@@ -285,7 +361,7 @@ HDWalletWorkerBitcoin.prototype._updateTransactionsBitcoin = function(transactio
             txid: transaction.txid,
             block: transaction.block,
             confirmations: transaction.confirmations,
-            timestamp: new Date(transaction.time_utc).getTime(),
+            timestamp: new Date(transaction.time_utc * 1000).getTime(),
             inputs: inputs,
             outputs: outputs
         }

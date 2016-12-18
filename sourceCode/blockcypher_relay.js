@@ -46,11 +46,13 @@ BTCBlockcypherRelay.prototype.checkCurrentHeightForAnomalies = function() {
     }
 }
 
-BTCBlockcypherRelay.prototype.getTxList = function(address, callback) {
-    this._relayManager.relayLog("Chain Relay :: " + this._name + " - Requested txlist for " + address);
+
+//@note: @here: @todo: blockcypher doesn't do multiple addresses, but does have a wallet api.
+BTCBlockcypherRelay.prototype.getTxList = function(addresses, callback) {
+    this._relayManager.relayLog("Chain Relay :: " + this._name + " - Requested txlist for " + addresses);
 
     var self = this;
-    RequestSerializer.getJSON(this._baseUrl+'v1/btc/main/addrs/' + address, function (response,status) {
+    RequestSerializer.getJSON(this._baseUrl+'v1/btc/main/addrs/' + addresses, function (response,status) {
         var returnTxList = null;
 
         if(status==='error'){
@@ -148,6 +150,7 @@ BTCBlockcypherRelay.prototype.getTxDetailsParse = function(primaryTxDetailData) 
         })
     }
 
+    //@note: @here: @bug: only one input is super bad.. this needs to be a exhaustive loop.
     input.push({
         address: primaryTxDetailData.inputs[0].addresses[0],
         amount: ((primaryTxDetailData.inputs[0].output_value) / 100000000).toString(),

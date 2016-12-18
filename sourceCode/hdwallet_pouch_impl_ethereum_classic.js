@@ -1,38 +1,35 @@
-var HDWalletPouchEthereum = function() {
-    this._doDebug = true;
+var HDWalletPouchEthereumClassic = function() {
+    this._doDebug = false;
 
     this._pouchManager = null;
 
     this._ethAddressTypeMap = {};
-
-    this._hasFinishedFinalBalanceUpdate = false;
-    this._overrideIgnoreEtcEthSplit = false;
 }
 
-HDWalletPouchEthereum.uiComponents = {
-    coinFullName: 'Ethereum',
-    coinFullDisplayName: 'Ethereum',
+HDWalletPouchEthereumClassic.uiComponents = {
+    coinFullName: 'EthereumClassic',
+    coinFullDisplayName: 'Ethereum Classic',
     coinSymbol: '\u039E',
-    coinButtonSVGName: 'ether-new',
-    coinLargePngName: '.imgETH',
-    coinButtonName: '.imageLogoBannerETH',
-    coinSpinnerElementName: '.imageEtherWash',
+    coinButtonSVGName: 'ether-classic-new',
+    coinLargePngName: '.imgETC',
+    coinButtonName: '.imageLogoBannerETC',
+    coinSpinnerElementName: '.imageEtherClassicWash',
     coinDisplayColor: '#8890AF',
-    csvExportField: '.backupPrivateKeyListETH',
-    transactionsListElementName: '.transactionsEthereum',
-    transactionTemplateElementName: '.transactionEthereum',
-    accountsListElementName: '.accountDataTableEthereum',
-    accountTemplateElementName: '.accountDataEthereum',
+    csvExportField: '.backupPrivateKeyListETC',
+    transactionsListElementName: '.transactionsEthereumClassic',
+    transactionTemplateElementName: '.transactionEthereumClassic',
+    accountsListElementName: '.accountDataTableEthereumClassic',
+    accountTemplateElementName: '.accountDataEthereumClassic',
     displayNumDecimals: 8,
 };
 
-HDWalletPouchEthereum.pouchParameters = {
-    coinHDType: 60,
+HDWalletPouchEthereumClassic.pouchParameters = {
+    coinHDType: 61,
     coinIsTokenSubtype: false,
-    coinAbbreviatedName: 'ETH',
+    coinAbbreviatedName: 'ETC',
 };
 
-HDWalletPouchEthereum.getCoinAddress = function(node) {
+HDWalletPouchEthereumClassic.getCoinAddress = function(node) {
     //        console.log("[ethereum] node :: " + node);
     var ethKeyPair = node.keyPair;
     //        console.log("[ethereum] keyPair :: " + ethKeyPair.d + " :: " + ethKeyPair.__Q);
@@ -56,7 +53,7 @@ HDWalletPouchEthereum.getCoinAddress = function(node) {
     return "0x" + addressEth;
 }
 
-HDWalletPouchEthereum.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
+HDWalletPouchEthereumClassic.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
     var coinAmount = 0;
 
     var wei = wallet.getHelper().convertFiatToWei(fiatAmount);
@@ -65,22 +62,22 @@ HDWalletPouchEthereum.prototype.convertFiatToCoin = function(fiatAmount, coinUni
     return coinAmount;
 }
 
-HDWalletPouchEthereum.prototype.initialize = function(pouchManager) {
+HDWalletPouchEthereumClassic.prototype.initialize = function(pouchManager) {
     this._pouchManager = pouchManager;
 }
 
 
-HDWalletPouchEthereum.prototype.shutDown = function() {
+HDWalletPouchEthereumClassic.prototype.shutDown = function() {
     for (var i = 0; i < CoinToken.numCoinTokens; i++) {
         this._pouchManager._token[i].shutDown();
     }
 }
 
-HDWalletPouchEthereum.prototype.setup = function() {
+HDWalletPouchEthereumClassic.prototype.setup = function() {
     this.setupTokens();
 }
 
-HDWalletPouchEthereum.prototype.setupTokens = function() {
+HDWalletPouchEthereumClassic.prototype.setupTokens = function() {
     for (var i = 0; i < CoinToken.numCoinTokens; i++) {
         this._pouchManager._token[i] = new CoinToken();
     }
@@ -92,20 +89,20 @@ HDWalletPouchEthereum.prototype.setupTokens = function() {
     this.updateTokenAddresses(this._pouchManager._w_addressMap);
 }
 
-HDWalletPouchEthereum.prototype.log = function(logString) {
+HDWalletPouchEthereumClassic.prototype.log = function(logString) {
     if (this._doDebug === false) {
         return;
     }
 
     var args = [].slice.call(arguments);
-    args.unshift('EthereumPouchLog:');
+    args.unshift('EthereumClassicPouchLog:');
     console.log(args);
 }
 
-HDWalletPouchEthereum.prototype.updateMiningFees = function() {
+HDWalletPouchEthereumClassic.prototype.updateMiningFees = function() {
 }
 
-HDWalletPouchEthereum.prototype.updateTransactionsFromWorker = function(txid, transactions) {
+HDWalletPouchEthereumClassic.prototype.updateTransactionsFromWorker = function(txid, transactions) {
     //                                                        console.log("wallet worker update :: eth tx :: " + Object.keys(transactions).length);
     //                            console.log("incoming eth tx :: " + JSON.stringify(transaction) + " :: " + txid);
 
@@ -115,7 +112,7 @@ HDWalletPouchEthereum.prototype.updateTransactionsFromWorker = function(txid, tr
     return false;
 }
 
-HDWalletPouchEthereum.prototype.getTransactions = function() {
+HDWalletPouchEthereumClassic.prototype.getTransactions = function() {
     var res = [];
 
     //        console.log("this._transactions length :: " + Object.keys(this._transactions).length);
@@ -133,7 +130,7 @@ HDWalletPouchEthereum.prototype.getTransactions = function() {
     return res;
 }
 
-HDWalletPouchEthereum.prototype.calculateHistoryforTransaction = function(transaction) {
+HDWalletPouchEthereumClassic.prototype.calculateHistoryforTransaction = function(transaction) {
     //            console.log("A :: ethereum transaction :: " + JSON.stringify(transaction));
     if (typeof(transaction.addressIndex) !== 'undefined' && transaction.addressIndex !== null) {
         //                console.log("B :: ethereum transaction :: " + JSON.stringify(transaction));
@@ -178,7 +175,7 @@ HDWalletPouchEthereum.prototype.calculateHistoryforTransaction = function(transa
     }
 }
 
-HDWalletPouchEthereum.prototype.getPouchFoldBalance = function() {
+HDWalletPouchEthereumClassic.prototype.getPouchFoldBalance = function() {
     var balance = 0;
 
     var highestIndexToCheck = this._pouchManager.getHighestReceiveIndex();
@@ -196,7 +193,7 @@ HDWalletPouchEthereum.prototype.getPouchFoldBalance = function() {
     return balance;
 }
 
-HDWalletPouchEthereum.prototype.getAccountBalance = function(internal, index) {
+HDWalletPouchEthereumClassic.prototype.getAccountBalance = function(internal, index) {
     var accountBalance = 0;
 
     //@note: @here: @todo: consider changing this to a class function
@@ -221,11 +218,9 @@ HDWalletPouchEthereum.prototype.getAccountBalance = function(internal, index) {
     return accountBalance;
 }
 
-HDWalletPouchEthereum.prototype.getSpendableBalance = function(minimumValue, customGasLimit) {
+HDWalletPouchEthereumClassic.prototype.getSpendableBalance = function(minimumValue) {
     var spendableDict = {spendableBalance: 0,
-                         numPotentialTX: 0,
-                         addressesSpendable: {},
-                        };
+                         numPotentialTX: 0};
 
     var spendableBalance = 0;
     var numPotentialTX = 0;
@@ -233,15 +228,7 @@ HDWalletPouchEthereum.prototype.getSpendableBalance = function(minimumValue, cus
     //        console.log("types :: " + typeof(this._helper.getCustomEthereumGasLimit()) + " :: " + typeof(HDWalletHelper.getDefaultEthereumGasPrice()));
     //        console.log("spendable :: custom gas limit :: " + this._helper.getCustomEthereumGasLimit() + " :: default gas price :: " + HDWalletHelper.getDefaultEthereumGasPrice());
 
-    var customEthereumGasLimit = -1;
-
-    if (typeof(customGasLimit) === 'undefined' || customGasLimit === null) {
-        customEthereumGasLimit = this._pouchManager._helper.getCustomEthereumGasLimit();
-    } else {
-        customEthereumGasLimit = customGasLimit;
-    }
-
-    var baseTXCost = customEthereumGasLimit.mul(HDWalletHelper.getDefaultEthereumGasPrice()).toNumber();
+    var baseTXCost = this._pouchManager._helper.getCustomEthereumGasLimit().mul(HDWalletHelper.getDefaultEthereumGasPrice()).toNumber();
 
     var totalTXCost = 0;
 
@@ -258,11 +245,6 @@ HDWalletPouchEthereum.prototype.getSpendableBalance = function(minimumValue, cus
                 spendableBalance += accountBalance - baseTXCost;
                 numPotentialTX++;
                 totalTXCost += baseTXCost;
-
-                var accountIndex = this._pouchManager._sortedHighestAccountArray[i].index;
-
-                var curAddress = this._pouchManager.getPublicAddress(false, accountIndex);
-                spendableDict.addressesSpendable[curAddress.toLowerCase()] = accountBalance;
             }
         }
     }
@@ -275,7 +257,7 @@ HDWalletPouchEthereum.prototype.getSpendableBalance = function(minimumValue, cus
     return spendableDict;
 }
 
-HDWalletPouchEthereum.prototype.updateTokenAddresses = function(addressMap) {
+HDWalletPouchEthereumClassic.prototype.updateTokenAddresses = function(addressMap) {
     var transferableMap = {};
     var votableMap = {};
 
@@ -332,7 +314,7 @@ HDWalletPouchEthereum.prototype.updateTokenAddresses = function(addressMap) {
     }
 }
 
-HDWalletPouchEthereum.prototype.getEthereumNonce = function(internal, index) {
+HDWalletPouchEthereumClassic.prototype.getEthereumNonce = function(internal, index) {
     if (typeof(index) === 'undefined' || index === null) {
         console.log("error :: getEthereumNonce :: index undefined or null");
         return -1;
@@ -382,17 +364,35 @@ HDWalletPouchEthereum.prototype.getEthereumNonce = function(internal, index) {
     return highestNonce;
 }
 
-HDWalletPouchEthereum.prototype._buildEthereumTransaction = function(fromNodeInternal, fromNodeIndex, toAddress, amount_smallUnit, ethGasPrice, ethGasLimit, ethData, doNotSign) {
+HDWalletPouchEthereumClassic.prototype.getEthereumNonceForCustomAddress = function(address, callback) {
+    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM_CLASSIC).networkParams;
+
+    var requestUrl = networkParams['static_relay_url'] + networkParams['nonce'] + address;
+
+    RequestSerializer.getJSON(requestUrl, function (data) {
+        if (!data || typeof(data.nextNonce) === 'undefined' || data.nextNonce === null) {
+            var errStr = "failed to get nonce info from :: " + address + " :: data :: " + data;
+            callback(errStr, null);
+        } else {
+            //@note: contractCode here results in *only* "0x" if it's not a contract, and the full code if it is.
+            var nonce = data.nextNonce;
+
+            callback(null, nonce);
+        }
+    });
+}
+
+HDWalletPouchEthereumClassic.prototype._buildEthereumTransaction = function(fromNodeInternal, fromNodeIndex, toAddress, amount_smallUnit, ethGasPrice, ethGasLimit, ethData, doNotSign) {
     var gasPrice = HDWalletHelper.hexify(ethGasPrice);
     var gasLimit = HDWalletHelper.hexify(ethGasLimit);
 
     var fromAddress = HDWalletPouch.getCoinAddress(this._pouchManager._coinType, this._pouchManager.getNode(fromNodeInternal, fromNodeIndex));
 
-    this.log("ethereum :: from address :: " + fromAddress);
+    this.log("ethereum classic :: from address :: " + fromAddress);
 
     var nonce = this.getEthereumNonce(fromNodeInternal, fromNodeIndex);
 
-    this.log("ethereum :: build tx nonce :: " + nonce + " :: gasPrice :: " + ethGasPrice + " :: gasLimit :: " + ethGasLimit);
+    this.log("ethereum classic :: build tx nonce :: " + nonce + " :: gasPrice :: " + ethGasPrice + " :: gasLimit :: " + ethGasLimit);
 
     var rawTx = {
         nonce: HDWalletHelper.hexify(nonce),
@@ -449,7 +449,7 @@ HDWalletPouchEthereum.prototype._buildEthereumTransaction = function(fromNodeInt
     return transaction;
 }
 
-HDWalletPouchEthereum.prototype.buildEthereumTransactionList = function(toAddressArray, amount_smallUnit, gasPrice, gasLimit, ethData, doNotSign) {
+HDWalletPouchEthereumClassic.prototype.buildEthereumTransactionList = function(toAddressArray, amount_smallUnit, gasPrice, gasLimit, ethData, doNotSign) {
     var amountWei = parseInt(amount_smallUnit);
 
     var txArray = [];
@@ -467,11 +467,11 @@ HDWalletPouchEthereum.prototype.buildEthereumTransactionList = function(toAddres
         if (amountWei + baseTXCost <= highestAccountDict.balance) {
             totalTXCost = baseTXCost;
 
-            this.log("ethereum transaction :: account :: " + highestAccountDict.index + " :: " + highestAccountDict.balance + " :: can cover the entire balance + tx cost :: " + (amountWei + baseTXCost));
+            this.log("ethereum classic :: transaction :: account :: " + highestAccountDict.index + " :: " + highestAccountDict.balance + " :: can cover the entire balance + tx cost :: " + (amountWei + baseTXCost));
             var newTX = this._buildEthereumTransaction(false, highestAccountDict.index, toAddressArray[0], amountWei, gasPrice, gasLimit, ethData, doNotSign);
 
             if (!newTX) {
-                this.log("error :: ethereum transaction :: account failed to build :: " + highestAccountDict.index);
+                this.log("error :: ethereum classic :: transaction :: account failed to build :: " + highestAccountDict.index);
                 return null;
             } else {
                 txArray.push(newTX);
@@ -483,13 +483,13 @@ HDWalletPouchEthereum.prototype.buildEthereumTransactionList = function(toAddres
 
             //@note: this array is implicitly regenerated and sorted when the getHighestAccountBalanceAndIndex function is called.
             for (var i = 0; i < this._pouchManager._sortedHighestAccountArray.length; i++) {
-                this.log("ethereum transaction :: balanceRemaining (pre) :: " + balanceRemaining);
+                this.log("ethereum classic :: transaction :: balanceRemaining (pre) :: " + balanceRemaining);
                 //                console.log(typeof(this._sortedHighestAccountArray[i].balance));
                 var accountBalance = this._pouchManager._sortedHighestAccountArray[i].balance;
 
                 //@note: if the account cannot support the base tx cost + 1 wei (which might be significantly higher in the case of a contract address target), this process cannot continue as list is already sorted, and this transaction cannot be completed.
                 if (accountBalance <= baseTXCost) {
-                    this.log("ethereum transaction :: account :: " + this._pouchManager._sortedHighestAccountArray[i].index + " cannot cover current dust limit of :: " + baseTXCost);
+                    this.log("ethereum classic :: transaction :: account :: " + this._pouchManager._sortedHighestAccountArray[i].index + " cannot cover current dust limit of :: " + baseTXCost);
                     txSuccess = false;
                     break;
                 } else {
@@ -502,7 +502,7 @@ HDWalletPouchEthereum.prototype.buildEthereumTransactionList = function(toAddres
                     //@note: check if subtracting the balance of this account from the remaining target transaction balance will result in exactly zero or a positive balance for this account.
                     if (accountBalance - balanceRemaining - baseTXCost < 0) {
                         //@note: this account doesn't have enough of a balance to cover by itself.. keep combining.
-                        this.log("ethereum transaction :: account :: " + this._pouchManager._sortedHighestAccountArray[i].index + " :: does not have enough to cover balance + tx cost :: " + (balanceRemaining + baseTXCost) + " :: accountBalance - tx cost :: " + (accountBalance - baseTXCost));
+                        this.log("ethereum classic :: transaction :: account :: " + this._pouchManager._sortedHighestAccountArray[i].index + " :: does not have enough to cover balance + tx cost :: " + (balanceRemaining + baseTXCost) + " :: accountBalance - tx cost :: " + (accountBalance - baseTXCost));
 
                         amountToSendFromAccount = (accountBalance - baseTXCost);
                     } else {
@@ -530,7 +530,7 @@ HDWalletPouchEthereum.prototype.buildEthereumTransactionList = function(toAddres
                     var newTX = this._buildEthereumTransaction(false, this._pouchManager._sortedHighestAccountArray[i].index, targetEthereumAddress, amountToSendFromAccount, gasPrice, gasLimit, ethData, doNotSign);
 
                     if (!newTX) {
-                        this.log("error :: ethereum transaction :: account :: " + this._pouchManager._sortedHighestAccountArray[i].index + " cannot build");
+                        this.log("error :: ethereum classic :: transaction :: account :: " + this._pouchManager._sortedHighestAccountArray[i].index + " cannot build");
 
                         txSuccess = false;
                         break;
@@ -541,7 +541,7 @@ HDWalletPouchEthereum.prototype.buildEthereumTransactionList = function(toAddres
                     //@note: keep track of the total TX cost for user review on the UI side.
                     totalTXCost += baseTXCost;
 
-                    this.log("ethereum transaction :: current total tx cost :: " + totalTXCost);
+                    this.log("ethereum classic :: transaction :: current total tx cost :: " + totalTXCost);
 
                     //note: subtract the amount sent from the balance remaining, and check whether there's zero remaining.
                     balanceRemaining -= amountToSendFromAccount;
@@ -559,7 +559,7 @@ HDWalletPouchEthereum.prototype.buildEthereumTransactionList = function(toAddres
             }
 
             if (txSuccess === false) {
-                this.log("ethereum transaction :: txSuccess is false");
+                this.log("ethereum classic :: transaction :: txSuccess is false");
                 return null;
             }
         }
@@ -568,16 +568,96 @@ HDWalletPouchEthereum.prototype.buildEthereumTransactionList = function(toAddres
         if (txArray.length > 0) {
             return {txArray: txArray, totalTXCost: totalTXCost};
         } else {
-            this.log("ethereum transaction :: txArray.length is zero");
+            this.log("ethereum classic :: transaction :: txArray.length is zero");
             return null;
         }
     } else {
-        this.log("ethereum transaction :: no accounts found");
+        this.log("ethereum classic :: transaction :: no accounts found");
         return null;
     }
 }
 
-HDWalletPouchEthereum.prototype.getIsTheDAOAssociated = function(internal, index) {
+//@note: @here: this function is needed for the ethereum split contract to function using the ethereum pouch's internalIndex data, plus a custom nonce request for this address on the ETC network. Nonce divergence on ETH doesn't matter in this case because of the nature and reason for this split process.
+
+HDWalletPouchEthereumClassic.prototype._buildEthereumTransactionWithCustomEthereumLikeBlockchain = function(ethereumLikeBlockchainPouch, fromNodeInternal, fromNodeIndex, toAddress, bigNum_amountSmallUnit, ethGasPrice, ethGasLimit, ethData, doNotSign, callback, passthroughParams) {
+    var self = this;
+
+    var gasPrice = HDWalletHelper.hexify(ethGasPrice);
+    var gasLimit = HDWalletHelper.hexify(ethGasLimit);
+
+    var fromAddress = HDWalletPouch.getCoinAddress(ethereumLikeBlockchainPouch._coinType, ethereumLikeBlockchainPouch.getNode(fromNodeInternal, fromNodeIndex));
+
+    this.log("ethereum classic :: from address :: " + fromAddress);
+
+    this.getEthereumNonceForCustomAddress(fromAddress, function(err, etcNonce) {
+        var transaction = null;
+
+        if (err) {
+            self.log("ethereum classic :: build tx etcNonce :: failed for address :: " + fromAddress);
+        } else {
+            self.log("ethereum classic :: build tx etcNonce :: " + etcNonce + " :: gasPrice :: " + ethGasPrice + " :: gasLimit :: " + ethGasLimit);
+
+            var rawTx = {
+                nonce: HDWalletHelper.hexify(etcNonce),
+                gasPrice: gasPrice,
+                gasLimit: gasLimit,
+                to: toAddress,
+                value: HDWalletHelper.hexify(bigNum_amountSmallUnit),
+                //data: '',
+            };
+
+            if (ethData && typeof(ethData) !== 'undefined') {
+                rawTx.data = ethData;
+            }
+
+            transaction = new thirdparty.ethereum.tx(rawTx);
+            //    console.log("ethereum buildTransaction :: " + JSON.stringify(transaction));
+
+            //    var privateKeyB = new thirdparty.Buffer.Buffer('e331b6d69882b4cb4ea581d88e0b604039a3de5967688d3dcffdd2270c0fd109', 'hex')
+            //
+            //    console.log("private key :: " + this._private + " :: " +  + this._private.length + " :: privateKeyB :: " + privateKeyB + " :: " + privateKeyB.length);
+
+            if (typeof(doNotSign) !== 'undefined' || (doNotSign !== null && doNotSign !== false)) {
+                var pvtKeyBuffer = new Buffer(ethereumLikeBlockchainPouch.getPrivateKey(fromNodeInternal, fromNodeIndex).d.toBuffer(32), 'hex');
+                //        console.log(pvtKeyBuffer.length);
+                //        console.log(this.getPrivateKey(fromNodeInternal, fromNodeIndex));
+                transaction.sign(pvtKeyBuffer);
+            }
+
+
+            var txhash = ('0x' + transaction.hash().toString('hex'));
+
+            var publicAddress = ethereumLikeBlockchainPouch.getPublicAddress(fromNodeInternal, fromNodeIndex);
+
+            //@note: ethereum checksum addresses.
+            publicAddress = publicAddress.toLowerCase();
+
+            transaction._mockTx = {
+                txid: txhash,
+                addressInternal: fromNodeInternal,
+                addressIndex: fromNodeIndex,
+                blockNumber: null,
+                //@note:@here:@todo:
+                confirmations: 0,
+                from: publicAddress,
+                hash: txhash,
+                timestamp: (new Date()).getTime() / 1000,
+                to: toAddress,
+                gasPrice: ethGasPrice,
+                gasUsed: ethGasLimit,
+                nonce: etcNonce,
+                //@note: @here: @todo: @critical: this is definitely incorrect: (parseInt(150154021000000020) === parseInt(152254021000000030)) === true
+                valueDelta: -bigNum_amountSmallUnit.toNumber(),
+            };
+        }
+
+        callback(transaction, passthroughParams);
+    });
+}
+
+
+
+HDWalletPouchEthereumClassic.prototype.getIsTheDAOAssociated = function(internal, index) {
     var publicAddress = this._pouchManager.getPublicAddress(internal, index);
 
     //@note: for ethereum checksum addresses.
@@ -595,7 +675,7 @@ HDWalletPouchEthereum.prototype.getIsTheDAOAssociated = function(internal, index
     return false;
 }
 
-HDWalletPouchEthereum.prototype.getAccountList = function(transactions) {
+HDWalletPouchEthereumClassic.prototype.getAccountList = function(transactions) {
     var result = [];
 
     var lastIndexChange = 0;
@@ -643,55 +723,7 @@ HDWalletPouchEthereum.prototype.getAccountList = function(transactions) {
     return result;
 }
 
-HDWalletPouchEthereum.prototype.getAllAccountBalancesDict = function(transactions) {
-    var result = {};
-
-    var lastIndexChange = 0;
-    var lastIndexReceive = 0;
-
-    for (var ti = 0; ti < transactions.length; ti++) { //iterate through txs
-        var transaction = transactions[ti];
-
-
-        //            console.log("tx :: " + JSON.stringify(transaction));
-
-        //@note: for ether, we're using a similar method, checking out the address map for a to: equivalence.
-        if (transaction.addressIndex !== null) {
-            if (!transaction.addressInternal) {
-                if (transaction.addressIndex > lastIndexReceive) {
-                    lastIndexReceive = transaction.addressIndex;
-                }
-
-                var pubAddr = this._pouchManager.getPublicAddress(false, transaction.addressIndex);
-
-                var newResult = {};
-                newResult.balance = this.getAccountBalance(false, transaction.addressIndex);
-
-                result[pubAddr] = newResult;
-            }
-        }
-    }
-
-
-    var finalIndex = 0;
-
-    if (result.length === 0) {
-        finalIndex = 0;
-    } else {
-        finalIndex = lastIndexReceive + 1;
-    }
-
-    var pubAddr = this._pouchManager.getPublicAddress(false, finalIndex);
-
-    var newResult = {};
-    newResult.balance = this.getAccountBalance(false, finalIndex);
-
-    result[pubAddr] = newResult;
-
-    return result;
-}
-
-HDWalletPouchEthereum.prototype.generateQRCode = function(largeFormat,  coinAmountSmallType) {
+HDWalletPouchEthereumClassic.prototype.generateQRCode = function(largeFormat,  coinAmountSmallType) {
     var curRecAddr = this._pouchManager.getCurrentReceiveAddress();
 
     var uri = "iban:" + HDWalletHelper.getICAPAddress(curRecAddr);
@@ -718,7 +750,7 @@ HDWalletPouchEthereum.prototype.generateQRCode = function(largeFormat,  coinAmou
 }
 
 //@note: this function when passed in an explicit null to ignoreCached, will use cache. cached only in session.
-HDWalletPouchEthereum.prototype.isAddressFromSelf = function(addressToCheck, ignoreCached) {
+HDWalletPouchEthereumClassic.prototype.isAddressFromSelf = function(addressToCheck, ignoreCached) {
     var isSelfAddress = false;
 
     //@note: for ethereum checksum addresses.
@@ -762,7 +794,7 @@ HDWalletPouchEthereum.prototype.isAddressFromSelf = function(addressToCheck, ign
     return isSelfAddress;
 }
 
-HDWalletPouchEthereum.prototype.sendEthereumTransaction = function(transaction, callback, params, debugIdx) {
+HDWalletPouchEthereumClassic.prototype.sendEthereumTransaction = function(transaction, callback, params, debugIdx) {
     //@note:@todo:@next:
     var hex = '0x' + transaction.serialize().toString('hex');
 
@@ -774,102 +806,117 @@ HDWalletPouchEthereum.prototype.sendEthereumTransaction = function(transaction, 
     //
     var self = this;
 
-    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM).networkParams;
+    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM_CLASSIC).networkParams;
 
-    var requestUrl = networkParams['static_relay_url'] + networkParams['send_tx'] + hex + networkParams['send_tx_append'];
+    var requestUrl = networkParams['static_relay_url'] + networkParams['send_tx'];
 
-    $.getJSON(requestUrl, function (data) {
-        self._pouchManager.invalidateTransactionCache();
-        self._pouchManager.invalidateWorkerCache();
+    //@note: @here: @todo: @next:
+    $.ajax({
+        url: requestUrl,
+        'Cache-Control': "no-cache",
+        Accept: "application/json",
+        type: 'PUT',
+        headers: {
+            transaction: hex
+        },
+        complete: function(data, successString) {
+            self._pouchManager.invalidateTransactionCache();
+            self._pouchManager.invalidateWorkerCache();
 
-        if (!data || !data.result || data.result.length !== 66) {
-            self.log('Error sending', data, " :: " + debugIdx + " :: " + JSON.stringify(transaction) + " :: hex :: " + hex);
+            if (!data ||
+                !data.status
+                || data.status !== 200
+                || !data.responseJSON
+                || !data.responseJSON.transactionHash
+                || data.responseJSON.transactionHash.length !== 66) {
+                self.log('ethereum classic :: Error sending', data, " :: " + debugIdx + " :: " + JSON.stringify(transaction) + " :: hex :: " + hex);
 
-            if (callback) {
-                var message = 'An error occurred';
-                if (data && data.error && data.error.message) {
-                    message = data.error.message;
+                if (callback) {
+                    var message = 'An error occurred';
+                    if (data && data.error && data.error.message) {
+                        message = data.error.message;
+                    }
+
+                    callback(new Error(message), null, params);
+                    delete self._pouchManager._transactions[transaction._mockTx.hash + "_" + transaction._mockTx.from];
+
+                    //@note: reverse the mock transaction update.
+                    var addressInfo = self._pouchManager._w_addressMap[transaction._mockTx.from];
+                    if (typeof(addressInfo) !== 'undefined') {
+                        var txCostPlusGas = transaction._mockTx.valueDelta - (transaction._mockTx.gasUsed * transaction._mockTx.gasPrice);
+
+                        addressInfo.accountBalance -= txCostPlusGas;
+                        addressInfo.nonce--;
+                        addressInfo.newSendTx = null;
+                        delete addressInfo.accountTXProcessed[transaction._mockTx.hash];
+                    } else {
+                        self.log("ethereum classic :: sendEthereumTransaction error :: addressInfo undefined")
+                    }
+
+                    if (self._pouchManager._worker) {
+                        self._pouchManager._worker.postMessage({
+                            action: 'updateAddressMap',
+                            content: {
+                                addressMap: self._pouchManager._w_addressMap
+                            }
+                        });
+                    }
+                }
+            } else {
+                self.log('ethereum classic :: Success sending', data, " :: " + debugIdx + " :: " + JSON.stringify(transaction) + " :: hex :: " + hex);
+
+                if (callback) {
+                    callback('success', data.result, params);
                 }
 
-                callback(new Error(message), null, params);
-                delete self._pouchManager._transactions[transaction._mockTx.hash + "_" + transaction._mockTx.from];
+                self._pouchManager._transactions[transaction._mockTx.hash + "_" + transaction._mockTx.from] = transaction._mockTx;
 
-                //@note: reverse the mock transaction update.
                 var addressInfo = self._pouchManager._w_addressMap[transaction._mockTx.from];
-                if (typeof(addressInfo) !== 'undefined') {
+                if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
+                    //@note: sending from and to self, total balance = 0
+                    if (self.isAddressFromSelf(transaction._mockTx.to)) {
+                    } else {
+                    }
+
                     var txCostPlusGas = transaction._mockTx.valueDelta - (transaction._mockTx.gasUsed * transaction._mockTx.gasPrice);
 
-                    addressInfo.accountBalance -= txCostPlusGas;
-                    addressInfo.nonce--;
-                    addressInfo.newSendTx = null;
-                    delete addressInfo.accountTXProcessed[transaction._mockTx.hash];
+                    addressInfo.accountBalance += txCostPlusGas;
+                    addressInfo.nonce++;
+
+                    addressInfo.accountTXProcessed[transaction._mockTx.hash] = true;
+                    addressInfo.newSendTx = true;
                 } else {
-                    self.log("sendEthereumTransaction error :: addressInfo undefined")
+                    console.log("ethereum classic :: sendEthereumTransaction success :: addressInfo undefined")
                 }
 
                 if (self._pouchManager._worker) {
                     self._pouchManager._worker.postMessage({
                         action: 'updateAddressMap',
                         content: {
-                            addressMap: self._pouchManager._w_addressMap
+                            addressMap: self._w_addressMap
                         }
                     });
                 }
+
+                self._pouchManager._notify();
             }
-        } else {
-            self.log('Success sending', data, " :: " + debugIdx + " :: " + JSON.stringify(transaction) + " :: hex :: " + hex);
-
-            if (callback) {
-                callback('success', data.result, params);
-            }
-
-            self._pouchManager._transactions[transaction._mockTx.hash + "_" + transaction._mockTx.from] = transaction._mockTx;
-
-            var addressInfo = self._pouchManager._w_addressMap[transaction._mockTx.from];
-            if (typeof(addressInfo) !== 'undefined' && addressInfo !== null) {
-                //@note: sending from and to self, total balance = 0
-                if (self.isAddressFromSelf(transaction._mockTx.to)) {
-                } else {
-                }
-
-                var txCostPlusGas = transaction._mockTx.valueDelta - (transaction._mockTx.gasUsed * transaction._mockTx.gasPrice);
-
-                addressInfo.accountBalance += txCostPlusGas;
-                addressInfo.nonce++;
-
-                addressInfo.accountTXProcessed[transaction._mockTx.hash] = true;
-                addressInfo.newSendTx = true;
-            } else {
-                console.log("sendEthereumTransaction success :: addressInfo undefined")
-            }
-
-            if (self._pouchManager._worker) {
-                self._pouchManager._worker.postMessage({
-                    action: 'updateAddressMap',
-                    content: {
-                        addressMap: self._w_addressMap
-                    }
-                });
-            }
-
-            self._pouchManager._notify();
         }
     });
 }
 
-HDWalletPouchEthereum.prototype.afterWorkerCacheInvalidate = function() {
+HDWalletPouchEthereumClassic.prototype.afterWorkerCacheInvalidate = function() {
     this._pouchManager.sortHighestAccounts();
 }
 
-HDWalletPouchEthereum.prototype.requestBlockNumber = function(callback) {
+HDWalletPouchEthereumClassic.prototype.requestBlockNumber = function(callback) {
     var self = this;
 
-    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM).networkParams;
+    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM_CLASSIC).networkParams;
 
     var requestUrl = networkParams['static_relay_url'] + networkParams['block_number'];
 
     $.getJSON(requestUrl, function (data) {
-        if (!data || !data.result) {
+        if (!data || !data.latestBlockNumberInserted) {
             if (self._pouchManager._currentBlock === -1) {
                 self._pouchManager._currentBlock = 0;
             };
@@ -879,13 +926,15 @@ HDWalletPouchEthereum.prototype.requestBlockNumber = function(callback) {
             return;
         }
 
-        self._pouchManager._currentBlock = parseInt(data.result, 16);
+        self._pouchManager._currentBlock = data.latestBlockNumberInserted;
 
         callback(null);
     });
 }
 
-HDWalletPouchEthereum.prototype.prepareSweepTransaction = function(privateKey, callback) {
+HDWalletPouchEthereumClassic.prototype.prepareSweepTransaction = function(privateKey, callback) {
+    var self = this;
+
     var signedTransaction;
     var totalValue;
 
@@ -898,10 +947,10 @@ HDWalletPouchEthereum.prototype.prepareSweepTransaction = function(privateKey, c
     //Query etherscan for balance ---------
     var weiBalance = 0;
 
-    //@note: @todo: @here: @relay: relays for ethereum
+    //@note: @todo: @here: @relay: relays for ethereum classic
     RequestSerializer.getJSON('https://api.etherscan.io/api?module=account&action=balance&address=' + ethAddressToSweep + '&tag=latest', function (dataBalance) {
         if (!dataBalance || dataBalance.status != 1 ) {
-            console.log('Failed to get balance for '+ethAddressToSweep+ ' ; dataBalance:'+dataBalance);
+            self.log('ethereum classic :: Failed to get balance for '+ethAddressToSweep+ ' ; dataBalance:'+dataBalance);
             callback(new Error('Error: while getting balance'), null);
         }
         weiBalance = dataBalance.result;
@@ -912,7 +961,7 @@ HDWalletPouchEthereum.prototype.prepareSweepTransaction = function(privateKey, c
         //        console.log("weiBalance :: " + weiBalance + " :: gasPrice :: " + gasPrice + " + :: gasLimit :: " + gasLimit + " :: spendableWei :: " + spendableWei);
 
         if(spendableWei <= 0){
-            console.log('Nothing to sweep');
+            self.log('ethereum classic :: Nothing to sweep');
             callback(null, null);
             return;
         }
@@ -922,7 +971,7 @@ HDWalletPouchEthereum.prototype.prepareSweepTransaction = function(privateKey, c
 
         RequestSerializer.getJSON('https://api.etherscan.io/api?module=account&action=txlist&address=' + ethAddressToSweep + '&sort=asc', function (dataTx) {
             if (!dataTx || dataTx.status != 1 ) {
-                console.log('Failed to get txList for '+ethAddressToSweep+ ' ; dataTx:'+dataTx);
+                self.log('ethereum classic :: Failed to get txList for '+ethAddressToSweep+ ' ; dataTx:'+dataTx);
                 callback(new Error('Error: while getting txlist'), null);
             }
 
@@ -984,17 +1033,17 @@ HDWalletPouchEthereum.prototype.prepareSweepTransaction = function(privateKey, c
     }); //End JSON call for balance
 }
 
-HDWalletPouchEthereum.prototype.fromChecksumAddress = function(address) {
+HDWalletPouchEthereumClassic.prototype.fromChecksumAddress = function(address) {
     //@note: for ethereum checksum addresses.
     return address.toLowerCase();
 }
 
-HDWalletPouchEthereum.prototype.toChecksumAddress = function(address) {
+HDWalletPouchEthereumClassic.prototype.toChecksumAddress = function(address) {
     //@note: for ethereum checksum addresses.
     return HDWalletHelper.toEthereumChecksumAddress(address);
 }
 
-HDWalletPouchEthereum.prototype.hasCachedAddressAsContract = function(address) {
+HDWalletPouchEthereumClassic.prototype.hasCachedAddressAsContract = function(address) {
     if (this._ethAddressTypeMap[address]) {
         if (this._ethAddressTypeMap[address] === true) {
             return true;
@@ -1006,7 +1055,7 @@ HDWalletPouchEthereum.prototype.hasCachedAddressAsContract = function(address) {
     }
 }
 
-HDWalletPouchEthereum.prototype.checkIsSmartContractQuery = function(address, callback)
+HDWalletPouchEthereumClassic.prototype.checkIsSmartContractQuery = function(address, callback)
 {
     if (this._ethAddressTypeMap[address]) {
         callback(null, this._ethAddressTypeMap[address]);
@@ -1014,15 +1063,16 @@ HDWalletPouchEthereum.prototype.checkIsSmartContractQuery = function(address, ca
 
     var self = this;
 
-    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM).networkParams;
+    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM_CLASSIC).networkParams;
 
-    var requestUrl = networkParams['static_relay_url'] + networkParams['smart_contract_code'] + address + networkParams['smart_contract_code_append'];
+    var requestUrl = networkParams['static_relay_url'] + networkParams['smart_contract_code'] + address;
 
     RequestSerializer.getJSON(requestUrl, function (data) {
-        if (!data) {
+        if (!data || (data.subCode && data.subCode === 100)) {
             var errStr = "failed to get address info from :: " + url + " :: " + data;
             callback(errStr, null);
         } else {
+
             //@note: contractCode here results in *only* "0x" if it's not a contract, and the full code if it is.
             var contractCode = data.result;
             if (contractCode === '0x') {
@@ -1034,144 +1084,4 @@ HDWalletPouchEthereum.prototype.checkIsSmartContractQuery = function(address, ca
             }
         }
     });
-}
-
-HDWalletPouchEthereum.prototype.processFinishedFinalBalanceUpdate = function() {
-    this._hasFinishedFinalBalanceUpdate = true;
-
-    if (g_JaxxApp.getSettings().getIgnoreEtcEthSplit() === true && this._overrideIgnoreEtcEthSplit === false) {
-        return;
-    } else {
-        this.checkForEtcEthSplit();
-    }
-}
-
-HDWalletPouchEthereum.prototype.setupCheckForEtcEthSplit = function() {
-    if (this._hasFinishedFinalBalanceUpdate !== true) {
-        this._overrideIgnoreEtcEthSplit = true;
-    } else {
-        this.checkForEtcEthSplit();
-    }
-}
-
-HDWalletPouchEthereum.prototype.checkForEtcEthSplit = function() {
-    var self = this;
-
-    var transactions = this.getTransactions(); //Get all transactions
-    //@note: requires at least 1 wei over the custom gas limit for contracts.
-    var ethSpendableDict = this.getSpendableBalance(1, requiredSplitContractCustomGasLimit);
-
-    var requiredSplitContractCustomGasLimit = thirdparty.web3.toBigNumber(100000);
-
-
-    var accounts = this.getAllAccountBalancesDict(transactions);
-
-    var allAddresses = Object.keys(accounts);
-
-
-    var batchSizeGatherEtc = allAddresses.length;
-
-
-    var networkParams = HDWalletPouch.getStaticCoinWorkerImplementation(COIN_ETHEREUM_CLASSIC).networkParams;
-
-    var etcAccounts = {numAccountsTotal: 0, numAccountsProcessed: 0, accounts: {}};
-
-    //@note: this is the gas price * gas limit, such that the split contract can be run.
-
-    var baseTXCost = requiredSplitContractCustomGasLimit.mul(HDWalletHelper.getDefaultEthereumGasPrice()).toNumber();
-
-    var batch = [];
-    while (allAddresses.length) {
-        batch.push(allAddresses.shift());
-        if (batch.length === this.batchSizeGatherEtc || allAddresses.length === 0) {
-
-            var addressParam = batch.join(networkParams['joinParameters']);
-
-            //            this.log("ethereum classic :: requesting :: " + addressParam);
-
-            var requestURL = networkParams['static_relay_url'] + networkParams['multi_balance'] + addressParam + networkParams['multi_balance_append'];
-
-
-            var passthroughParams = {batch: batch, etcAccounts: etcAccounts};
-
-            etcAccounts.numAccountsTotal += batch.length;
-
-            //@note: @here: @todo: sending batch is only necessary since we can only associate one
-            //account at the moment.
-            RequestSerializer.getJSON(requestURL, function(processorData, success, passthroughParams) {
-                //                self.log("ethereum classic :: processorData :: " + JSON.stringify(data));
-
-                if (!processorData) {
-                    this.log("HDWalletPouchEthereum.processFinishedFinalBalanceUpdate :: error :: processorData is incorrect :: " + JSON.stringify(processorData) + " :: passthroughParams :: " + JSON.stringify(passthroughParams));
-                    return;
-                }
-
-                var keysProcessed = Object.keys(processorData);
-
-                passthroughParams.etcAccounts.numAccountsProcessed += keysProcessed.length;
-
-                for (var curAddr in processorData) {
-                    passthroughParams.etcAccounts.accounts[curAddr] = processorData[curAddr];
-                }
-
-                if (passthroughParams.etcAccounts.numAccountsTotal ===  passthroughParams.etcAccounts.numAccountsProcessed) {
-                    self.determineEtcSplit(baseTXCost, passthroughParams.etcAccounts.accounts, ethSpendableDict.addressesSpendable);
-                }
-            }, null, passthroughParams);
-
-            // Clear the batch
-            batch = [];
-        }
-    }
-}
-
-
-HDWalletPouchEthereum.prototype.determineEtcSplit = function(baseTXCost, etcAccounts, ethSpendableAccounts) {
-    var minimumEtcBalance = baseTXCost + 1;
-//    console.log("baseTXCost :: " + baseTXCost);
-//    console.log("etc balances :: " + JSON.stringify(etcAccounts));
-//    console.log("eth balances :: " + JSON.stringify(ethSpendableAccounts));
-
-    var balancesTransferrable = {};
-
-    for (var curAddr in etcAccounts) {
-        var etcBalance = etcAccounts[curAddr];
-        var etcBalanceLarge = HDWalletHelper.convertWeiToEther(etcBalance);
-
-        if (etcBalance >= minimumEtcBalance) {
-//            console.log("etc/eth split :: etc address :: " + curAddr + " has a splittable balance :: " + etcBalanceLarge);
-            if (typeof(ethSpendableAccounts[curAddr]) !== 'undefined' && ethSpendableAccounts[curAddr] !== null) {
-                var ethBalance = ethSpendableAccounts[curAddr];
-
-                if (ethBalance >= etcBalance) {
-                    var ethBalanceLarge = HDWalletHelper.convertWeiToEther(ethBalance);
-
-//                    console.log("[etc/eth split :: eth address :: " + curAddr + " has a splittable balance :: " + ethBalanceLarge + "]");
-
-                    balancesTransferrable[curAddr] = {small: etcBalance, large: etcBalanceLarge, ethRequiredLarge: 0};
-                } else {
-                    var requiredEth = thirdparty.web3.toBigNumber(etcBalance).minus(thirdparty.web3.toBigNumber(ethBalance)).plus(thirdparty.web3.toBigNumber(baseTXCost)).toNumber();
-
-                    var requiredEthLarge = HDWalletHelper.convertWeiToEther(requiredEth);
-
-//                    console.log("[etc/eth split :: eth address :: " + curAddr + " :: requires more eth :: " + requiredEthLarge + " ]");
-
-                    balancesTransferrable[curAddr] = {small: etcBalance, large: etcBalanceLarge, ethRequiredLarge: requiredEthLarge};
-                }
-            } else {
-//                console.log("[etc/eth split :: eth address :: " + curAddr + " does not have a splittable balance]");
-
-                var requiredEth = thirdparty.web3.toBigNumber(etcBalance).plus(thirdparty.web3.toBigNumber(baseTXCost)).toNumber();
-                var requiredEthLarge = HDWalletHelper.convertWeiToEther(requiredEth);
-
-                balancesTransferrable[curAddr] = {small: etcBalance, large: etcBalanceLarge, ethRequiredLarge: requiredEthLarge};
-            }
-        } else {
-//            console.log("etc/eth split :: etc address :: " + curAddr + " does not have a splittable balance :: " + etcBalanceLarge);
-        }
-    }
-
-    g_JaxxApp.getUI().showEtcEthSplitModal(baseTXCost, balancesTransferrable);
-
-//    console.log("eth/etc split :: balancesTransferrable :: " + JSON.stringify(balancesTransferrable, null, 4));
 }

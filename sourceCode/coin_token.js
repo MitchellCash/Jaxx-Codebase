@@ -115,6 +115,40 @@ CoinToken.prototype.daoTXLog = function(logString) {
     }
 }
 
+CoinToken.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
+    var coinAmount = 0;
+
+    var multiplier = 100;
+
+    var wei = wallet.getHelper().convertFiatToWei(fiatAmount);
+    coinAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertWeiToEther(wei) * multiplier : wei * multiplier;
+
+    return coinAmount;
+}
+
+//@note: @here: needs an implementation specification.
+CoinToken.uiComponents = {
+    coinFullName: 'TheDAOEthereum',
+    coinFullDisplayName: 'DAO',
+    coinSymbol: '\u0110',
+    coinButtonSVGName: 'DAOlogo',
+    coinLargePngName: '.imgDAO',
+    coinButtonName: '.imageLogoBannerDAO',
+    coinSpinnerElementName: '.imageTheDAOEtherWash',
+    coinDisplayColor: '#E52E4B',
+    //    csvExportField: '.backupPrivateKeyListETH',
+    transactionsListElementName: '.transactionsTheDAOEthereum',
+    transactionTemplateElementName: '.transactionTheDAOEthereum',
+    accountsListElementName: '.accountDataTableEthereum',
+    accountTemplateElementName: '.accountDataTheDAOEthereum',
+    displayNumDecimals: 8,
+};
+
+CoinToken.pouchParameters = {
+    coinIsTokenSubtype: true,
+    coinAbbreviatedName: 'DAO',
+};
+
 CoinToken.prototype.initialize = function(tokenName, tokenSymbol, tokenCoinType, baseReceiveAddress, coinHolderWallet, gasPrice, gasLimit, storageKey) {
     console.log("[ Initializing  " + tokenName + " token ]");
     this._tokenName = tokenName;

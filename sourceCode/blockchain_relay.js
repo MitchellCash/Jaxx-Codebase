@@ -48,19 +48,25 @@ BTCBlockChainRelay.prototype.checkCurrentHeightForAnomalies  = function() {
     }
 }
 
-BTCBlockChainRelay.prototype.getTxList = function(address, callback) {
+BTCBlockChainRelay.prototype.getTxList = function(addresses, callback) {
     var self = this;
     //this._relayManager.relayLog("Chain Relay :: " + btcRelays.blockchain.name+" - Requested txlist for "+address);
 
+    var formattedAddresses = addresses.join('|');
+    var requestString = this._baseUrl + 'multiaddr?active=' + formattedAddresses;
+//    var requestString = 'http://cors.io/?u=' + this._baseUrl + 'multiaddr?active=' + formattedAddresses;
+
+    //@note: @here: @todo: this is still a wip, cors is offline at the moment.
+    console.log("relay :: " + this._name + " :: requesting :: " + requestString);
 	// 'address'
-    RequestSerializer.getJSON('http://cors.io/?u=' + this._baseUrl + 'address/' + address + '?format=json', function (response,status) {
+    RequestSerializer.getJSON(requestString, function(response, status) {
         var returnTxList = null;
 
         if(status==='error'){
-            self._relayManager.relayLog("Chain Relay :: Cannot get txList : No connection with "+self._name);
+            self._relayManager.relayLog("Chain Relay :: Cannot get txList : No connection with " + self._name + " :: response :: " + JSON.stringify(response));
         }
         else {
-            self._relayManager.relayLog("Chain Relay :: " + self._name + " Tx List Raw response:"+JSON.stringify(response));
+            self._relayManager.relayLog("Chain Relay :: " + self._name + " Tx List Raw response:" + JSON.stringify(response));
             //@note: @here: @todo:
             returnTxList = {};
         }

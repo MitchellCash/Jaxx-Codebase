@@ -20,10 +20,10 @@ BTCBlockExplorerRelay.prototype.setLastBlockHeight = function(newHeight){
 	this._lastBlock = newHeight;
 }
 
-BTCBlockExplorerRelay.prototype.fetchLastBlockHeight  = function(callback, passthroughParam) {
+BTCBlockExplorerRelay.prototype.fetchLastBlockHeight  = function(callback, passthroughParams) {
     var self = this; // For references inside the callback function.
 	this._relayManager.relayLog("Fetching the block height for " + this._name);
-    RequestSerializer.getJSON(this._baseUrl + 'api/status?q=getBlockCount', function (response, status, passthroughParam) {
+    RequestSerializer.getJSON(this._baseUrl + 'api/status?q=getBlockCount', function (response, status, passthroughParams) {
         if(status === 'error'){
             self._relayManager.relayLog("Chain Relay :: No connection with " + this._name + ". Setting height to 0");
             self._lastBlock = 0;
@@ -35,8 +35,8 @@ BTCBlockExplorerRelay.prototype.fetchLastBlockHeight  = function(callback, passt
             self._relayManager.relayLog("Chain Relay :: Updated blockexplorer height: " + self.getLastBlockHeight()); // We cannot use 'this' since the function is contained inside a callback.
         }
 
-        callback(status, passthroughParam);
-    }, true, passthroughParam);
+        callback(status, passthroughParams);
+    }, true, passthroughParams);
 }
 
 BTCBlockExplorerRelay.prototype.checkCurrentHeightForAnomalies  = function() {
@@ -48,101 +48,211 @@ BTCBlockExplorerRelay.prototype.checkCurrentHeightForAnomalies  = function() {
     }
 }
 
-BTCBlockExplorerRelay.prototype.getTxList  = function(address, callback) {
-    this._relayManager.relayLog("Chain Relay :: " + this._name+" - Requested txlist for "+address);
+//@note: @here: this is using insight.io, which has the issue with the transactions not being associated to the proper addresses if using multiple.
 
-    var self = this,
-        passthrough = {};
+BTCBlockExplorerRelay.prototype.getTxList  = function(addresses, callback) {
+    this._relayManager.relayLog("Chain Relay :: " + this._name+ " - Requested txlist for " + addresses);
 
-    RequestSerializer.getJSON(this._baseUrl + 'api/txs/?address=' + address, function (response, status) {
+    var self = this;
+
+    var passthroughParams = {addresses: addresses};
+
+    var requestString = this._baseUrl + 'api/addrs/' + addresses + "/txs";
+
+    this._relayManager.relayLog("relay :: " + this._name + " :: requesting :: " + requestString);
+
+    RequestSerializer.getJSON(requestString, function(response, status, passthroughParams) {
         var returnTxList = null;
 
         if(status==='error'){
             self._relayManager.relayLog("Chain Relay :: Cannot get txList : No connection with "+ this._name);
         }
         else {
-            self._relayManager.relayLog("Chain Relay :: " + this._name + " Tx List Raw response:"+JSON.stringify(response));
+            self._relayManager.relayLog("Chain Relay :: " + self._name + " Tx List Raw response:" + JSON.stringify(response));
 
-            returnTxList = self.getTxListParse(response);
+            returnTxList = self.getTxListParse(response, passthroughParams);
 //            console.log(passthrough.response)
         }
 
         callback(status, returnTxList);
-    },true);
+    }, true, passthroughParams);
 }
 
-BTCBlockExplorerRelay.prototype.getTxListParse = function(primaryTxDetailData) {
+BTCBlockExplorerRelay.prototype.getTxListParse = function(primaryTxDetailData, passthroughParams) {
+    var addresses = passthroughParams.addresses;
+    addresses = addresses.split(",");
+
     var txListItems = [];
 
-    for ( i = 0; i < primaryTxDetailData.txs.length; i++) {
-        var txItem = primaryTxDetailData.txs[i];
+    var txListForAddresses = [];
 
-        txListItems.push({
-            amount: txItem.valueIn.toString(),
-            confirmations: txItem.confirmations,
-            time_utc: txItem.time,
-            txHash: txItem.txid
-        })
+    var transactionsForAddresses = {};
+
+    for ( i = 0; i < primaryTxDetailData.items.length; i++) {
+        var txItem = primaryTxDetailData.items[i];
+
+        var associatedAddress = "";
+
+        for (var j = 0; j < txItem.vin.length; j++) {
+            var curVInAddr = txItem.vin[j].addr;
+
+            for (var k = 0; k < addresses.length; k++) {
+                var curAddr = addresses[k];
+
+                if (curAddr === curVInAddr) {
+                    associatedAddress = curAddr;
+                    break;
+                }
+            }
+
+            if (associatedAddress !== "") {
+                break;
+            }
+        }
+
+        if (associatedAddress === "") {
+            for (var j = 0; j < txItem.vout.length; j++) {
+                for (var voutAddressIdx = 0; voutAddressIdx < txItem.vout[j].scriptPubKey.addresses.length; voutAddressIdx++) {
+                    var curVOutAddr = txItem.vout[j].scriptPubKey.addresses[voutAddressIdx];
+
+                    for (var k = 0; k < addresses.length; k++) {
+                        var curAddr = addresses[k];
+
+                        if (curAddr === curVOutAddr) {
+                            associatedAddress = curAddr;
+                            break;
+                        }
+                    }
+
+                    if (associatedAddress !== "") {
+                        break;
+                    }
+                }
+
+                if (associatedAddress !== "") {
+                    break;
+                }
+            }
+        }
+
+        if (associatedAddress !== "") {
+            var newTx = {
+//                amount: parseFloat(-txItem.valueIn).toFixed(8),
+//                confirmations: txItem.confirmations,
+//                time_utc: txItem.time,
+                txHash: txItem.txid
+            };
+
+            if (typeof(transactionsForAddresses[associatedAddress]) === 'undefined' || transactionsForAddresses[associatedAddress] === null) {
+                transactionsForAddresses[associatedAddress] = [];
+            }
+
+            transactionsForAddresses[associatedAddress].push(newTx);
+        } else {
+            this._relayManager.relayLog("Error :: cannot associate tx :: " + JSON.stringify(txItem) + " :: passthroughParams :: " + JSON.stringify(passthroughParams, null, 4));
+        }
     }
 
-    var txList = {
-        txList: txListItems
+    var associatedAddressKeys = Object.keys(transactionsForAddresses);
+
+    for (var addressKeyIdx = 0; addressKeyIdx < associatedAddressKeys.length; addressKeyIdx++) {
+        var curAssociatedAddress = associatedAddressKeys[addressKeyIdx];
+
+        var newTxList = {
+            address: curAssociatedAddress,
+            txs: transactionsForAddresses[curAssociatedAddress],
+            unconfirmed: {}
+        };
+
+        txListForAddresses.push(newTxList);
     }
 
-//    console.log(txList)
-    return txList
+    return {data: txListForAddresses};
 }
 
-BTCBlockExplorerRelay.prototype.getTxCount  = function(address, callback) {
+BTCBlockExplorerRelay.prototype.getTxCount  = function(addresses, callback) {
     var self = this;
 
-    this._relayManager.relayLog("Chain Relay :: " + this._name+" - Requested txCount for "+address);
-    RequestSerializer.getJSON(this._baseUrl+'api/txs/?address='+address, function (response,status) {
+    this._relayManager.relayLog("Chain Relay :: " + this._name + " :: requested txCount for :: " + addresses);
+
+    var requestString = this._baseUrl + 'api/addrs/' + addresses + "/txs";
+
+    this._relayManager.relayLog("relay :: " + this._name + " :: requesting :: " + requestString);
+
+    RequestSerializer.getJSON(requestString, function (response,status) {
         var txCount = -1;
 
-        if(status==='error'){
-            self._relayManager.relayLog("Chain Relay :: Cannot get txCount : No connection with "+ this._name);
+        if (status === 'error') {
+            self._relayManager.relayLog("Chain Relay :: Cannot get txCount : No connection with " + self._name);
+        } else {
+            txCount = response.totalItems;
+//            console.log("found :: " + JSON.stringify(response));
         }
-        else if(response.txs.length) {
-            txCount = response.txs.length;
-            self._relayManager.relayLog("Chain Relay :: " + self._name+" Tx Count :"+txCount);
-        }
-        else{
-            self._relayManager.relayLog("Chain Relay :: " + self._name+" cannot get Tx Count ");
-        }
+//        else if(response.txs.length) {
+//            txCount = response.txs.length;
+//            self._relayManager.relayLog("Chain Relay :: " + self._name+" Tx Count :"+txCount);
+//        }
+//        else{
+//            self._relayManager.relayLog("Chain Relay :: " + self._name+" cannot get Tx Count ");
+//        }
 
         callback(status, txCount);
     },true);
 }
 
-BTCBlockExplorerRelay.prototype.getTxDetails  = function(txHash, callback) {
+BTCBlockExplorerRelay.prototype.getTxDetails  = function(txHashes, callback) {
     var self = this;
 
-    this._relayManager.relayLog("Chain Relay :: " + this._name+" - Requested tx details for "+txHash);
-    console.log(this._baseUrl+'api/tx/'+txHash);
+    this._relayManager.relayLog("Chain Relay :: " + this._name + " :: requested tx details for :: " + txHashes);
 
-    RequestSerializer.getJSON(this._baseUrl+'api/tx/'+txHash, function (response,status) {
-//        console.log("response :: " + JSON.stringify(response) + " :: status :: " + status);
-        var txDetails = null;
+    var txDetailsStatus = {numHashesTotal: txHashes.length, numHashesProcessed: 0, allHashes: txHashes, numHashRequestsSucceeded: 0, allTxDetails: []};
 
-        if(status==='error'){
-            self._relayManager.relayLog("Chain Relay :: Cannot get tx details : No connection with "+ self._name);
-        }
-        else {
-            self._relayManager.relayLog("Chain Relay :: " + self._name+" Tx Details Raw response:"+JSON.stringify(response));
+    for (var i = 0; i < txHashes.length; i++) {
+        var curHash = txHashes[i];
 
-            txDetails = self.getTxDetailsParse(response);
-        }
+        var requestString = this._baseUrl + 'api/tx/' + curHash;
 
-        callback(status, txDetails);
-    },true);
+        this._relayManager.relayLog("relay :: " + this._name + " :: requesting :: " + requestString);
+
+        var passthroughParams = {curHash: curHash, txDetailsStatus: txDetailsStatus};
+
+        RequestSerializer.getJSON(requestString, function (response, status, passthroughParams) {
+            //        console.log("response :: " + JSON.stringify(response) + " :: status :: " + status);
+            if (status==='error') {
+                self._relayManager.relayLog("Chain Relay :: Cannot get tx details : No connection with "+ self._name);
+            } else {
+
+                self._relayManager.relayLog("Chain Relay :: " + self._name + " :: Tx Details Raw response :: " + JSON.stringify(response));
+
+                var txDetails = self.getTxDetailsParse(response);
+
+                passthroughParams.txDetailsStatus.numHashRequestsSucceeded++;
+                passthroughParams.txDetailsStatus.numHashesProcessed++;
+                passthroughParams.txDetailsStatus.allTxDetails.push(txDetails);
+
+                if (passthroughParams.txDetailsStatus.numHashesProcessed === passthroughParams.txDetailsStatus.numHashesTotal) {
+                    var finalStatus = "success";
+
+                    if (passthroughParams.txDetailsStatus.numHashRequestsSucceeded !== passthroughParams.txDetailsStatus.numHashesTotal) {
+                        finalStatus = "error";
+                    }
+
+                    passthroughParams.txDetailsStatus.allTxDetails.sort(function(a, b) {
+                       return a.txid > b.txid;
+                    });
+
+                    callback(finalStatus, passthroughParams.txDetailsStatus.allTxDetails);
+                }
+            }
+        }, true, passthroughParams);
+    }
 }
 
 BTCBlockExplorerRelay.prototype.getTxDetailsParse = function(primaryTxDetailData) {
 //    console.log(primaryTxDetailData)
 
-    var outputs = [],
-        input = [];
+    var outputs = [];
+    var inputs = [];
 
     for (i = 0; i < primaryTxDetailData.vout.length; i++) {
         var output = primaryTxDetailData.vout[i];
@@ -156,24 +266,29 @@ BTCBlockExplorerRelay.prototype.getTxDetailsParse = function(primaryTxDetailData
         });
     }
 
-    input.push({
-        address: primaryTxDetailData.vin[0].addr,
-        amount: primaryTxDetailData.vin[0].value.toString(),
-        previousTxid: primaryTxDetailData.vin[0].txid,
-        previousIndex: primaryTxDetailData.vin[0].vout,
-        standard: !(primaryTxDetailData.vin[0].scriptSig === 'null')
-    })
+    for (i = 0; i < primaryTxDetailData.vin.length; i++) {
+        var input = primaryTxDetailData.vin[i];
+
+        inputs.push({
+            address: input.addr,
+            amount: parseFloat(-input.value).toFixed(8),
+            index: i,
+            previousTxid: input.txid,
+            previousIndex: input.vout,
+            standard: !(input.scriptSig === 'null')
+        })
+    }
 
     var tx = {
         txid: primaryTxDetailData.txid,
         block: primaryTxDetailData.blockheight,
         confirmations: primaryTxDetailData.confirmations,
         time_utc: primaryTxDetailData.time,
-        inputs: input,
+        inputs: inputs,
         outputs: outputs
 
     }
-    console.log(tx)
+//    console.log(tx)
     return tx;
 }
 

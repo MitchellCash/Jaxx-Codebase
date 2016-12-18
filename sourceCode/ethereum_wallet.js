@@ -1236,19 +1236,9 @@ EthereumWallet.prototype.refresh = function(callback) {
   Async call to etherscan
   var contract = "0xf45717552f12ef7cb65e95476f217ea008167ae3";
   var person = "0x18e113d8177c691a61be785852fa5bb47aeebdaf";
-  isSmartContractQuery(contract);
-  isSmartContractQuery(person);
+  checkIsSmartContractQuery(contract);
+  checkIsSmartContractQuery(person);
 */
-
-
-//function isSmartContractCallback(ETHaddress,hasCode){
-//    if(hasCode){
-//        console.log('0x' + ETHaddress+' is a contract');
-//    }
-//    else {
-//        console.log('0x' +ETHaddress+' is NOT the address of a contract');
-//    }
-//}
 
 EthereumWallet.prototype.hasCachedAddressAsContract = function(address) {
     if (this._addressTypeMap[address]) {
@@ -1277,45 +1267,20 @@ EthereumWallet.prototype.checkIsSmartContractQuery = function(address, callback)
         if (!data) {
             var errStr = "failed to get address info from :: " + url + " :: " + data;
             callback(errStr, null);
-        }
-
-        //@note: contractCode here results in *only* "0x" if it's not a contract, and the full code if it is.
-        var contractCode = data.result;
-        if (contractCode === '0x') {
-            self._addressTypeMap[address] = false;
-            callback(null, false);
         } else {
-            self._addressTypeMap[address] = true;
-            callback(null, true);
+            //@note: contractCode here results in *only* "0x" if it's not a contract, and the full code if it is.
+            var contractCode = data.result;
+            if (contractCode === '0x') {
+                self._addressTypeMap[address] = false;
+                callback(null, false);
+            } else {
+                self._addressTypeMap[address] = true;
+                callback(null, true);
+            }
         }
     });
 }
 
-/* this is the equivalent using ether.camp
-function isSmartContractQueryEthercamp(ETHaddress)
-{
-    //Remove 0x
-    if(ETHaddress.substr(0, 2) == '0x'){
-        ETHaddress = ETHaddress.substr(2);
-    }
-
-    //Check validity
-    if(ETHaddress.length != 40){
-      console.log("Invalid Address :"+ETHaddress);
-      return ;
-    }
-
-    var url = "https://state.ether.camp/api/v1/accounts/" + ETHaddress;
-
-    RequestSerializer.getJSON(url, function (data) {
-            if (!data) {
-                console.log('Failed to get address info from :'+url, data);
-                isSmartContractCallback(ETHaddress,null)
-            }
-            isSmartContractCallback(ETHaddress,data.code)
-        });
-}
-*/
 
 // -----------------------END ETH smartcontract detection
 

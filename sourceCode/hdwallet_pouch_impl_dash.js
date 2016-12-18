@@ -4,6 +4,29 @@ var HDWalletPouchDash = function() {
     this._pouchManager = null;
 }
 
+HDWalletPouchDash.uiComponents = {
+    coinFullName: 'Dash',
+    coinFullDisplayName: 'Dash',
+    coinSymbol: '\u2145',
+    coinButtonSVGName: 'dash-here',
+    coinLargePngName: '.imgDASH',
+    coinButtonName: '.imageLogoBannerDASH',
+    coinSpinnerElementName: '.imageDashWash',
+    coinDisplayColor: '#1C75BC',
+    csvExportField: '.backupPrivateKeyListDASH',
+    transactionsListElementName: '.transactionsDash',
+    transactionTemplateElementName: '.transactionDash',
+    accountsListElementName: '.accountDataTableDash',
+    accountTemplateElementName: '.accountDataDash',
+    displayNumDecimals: 8,
+};
+
+HDWalletPouchDash.pouchParameters = {
+    coinHDType: 5,
+    coinIsTokenSubtype: false,
+    coinAbbreviatedName: 'DASH'
+};
+
 HDWalletPouchDash.networkDefinitionMainNet = {
     messagePrefix: '\x19DarkCoin Signed Message:\n',
     bip32: {
@@ -46,6 +69,15 @@ HDWalletPouchDash.getCoinAddress = function(node) {
 
     //        console.log("[dash] address :: " + address);
     return address;
+}
+
+HDWalletPouchDash.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType) {
+    var coinAmount = 0;
+
+    var duff = wallet.getHelper().convertFiatToBitcoinLikeSmallUnit(COIN_DASH, fiatAmount);
+    coinAmount = (coinUnitType === COIN_UNITLARGE) ? HDWalletHelper.convertSatoshisToBitcoins(duff) : duff;
+
+    return coinAmount;
 }
 
 HDWalletPouchDash.prototype.initialize = function(pouchManager) {
@@ -212,7 +244,7 @@ HDWalletPouchDash.prototype.calculateHistoryforTransaction = function(transactio
         txid: transaction.txid
     };
 
-    console.log("adding new history item :: " + JSON.stringify(newHistoryItem));
+//    console.log("adding new history item :: " + JSON.stringify(newHistoryItem));
 
     return newHistoryItem;
 }
@@ -670,7 +702,7 @@ HDWalletPouchDash.prototype.sendDashTransaction = function(transaction, callback
     var mockTx = transaction._kkMockTx;
     var txid = mockTx.txid;
 
-    this.log('Sending Transaction:', txid, transaction, transaction.toHex(), mockTx);
+    console.log('Sending Transaction:', txid, transaction, transaction.toHex(), mockTx);
 
     if (this._pouchManager._transactions[txid]) {
         throw new Error('What?!'); //TODO ask richard what is this
@@ -703,44 +735,188 @@ HDWalletPouchDash.prototype.sendDashTransaction = function(transaction, callback
 
         callback(status, data);
     }, true, null);
-
-//    $.ajax(requestUrl, {
-//        complete: function(ajaxRequest, status) {
-//            console.log("ajaxRequest :: " + JSON.stringify(ajaxRequest) + " :: status :: " + status);
-//            var response;
-//            var responseText;
-//            if (status === 'success') {
-//                response = '{"status": "success"}';
-//            }
-//            else {
-//                responseText = JSON.stringify(ajaxRequest.responseText)
-//                response = '{"status": "fail" , "message": ' + responseText + '}';
-//            }
-//
-//            callback(status, JSON.parse(response));
-//        },
-//        contentType: 'application/x-www-form-urlencoded',
-//        data: ('{"rawtx": "' + txHex + '"}'),
-//        type: 'POST'
-//    });
-
-//    btcRelays.getCurrentRelay().pushRawTx(transaction.toHex(), function (response){
-//        console.log("send tx response :: " + JSON.stringify(response));
-//        if(response.status === 'success'){
-//            self._pouchManager._transactions[txid].status = 'success';
-//            self._pouchManager._notify();
-//        }
-//        else if (self._pouchManager._transactions[txid].status !== 'success') {
-//            delete self._pouchManager._transactions[txid];
-//            self._pouchManager._notify();
-//        }
-//
-//        self.log(response);
-//        if (callback) {
-//            callback(response.status, transaction);
-//        }
-//    });
 }
 
 HDWalletPouchDash.prototype.afterWorkerCacheInvalidate = function() {
+}
+
+HDWalletPouchDash.prototype.prepareSweepTransaction = function(privateKey, callback) {
+    //@note: @todo: finish this function.
+
+//    console.log("error :: dash implementation of prepareSweepTransaction is incomplete.");
+//    return false;
+
+    // Function is called when:
+    // The user enters their private key from a paper wallet and presses the 'Next' button.
+    // Returns:
+    // true if the bitcoins from the wallet with the given 'privateKey' could be successfully imported.
+    var keypair = null;
+    try { // This fills the variable keypair with an ECPair
+        keypair = thirdparty.bitcoin.ECPair.fromWIF(privateKey, HDWalletPouchDash.networkDefinitionMainNet);
+        console.log("trying to fetch for address :: " + keypair.getAddress());
+    } catch (err) {
+        return false;
+    }
+
+    var prepareTransaction = function(error, data) {
+        //@note: dash format
+        //        {"address":"XxZHJcTU5xvTMGPC9uSQGDxcU2LM3zTLc8","txid":"c16144b35119336b47b4197d1c3f50830270775f2182331a536a2a052839d92e","vout":0,"scriptPubKey":"76a914efe4b3c6ee6b17bf29c49173c3ebf878e6e225d088ac","amount":0.0123,"satoshis":1230000,"confirmations":0,"ts":1473213056},{"address":"XxZHJcTU5xvTMGPC9uSQGDxcU2LM3zTLc8","txid":"af7a2bf5cb0ad5d318479288b1cd3ada0e1404a50ff04bb30c517e9efab86e1f","vout":1,"scriptPubKey":"76a914efe4b3c6ee6b17bf29c49173c3ebf878e6e225d088ac","amount":0.08,"satoshis":8000000,"height":532822,"confirmations":18}
+        //        console.log("prepareTransaction :: " + status + " :: " + JSON.stringify(data));
+
+        //@note: @here: @todo: @next: get this working.. no idea what the issue is thus far. also, if there's only one object returned it'll need to be made into a single object array as it seems to return a dictionary in that case.
+
+        var result = {};
+
+        if ((error && error !== "success") || !data) {
+            callback(new Error(JSON.stringify(data)), null);
+            return;
+        }
+
+//        data = data.join(",");
+
+        var mockTx = {
+            block: -1,
+            confirmations: 0,
+            inputs: [],
+            outputs: [],
+            timestamp: (new Date()).getTime(),
+            txid: null,
+        }
+
+        var toSpend = [];
+        var totalValue = 0;
+        for (var i = 0; i < data.length; i++) {
+            var tx = data[i];
+            var value = HDWalletHelper.convertBitcoinsToSatoshis(tx.amount);
+
+            toSpend.push({
+                amount: value,
+                confirmations: tx.confirmations,
+                index: i,
+                txid: tx.txid,
+
+                //Keys for BIP 0069 sorting library
+                vout: i,
+                txId: tx.txid,
+            });
+            mockTx.inputs.push({
+                address: "notmyaddress",
+                addressIndex: null,
+                addressInternal: null,
+                amount: -value,
+                previousIndex: tx.vout,
+                previousTxid: tx.txid,
+                standard: true,
+            })
+            totalValue += value;
+        }
+
+        //
+
+        toSpend = thirdparty.bip69.sortInputs(toSpend);
+
+        var signedTransaction = null;
+
+        var transactionFee = wallet.getPouchFold(COIN_DASH).getDefaultTransactionFee();
+
+        //        console.log("sweep bitcoin :: totalValue :: " + totalValue + " :: transactionFee :: " + transactionFee);
+        if (transactionFee >= totalValue) {
+            console.log(JSON.stringify(callback));
+
+            callback(new Error("the balance is lower than tx fee : " + HDWalletHelper.convertSatoshisToBitcoins(transactionFee)), null);
+            return;
+        }
+
+        while ((totalValue - transactionFee) > 0) {
+            var tx = new thirdparty.bitcoin.TransactionBuilder(HDWalletPouchDash.networkDefinitionMainNet);
+            tx.addOutput(wallet.getPouchFold(COIN_DASH).getCurrentChangeAddress(), totalValue - transactionFee);
+
+            for (var i = 0; i < toSpend.length; i++) {
+                var utxo = toSpend[i];
+                tx.addInput(utxo.txid, utxo.index);
+            }
+
+            var unsignedTransaction = tx.buildIncomplete();
+            var size = unsignedTransaction.toHex().length / 2 + unsignedTransaction.ins.length * 107;
+            var targetTransactionFee = Math.ceil(size / 1024) * wallet.getPouchFold(COIN_DASH).getDefaultTransactionFee();
+
+            if (targetTransactionFee <= transactionFee) {
+                for (var i = 0; i < toSpend.length; i++) {
+                    tx.sign(i, keypair);
+                }
+
+                signedTransaction = tx.build();
+                break;
+            }
+
+            // Add at least enough tx fee to cover our size thus far (adding tx may increase fee)
+            while (targetTransactionFee > transactionFee) {
+                transactionFee += wallet.getPouchFold(COIN_DASH).getDefaultTransactionFee();
+            }
+        }
+
+        if (!signedTransaction) {
+            callback(new Error("Unsigned Transaction"), null);
+            return;
+        }
+
+        // We get the txid in big endian... *sigh*
+        var txidBig = signedTransaction.getHash().toString('hex');
+        var txid = '';
+        for (var i = txidBig.length - 2; i >= 0; i-= 2) {
+            txid += txidBig.substring(i, i + 2);
+        }
+        mockTx.txid = txid;
+
+        mockTx.outputs.push({
+            address: wallet.getPouchFold(COIN_DASH).getCurrentChangeAddress(),
+            addressIndex: wallet.getPouchFold(COIN_DASH).getCurrentChangeIndex(),
+            addressInternal: true,
+            confirmations: 0,
+            index: 0,
+            spent: false,
+            standard: true,
+            timestamp: mockTx.timestamp,
+            amount: (totalValue - transactionFee),
+            txid: txid,
+        });
+
+        signedTransaction._kkMockTx = mockTx;
+
+        callback(null, {
+            signedTransaction: signedTransaction,
+            totalValue: HDWalletHelper.convertSatoshisToBitcoins(totalValue),
+            transactionFee: transactionFee,
+        });
+    }
+
+
+    var relay_url = "http://api.jaxx.io:2052/insight-api-dash";
+
+    var utxo_url = "/addr/";
+    var utxo_url_append = "/utxo";
+
+    var requestUrl = relay_url + utxo_url + keypair.getAddress() + utxo_url_append;
+
+    console.log("requestUrl :: " + requestUrl);
+
+    RequestSerializer.getJSON(requestUrl, function(data, status, passThrough) {
+        console.log("dash getutxo post :: received status :: " + status + " :: data :: " + JSON.stringify(data));
+
+        prepareTransaction(status, data);
+    }, true, null);
+
+
+
+//    g_JaxxApp.getBitcoinRelays().getUTXO(keypair.getAddress(), prepareTransaction); // Code for new relay system
+
+    return true;
+}
+
+HDWalletPouchDash.prototype.fromChecksumAddress = function(address) {
+    return address;
+}
+
+HDWalletPouchDash.prototype.toChecksumAddress = function(address) {
+    return address;
 }

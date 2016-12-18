@@ -2,6 +2,8 @@ var HDWalletPouchDash = function() {
     this._doDebug = true;
 
     this._pouchManager = null;
+
+    this._baseFormatCoinType = COIN_DASH;
 }
 
 HDWalletPouchDash.uiComponents = {
@@ -919,4 +921,8 @@ HDWalletPouchDash.prototype.fromChecksumAddress = function(address) {
 
 HDWalletPouchDash.prototype.toChecksumAddress = function(address) {
     return address;
+}
+
+HDWalletPouchDash.prototype.getBaseCoinAddressFormatType = function() {
+    return this._baseFormatCoinType;
 }

@@ -2,6 +2,8 @@ var HDWalletPouchBitcoin = function() {
     this._doDebug = true;
 
     this._pouchManager = null;
+
+    this._baseFormatCoinType = COIN_BITCOIN;
 }
 
 
@@ -850,4 +852,8 @@ HDWalletPouchBitcoin.prototype.fromChecksumAddress = function(address) {
 
 HDWalletPouchBitcoin.prototype.toChecksumAddress = function(address) {
     return address;
+}
+
+HDWalletPouchBitcoin.prototype.getBaseCoinAddressFormatType = function() {
+    return this._baseFormatCoinType;
 }

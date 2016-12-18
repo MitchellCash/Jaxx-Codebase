@@ -1385,3 +1385,8 @@ HDWalletPouch.prototype.prepareSweepTransaction = function(privateKey, callback)
 HDWalletPouch.prototype.convertFiatToCoin = function(fiatAmount, coinUnitType){
     return this.getPouchFoldImplementation().convertFiatToCoin(fiatAmount, coinUnitType);
 }
+
+HDWalletPouch.prototype.getBaseCoinAddressFormatType = function() {
+    //@note: gets the basic format of the addresses. ethereum === ethereum_classic for example.
+    return this.getPouchFoldImplementation().getBaseCoinAddressFormatType();
+}

@@ -19,8 +19,6 @@ var HDWalletHelper = function() {
 
     this._exchangeRateListenerCallbacks = [];
     this._exchangeRatesHasChanged = {};
-
-    this._
 }
 
 HDWalletHelper.theDAOAddress = "0xbb9bc244d798123fde783fcc1c72d3bb8c189413";
@@ -256,18 +254,21 @@ HDWalletHelper.prototype.initialize = function() {
         this._loadExchangeRates();
 
 //        console.log("_updateExchangeRateTime :: " + this._updateExchangeRateTime);
-        setInterval(function(curCoinType) {
-//            console.log("check :: " + curCoinType);
-            self._updateExchangeRates();
-        }, self._updateExchangeRateTime);
 
-        self._updateExchangeRates();
+
+        //self._updateExchangeRates();
 
 
     }
+
+    setInterval(function() {
+        self._updateExchangeRates();
+    }, self._updateExchangeRateTime);
 }
 
 HDWalletHelper.prototype._updateExchangeRates = function(){
+    console.log('Running :: _updateExchangeRates called');
+
     var self = this;
 
     RequestSerializer.getJSON("https://api.bitcoinaverage.com/ticker/global/all", function (tickerData) {
@@ -295,6 +296,7 @@ HDWalletHelper.prototype._updateExchangeRates = function(){
 
         RequestSerializer.getJSON("https://poloniex.com/public?command=returnTicker", function (tickerData) {
             for (var coinTypeCounter = 0; coinTypeCounter < COIN_NUMCOINTYPES; coinTypeCounter++){
+                console.log('Exchange Rate Log :: _updateExchangeRates called and inside loop with coinType: ' + coinTypeCounter);
                 if (coinTypeCounter === COIN_BITCOIN) {
                     // Do nothing.
                 } else {
@@ -579,6 +581,7 @@ HDWalletHelper.prototype._saveExchangeRates = function() {
 }
 
 HDWalletHelper.prototype._notifyExchangeRateListeners = function(coinType) {
+    console.log('Exchange Rate Log :: _notifyExchangeRateListeners called with coinType' + coinType);
     for (var i = 0; i < this._exchangeRateListenerCallbacks[coinType].length; i++) {
         this._exchangeRateListenerCallbacks[coinType][i](coinType);
     }

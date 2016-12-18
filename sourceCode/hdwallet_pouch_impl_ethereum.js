@@ -7,6 +7,8 @@ var HDWalletPouchEthereum = function() {
 
     this._hasFinishedFinalBalanceUpdate = false;
     this._overrideIgnoreEtcEthSplit = false;
+
+    this._baseFormatCoinType = COIN_ETHEREUM;
 }
 
 HDWalletPouchEthereum.uiComponents = {
@@ -1174,4 +1176,8 @@ HDWalletPouchEthereum.prototype.determineEtcSplit = function(baseTXCost, etcAcco
     g_JaxxApp.getUI().showEtcEthSplitModal(baseTXCost, balancesTransferrable);
 
 //    console.log("eth/etc split :: balancesTransferrable :: " + JSON.stringify(balancesTransferrable, null, 4));
+}
+
+HDWalletPouchEthereum.prototype.getBaseCoinAddressFormatType = function() {
+    return this._baseFormatCoinType;
 }

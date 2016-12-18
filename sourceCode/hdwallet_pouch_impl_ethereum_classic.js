@@ -4,6 +4,8 @@ var HDWalletPouchEthereumClassic = function() {
     this._pouchManager = null;
 
     this._ethAddressTypeMap = {};
+
+    this._baseFormatCoinType = COIN_ETHEREUM;
 }
 
 HDWalletPouchEthereumClassic.uiComponents = {
@@ -1084,4 +1086,8 @@ HDWalletPouchEthereumClassic.prototype.checkIsSmartContractQuery = function(addr
             }
         }
     });
+}
+
+HDWalletPouchEthereumClassic.prototype.getBaseCoinAddressFormatType = function() {
+    return this._baseFormatCoinType;
 }
